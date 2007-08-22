@@ -8,7 +8,7 @@ Generic XMPP protocol helpers.
 from zope.interface import implements
 
 from twisted.internet import defer
-from twisted.words.protocols.jabber import error, xmlstream
+from twisted.words.protocols.jabber import error
 
 from wokkel import disco
 from wokkel.iwokkel import IDisco

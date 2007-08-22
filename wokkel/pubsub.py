@@ -13,12 +13,12 @@ U{XEP-0060<http://www.xmpp.org/extensions/xep-0060.html>}.
 from zope.interface import implements
 
 from twisted.internet import defer
-from twisted.words.protocols.jabber import jid, error
+from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
 from wokkel import disco, data_form
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
-from wokkel.iwokkel import IPubSubService
+from wokkel.iwokkel import IPubSubClient, IPubSubService
 
 # Iq get and set XPath queries
 IQ_GET = '/iq[@type="get"]'
@@ -70,10 +70,31 @@ PUBSUB_PURGE = PUBSUB_OWNER_SET + '/purge' + IN_NS_PUBSUB_OWNER
 PUBSUB_DELETE = PUBSUB_OWNER_SET + '/delete' + IN_NS_PUBSUB_OWNER
 
 class BadRequest(error.StanzaError):
+    """
+    Bad request stanza error.
+    """
     def __init__(self):
         error.StanzaError.__init__(self, 'bad-request')
 
+
+
+class SubscriptionPending(Exception):
+    """
+    Raised when the requested subscription is pending acceptance.
+    """
+
+
+class SubscriptionUnconfigured(Exception):
+    """
+    Raised when the requested subscription needs to be configured before
+    becoming active.
+    """
+
+
 class PubSubError(error.StanzaError):
+    """
+    Exception with publish-subscribe specific condition.
+    """
     def __init__(self, condition, pubsubCondition, feature=None, text=None):
         appCondition = domish.Element((NS_PUBSUB_ERRORS, pubsubCondition))
         if feature:
@@ -82,6 +103,7 @@ class PubSubError(error.StanzaError):
                                          text=text,
                                          appCondition=appCondition)
 
+
 class Unsupported(PubSubError):
     def __init__(self, feature, text=None):
         PubSubError.__init__(self, 'feature-not-implemented',
@@ -89,9 +111,169 @@ class Unsupported(PubSubError):
                                    feature,
                                    text)
 
+
 class OptionsUnavailable(Unsupported):
     def __init__(self):
         Unsupported.__init__(self, 'subscription-options-unavailable')
+
+
+class Item(domish.Element):
+    """
+    Publish subscribe item.
+
+    This behaves like an object providing L{domish.IElement}.
+
+    Item payload can be added using C{addChild} or C{addRawXml}, or using the
+    C{payload} keyword argument to C{__init__}.
+    """
+
+    def __init__(self, id=None, payload=None):
+        """
+        @param id: optional item identifier
+        @type id: L{unicode}
+        @param payload: optional item payload. Either as a domish element, or
+                        as serialized XML.
+        @type payload: object providing L{domish.IElement} or L{unicode}.
+        """
+
+        domish.Element.__init__(self, (None, 'item'))
+        if id is not None:
+            self['id'] = id
+        if payload is not None:
+            if isinstance(payload, basestring):
+                self.addRawXml(payload)
+            else:
+                self.addChild(payload)
+
+class PubSubRequest(xmlstream.IQ):
+    """
+    Base class for publish subscribe user requests.
+
+    @cvar namespace: request namespace
+    @cvar verb: request verb
+    @cvar method: type attribute of the IQ request. Either C{'set'} or C{'get'}
+    @ivar command: command element of the request. This is the direct child of
+                   the C{pubsub} element in the C{namespace} with the name
+                   C{verb}.
+    """
+
+    namespace = NS_PUBSUB
+    method = 'set'
+
+    def __init__(self, xs):
+        xmlstream.IQ.__init__(self, xs, self.method)
+        self.addElement((self.namespace, 'pubsub'))
+
+        self.command = self.pubsub.addElement(self.verb)
+
+    def send(self, to):
+        destination = unicode(to)
+        return xmlstream.IQ.send(self, destination)
+
+class CreateNode(PubSubRequest):
+    verb = 'create'
+
+    def __init__(self, xs, node=None):
+        PubSubRequest.__init__(self, xs)
+        if node:
+            self.command["node"] = node
+
+class DeleteNode(PubSubRequest):
+    verb = 'delete'
+    def __init__(self, xs, node):
+        PubSubRequest.__init__(self, xs)
+        self.command["node"] = node
+
+class Subscribe(PubSubRequest):
+    verb = 'subscribe'
+
+    def __init__(self, xs, node, subscriber):
+        PubSubRequest.__init__(self, xs)
+        self.command["node"] = node
+        self.command["jid"] = subscriber.full()
+
+class Publish(PubSubRequest):
+    verb = 'publish'
+
+    def __init__(self, xs, node):
+        PubSubRequest.__init__(self, xs)
+        self.command["node"] = node
+
+    def addItem(self, id=None, payload=None):
+        item = self.command.addElement("item")
+        item.addChild(payload)
+
+        if id is not None:
+            item["id"] = id
+
+        return item
+
+class PubSubClient(XMPPHandler):
+    """
+    Publish subscribe client protocol.
+    """
+
+    implements(IPubSubClient)
+
+    def connectionInitialized(self):
+        self.xmlstream.addObserver('/message/event[@xmlns="%s"]/items' %
+                                   NS_PUBSUB_EVENT, self._onItems)
+
+    def _onItems(self, message):
+        try:
+            notifier = jid.JID(message["from"])
+            node = message.event.items["node"]
+        except KeyError:
+            return
+
+        items = [element for element in message.event.items.elements()
+                         if element.name == 'item']
+
+        self.itemsReceived(notifier, node, items)
+
+    def itemsReceived(self, notifier, node, items):
+        pass
+
+    def createNode(self, service, node=None):
+        request = CreateNode(self.xmlstream, node)
+
+        def cb(iq):
+            try:
+                new_node = iq.pubsub.create["node"]
+            except AttributeError:
+                # the suggested node identifier was accepted
+                new_node = node
+            return new_node
+
+        return request.send(service).addCallback(cb)
+
+    def deleteNode(self, service, node):
+        return DeleteNode(self.xmlstream, node).send(service)
+
+    def subscribe(self, service, node, subscriber):
+        request = Subscribe(self.xmlstream, node, subscriber)
+
+        def cb(iq):
+            subscription = iq.pubsub.subscription["subscription"]
+
+            if subscription == 'pending':
+                raise SubscriptionPending
+            elif subscription == 'unconfigured':
+                raise SubscriptionUnconfigured
+            else:
+                # we assume subscription == 'subscribed'
+                # any other value would be invalid, but that should have
+                # yielded a stanza error.
+                return None
+
+        return request.send(service).addCallback(cb)
+
+    def publish(self, service, node, items=[]):
+        request = Publish(self.xmlstream, node)
+        for item in items:
+            request.command.addChild(item)
+
+        return request.send(service)
 
 class PubSubService(XMPPHandler, IQHandlerMixin):
     """
@@ -214,9 +396,9 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             raise BadRequest
 
         items = []
-        for child in iq.pubsub.publish.children:
-            if child.__class__ == domish.Element and child.name == 'item':
-                items.append(child)
+        for element in iq.pubsub.publish.elements():
+            if element.uri == NS_PUBSUB and element.name == 'item':
+                items.append(element)
 
         return self.publish(requestor, nodeIdentifier, items)
 

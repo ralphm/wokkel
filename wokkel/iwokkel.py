@@ -89,6 +89,72 @@ class IDisco(Interface):
         @type nodeIdentifier: C{unicode}
         """
 
+
+class IPubSubClient(Interface):
+
+    def itemsReceived(notifier, node, items):
+        """
+        Called when items have been received from a node.
+
+        @param notifier: the entity from which the notification was received.
+        @type notifier: L{jid.JID}
+        @param node: identifier of the node the items belong to.
+        @type node: C{unicode}
+        @param items: list of received items as domish elements.
+        @type items: C{list} of L{domish.Element}
+        """
+
+    def createNode(node=None):
+        """
+        Create a new publish subscribe node.
+
+        @param node: optional suggestion for the new node's identifier. If
+                     omitted, the creation of an instant node will be
+                     attempted.
+        @type node: L{unicode}
+        @return: a deferred that fires with the identifier of the newly created
+                 node. Note that this can differ from the suggested identifier
+                 if the publish subscribe service chooses to modify or ignore
+                 the suggested identifier.
+        @rtype: L{defer.Deferred}
+        """
+
+    def deleteNode(node):
+        """
+        Delete a node.
+
+        @param node: identifier of the node to be deleted.
+        @type node: L{unicode}
+        @rtype: L{defer.Deferred}
+        """
+
+    def subscribe(node, subscriber):
+        """
+        Subscribe to a node with a given JID.
+
+        @param node: identifier of the node to subscribe to.
+        @type node: L{unicode}
+        @param subscriber: JID to subscribe to the node.
+        @type subscriber: L{jid.JID}
+        @rtype: L{defer.Deferred}
+        """
+
+    def publish(requestor, node, items=[]):
+        """
+        Publish to a node.
+
+        Node that the C{items} parameter is optional, because so-called
+        transient, notification-only nodes do not use items and publish
+        actions only signify a change in some resource.
+
+        @param node: identifier of the node to publish to.
+        @type node: L{unicode}
+        @param items: list of item elements.
+        @type items: L{list} of L{Item}
+        @rtype: L{defer.Deferred}
+        """
+
+
 class IPubSubService(Interface):
     """
     Interface for an XMPP Publish Subscribe Service.
