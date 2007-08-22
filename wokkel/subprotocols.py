@@ -15,10 +15,18 @@ from twisted.words.protocols.jabber import error, xmlstream
 from twisted.words.xish import xpath
 from twisted.words.xish.domish import IElement
 
-from wokkel.iwokkel import IXMPPHandler
+from wokkel.iwokkel import IXMPPHandler, IXMPPHandlerCollection
 
 class XMPPHandler(object):
     implements(IXMPPHandler)
+
+    def setHandlerParent(self, parent):
+        self.parent = parent
+        self.parent.addHandler(self)
+
+    def disownHandlerParent(self, parent):
+        self.parent.removeHandler(self)
+        self.parent = None
 
     def makeConnection(self, xs):
         self.xmlstream = xs
@@ -48,12 +56,24 @@ class XMPPHandler(object):
                     object providing L{domish.IElement}, or serialized XML. See
                     L{xmlstream.XmlStream} for details.
         """
-        self.manager.send(obj)
+        self.parent.send(obj)
 
-class XMPPHandlerContainer(object):
+
+class XMPPHandlerCollection(object):
     """
-    Container for XMPP subprotocol handlers.
+    Collection of XMPP subprotocol handlers.
+
+    This allows for grouping of subprotocol handlers, but is not an
+    L{XMPPHandler} itself, so this is not recursive.
+
+    @ivar xmlstream: Currently managed XML stream.
+    @type xmlstream: L{XmlStream}
+    @ivar handlers: List of protocol handlers.
+    @type handlers: L{list} of objects providing
+                      L{IXMPPHandler}
     """
+
+    implements(IXMPPHandlerCollection)
 
     def __init__(self):
         self.handlers = []
@@ -77,7 +97,6 @@ class XMPPHandlerContainer(object):
         """
 
         self.handlers.append(handler)
-        handler.manager = self
 
         # get protocol handler up to speed when a connection has already
         # been established
@@ -90,10 +109,9 @@ class XMPPHandlerContainer(object):
         Remove protocol handler.
         """
 
-        handler.manager = None
         self.handlers.remove(handler)
 
-class StreamManager(XMPPHandlerContainer):
+class StreamManager(XMPPHandlerCollection):
     """
     Business logic representing a managed XMPP connection.
 
@@ -102,11 +120,6 @@ class StreamManager(XMPPHandlerContainer):
     L{IXMPPHandler} (like subclasses of L{XMPPHandler}), and added
     using L{addHandler}.
 
-    @ivar xmlstream: currently managed XML stream
-    @type xmlstream: L{XmlStream}
-    @ivar handlers: list of protocol handlers
-    @type handlers: L{list} of objects providing
-                      L{IXMPPHandler}
     @ivar logTraffic: if true, log all traffic.
     @type logTraffic: L{bool}
     @ivar _packetQueue: internal buffer of unsent data. See L{send} for details.

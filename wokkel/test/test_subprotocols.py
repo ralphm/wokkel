@@ -21,7 +21,7 @@ class DummyFactory(object):
         self.callbacks[event] = callback
 
 
-class DummyXMPPHandler(object):
+class DummyXMPPHandler(subprotocols.XMPPHandler):
     def __init__(self):
         self.doneMade = 0
         self.doneInitialized = 0
@@ -55,9 +55,9 @@ class XMPPHandlerTest(unittest.TestCase):
                 self.outlist.append(data)
 
         handler = subprotocols.XMPPHandler()
-        handler.manager = DummyStreamManager()
+        handler.parent = DummyStreamManager()
         handler.send('<presence/>')
-        self.assertEquals(['<presence/>'], handler.manager.outlist)
+        self.assertEquals(['<presence/>'], handler.parent.outlist)
 
 
 class StreamManagerTest(unittest.TestCase):
@@ -89,7 +89,7 @@ class StreamManagerTest(unittest.TestCase):
         """
         sm = self.streamManager
         handler = DummyXMPPHandler()
-        sm.addHandler(handler)
+        handler.setHandlerParent(sm)
         xs = xmlstream.XmlStream(xmlstream.Authenticator())
         sm._connected(xs)
         self.assertEquals(1, handler.doneMade)
@@ -103,7 +103,7 @@ class StreamManagerTest(unittest.TestCase):
         """
         sm = self.streamManager
         handler = DummyXMPPHandler()
-        sm.addHandler(handler)
+        handler.setHandlerParent(sm)
         xs = xmlstream.XmlStream(xmlstream.Authenticator())
         sm._authd(xs)
         self.assertEquals(0, handler.doneMade)
@@ -117,7 +117,7 @@ class StreamManagerTest(unittest.TestCase):
         """
         sm = self.streamManager
         handler = DummyXMPPHandler()
-        sm.addHandler(handler)
+        handler.setHandlerParent(sm)
         xs = xmlstream.XmlStream(xmlstream.Authenticator())
         sm._disconnected(xs)
         self.assertEquals(0, handler.doneMade)
@@ -130,9 +130,9 @@ class StreamManagerTest(unittest.TestCase):
         """
         sm = self.streamManager
         handler = DummyXMPPHandler()
-        sm.addHandler(handler)
+        handler.setHandlerParent(sm)
         self.assertIn(handler, sm)
-        self.assertIdentical(sm, handler.manager)
+        self.assertIdentical(sm, handler.parent)
 
         self.assertEquals(0, handler.doneMade)
         self.assertEquals(0, handler.doneInitialized)
@@ -152,7 +152,7 @@ class StreamManagerTest(unittest.TestCase):
         sm._connected(xs)
         sm._authd(xs)
         handler = DummyXMPPHandler()
-        sm.addHandler(handler)
+        handler.setHandlerParent(sm)
 
         self.assertEquals(1, handler.doneMade)
         self.assertEquals(1, handler.doneInitialized)
@@ -164,10 +164,10 @@ class StreamManagerTest(unittest.TestCase):
         """
         sm = self.streamManager
         handler = DummyXMPPHandler()
-        sm.addHandler(handler)
-        sm.removeHandler(handler)
+        handler.setHandlerParent(sm)
+        handler.disownHandlerParent(sm)
         self.assertNotIn(handler, sm)
-        self.assertIdentical(None, handler.manager)
+        self.assertIdentical(None, handler.parent)
 
     def test_sendInitialized(self):
         """

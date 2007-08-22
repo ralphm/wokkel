@@ -18,6 +18,20 @@ class IXMPPHandler(Interface):
     manager = Attribute("""XML stream manager""")
     xmlstream = Attribute("""The managed XML stream""")
 
+    def setHandlerParent(parent):
+        """
+        Set the parent of the handler.
+
+        @type parent: L{IXMPPHandlerCollection}
+        """
+
+    def disownHandlerParent(parent):
+        """
+        Remove the parent of the handler.
+
+        @type parent: L{IXMPPHandlerCollection}
+        """
+
     def makeConnection(xs):
         """
         A connection over the underlying transport of the XML stream has been
@@ -59,6 +73,31 @@ class IXMPPHandler(Interface):
         @type reason: L{twisted.python.failure.Failure}
         """
 
+class IXMPPHandlerCollection(Interface):
+    """
+    Collection of handlers.
+
+    Contain several handlers and manage their connection.
+    """
+
+    def __iter__():
+        """
+        Get an iterator over all child handlers.
+        """
+
+    def addHandler(handler):
+        """
+        Add a child handler.
+
+        @type handler: L{IXMPPHandler}
+        """
+
+    def removeHandler(handler):
+        """
+        Remove a child handler.
+
+        @type handler: L{IXMPPHandler}
+        """
 
 class IDisco(Interface):
     """

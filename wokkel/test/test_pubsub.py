@@ -22,7 +22,7 @@ class PubSubServiceTest(unittest.TestCase):
 
     def test_onPublishNoNode(self):
         handler = pubsub.PubSubService()
-        handler.manager = self
+        handler.parent = self
         iq = domish.Element((None, 'iq'))
         iq['from'] = 'user@example.org'
         iq['type'] = 'set'
@@ -40,7 +40,7 @@ class PubSubServiceTest(unittest.TestCase):
                 self.kwargs = kwargs
 
         handler = Handler()
-        handler.manager = self
+        handler.parent = self
         iq = domish.Element((None, 'iq'))
         iq['type'] = 'set'
         iq['from'] = 'user@example.org'
@@ -53,7 +53,7 @@ class PubSubServiceTest(unittest.TestCase):
 
     def test_onOptionsGet(self):
         handler = pubsub.PubSubService()
-        handler.manager = self
+        handler.parent = self
         iq = domish.Element((None, 'iq'))
         iq['from'] = 'user@example.org'
         iq['type'] = 'get'
