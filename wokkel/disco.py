@@ -68,7 +68,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
     Protocol implementation for XMPP Service Discovery.
 
     This handler will listen to XMPP service discovery requests and
-    query the other handlers in L{manager} (see L{XMPPHandlerContainer}) for
+    query the other handlers in L{parent} (see L{XMPPHandlerContainer}) for
     their identities, features and items according to L{IDisco}.
     """
 
@@ -104,7 +104,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
             return response
 
         dl = []
-        for handler in self.manager:
+        for handler in self.parent:
             if IDisco.providedBy(handler):
                 dl.append(handler.getDiscoInfo(target, requestor,
                                                nodeIdentifier))
@@ -131,7 +131,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
             return response
 
         dl = []
-        for handler in self.manager:
+        for handler in self.parent:
             if IDisco.providedBy(handler):
                 dl.append(handler.getDiscoItems(target, requestor,
                                                 nodeIdentifier))
