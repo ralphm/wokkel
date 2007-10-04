@@ -104,24 +104,28 @@ class IDisco(Interface):
     Interface for XMPP service discovery.
     """
 
-    def getDiscoInfo(target, requestor, nodeIdentifier=None):
+    def getDiscoInfo(requestor, target, nodeIdentifier=None):
         """
         Get identity and features from this entity, node.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param target: The target entity to which the request is made.
+        @type target: L{jid.JID}
         @param nodeIdentifier: The optional identifier of the node at this
                                entity to retrieve the identify and features of.
                                The default is C{None}, meaning the root node.
         @type nodeIdentifier: C{unicode}
         """
 
-    def getDiscoItems(target, requestor, nodeIdentifier=None):
+    def getDiscoItems(requestor, target, nodeIdentifier=None):
         """
         Get contained items for this entity, node.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param target: The target entity to which the request is made.
+        @type target: L{jid.JID}
         @param nodeIdentifier: The optional identifier of the node at this
                                entity to retrieve the identify and features of.
                                The default is C{None}, meaning the root node.
@@ -131,26 +135,30 @@ class IDisco(Interface):
 
 class IPubSubClient(Interface):
 
-    def itemsReceived(notifier, node, items):
+    def itemsReceived(recipient, service, nodeIdentifier, items):
         """
         Called when items have been received from a node.
 
-        @param notifier: the entity from which the notification was received.
-        @type notifier: L{jid.JID}
-        @param node: identifier of the node the items belong to.
-        @type node: C{unicode}
-        @param items: list of received items as domish elements.
+        @param recipient: The entity to which the notification was sent.
+        @type recipient: L{jid.JID}
+        @param service: The entity from which the notification was received.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node the items belong to.
+        @type nodeIdentifier: C{unicode}
+        @param items: List of received items as domish elements.
         @type items: C{list} of L{domish.Element}
         """
 
-    def createNode(node=None):
+    def createNode(service, nodeIdentifier=None):
         """
         Create a new publish subscribe node.
 
-        @param node: optional suggestion for the new node's identifier. If
-                     omitted, the creation of an instant node will be
-                     attempted.
-        @type node: L{unicode}
+        @param service: The publish-subscribe service entity.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Optional suggestion for the new node's
+                               identifier. If omitted, the creation of an
+                               instant node will be attempted.
+        @type nodeIdentifier: L{unicode}
         @return: a deferred that fires with the identifier of the newly created
                  node. Note that this can differ from the suggested identifier
                  if the publish subscribe service chooses to modify or ignore
@@ -158,27 +166,31 @@ class IPubSubClient(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def deleteNode(node):
+    def deleteNode(service, nodeIdentifier):
         """
         Delete a node.
 
-        @param node: identifier of the node to be deleted.
-        @type node: L{unicode}
+        @param service: The publish-subscribe service entity.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node to be deleted.
+        @type nodeIdentifier: L{unicode}
         @rtype: L{defer.Deferred}
         """
 
-    def subscribe(node, subscriber):
+    def subscribe(service, nodeIdentifier, subscriber):
         """
         Subscribe to a node with a given JID.
 
-        @param node: identifier of the node to subscribe to.
-        @type node: L{unicode}
+        @param service: The publish-subscribe service entity.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node to subscribe to.
+        @type nodeIdentifier: L{unicode}
         @param subscriber: JID to subscribe to the node.
         @type subscriber: L{jid.JID}
         @rtype: L{defer.Deferred}
         """
 
-    def publish(requestor, node, items=[]):
+    def publish(service, nodeIdentifier, items=[]):
         """
         Publish to a node.
 
@@ -186,9 +198,11 @@ class IPubSubClient(Interface):
         transient, notification-only nodes do not use items and publish
         actions only signify a change in some resource.
 
-        @param node: identifier of the node to publish to.
-        @type node: L{unicode}
-        @param items: list of item elements.
+        @param service: The publish-subscribe service entity.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node to publish to.
+        @type nodeIdentifier: L{unicode}
+        @param items: List of item elements.
         @type items: L{list} of L{Item}
         @rtype: L{defer.Deferred}
         """
@@ -204,12 +218,12 @@ class IPubSubService(Interface):
     on the returned deferred.
     """
 
-    def notifyPublish(entity, nodeIdentifier, notifications):
+    def notifyPublish(service, nodeIdentifier, notifications):
         """
         Send out notifications for a publish event.
 
-        @param entity: The entity the notifications will originate from.
-        @type entity: L{jid.JID}
+        @param service: The entity the notifications will originate from.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node that was published
                                to.
         @type nodeIdentifier: C{unicode}
@@ -219,12 +233,14 @@ class IPubSubService(Interface):
                              L{domish.Element})
         """
 
-    def publish(requestor, nodeIdentifier, items):
+    def publish(requestor, service, nodeIdentifier, items):
         """
         Called when a publish request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to publish to.
         @type nodeIdentifier: C{unicode}
         @param items: The items to be published as L{domish} elements.
@@ -233,12 +249,14 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def subscribe(requestor, nodeIdentifier, subscriber):
+    def subscribe(requestor, service, nodeIdentifier, subscriber):
         """
         Called when a subscribe request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to subscribe to.
         @type nodeIdentifier: C{unicode}
         @param subscriber: The entity to be subscribed.
@@ -248,12 +266,14 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def unsubscribe(requestor, nodeIdentifier, subscriber):
+    def unsubscribe(requestor, service, nodeIdentifier, subscriber):
         """
         Called when a subscribe request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to unsubscribe from.
         @type nodeIdentifier: C{unicode}
         @param subscriber: The entity to be unsubscribed.
@@ -263,12 +283,14 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def subscriptions(requestor):
+    def subscriptions(requestor, service):
         """
         Called when a subscriptions retrieval request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @return: A deferred that fires with a C{list} of suscriptions as
                  C{tuple}s of (node identifier as C{unicode}, subscriber as
                  L{jid.JID}, subscription state as C{str}). The subscription
@@ -276,12 +298,14 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def affiliations(requestor):
+    def affiliations(requestor, service):
         """
         Called when a affiliations retrieval request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @return: A deferred that fires with a C{list} of affiliations as
                  C{tuple}s of (node identifier as C{unicode}, affiliation state
                  as C{str}). The affiliation can be C{'owner'}, C{'publisher'},
@@ -289,12 +313,14 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def create(requestor, nodeIdentifier):
+    def create(requestor, service, nodeIdentifier):
         """
         Called when a node creation request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The suggestion for the identifier of the node to
                                be created. If the request did not include a
                                suggestion for the node identifier, the value
@@ -305,12 +331,14 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def getDefaultConfiguration(requestor):
+    def getDefaultConfiguration(requestor, service):
         """
         Called when a default node configuration request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @return: A deferred that fires with a C{dict} representing the default
                  node configuration. Keys are C{str}s that represent the
                  field name. Values can be of types C{unicode}, C{int} or
@@ -318,12 +346,14 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def getConfiguration(requestor, nodeIdentifier):
+    def getConfiguration(requestor, service, nodeIdentifier):
         """
         Called when a node configuration retrieval request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to retrieve the
                                configuration from.
         @type nodeIdentifier: C{unicode}
@@ -333,12 +363,14 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def setConfiguration(requestor, nodeIdentifier, options):
+    def setConfiguration(requestor, service, nodeIdentifier, options):
         """
         Called when a node configuration change request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to change the
                                configuration of.
         @type nodeIdentifier: C{unicode}
@@ -347,46 +379,52 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
-    def items(requestor, nodeIdentifier, maxItems, itemIdentifiers):
+    def items(requestor, service, nodeIdentifier, maxItems, itemIdentifiers):
         """
         Called when a items retrieval request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to retrieve items
                                from.
         @type nodeIdentifier: C{unicode}
         """
 
-    def retract(requestor, nodeIdentifier, itemIdentifiers):
+    def retract(requestor, service, nodeIdentifier, itemIdentifiers):
         """
         Called when a item retraction request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to retract items
                                from.
         @type nodeIdentifier: C{unicode}
         """
 
-    def purge(requestor, nodeIdentifier):
+    def purge(requestor, service, nodeIdentifier):
         """
         Called when a node purge request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to be purged.
         @type nodeIdentifier: C{unicode}
         """
 
-    def delete(requestor, nodeIdentifier):
+    def delete(requestor, service, nodeIdentifier):
         """
         Called when a node deletion request has been received.
 
         @param requestor: The entity the request originated from.
         @type requestor: L{jid.JID}
+        @param service: The entity the request was addressed to.
+        @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to be delete.
         @type nodeIdentifier: C{unicode}
         """
-
-

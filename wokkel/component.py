@@ -27,7 +27,7 @@ class Component(StreamManager, service.Service):
         def send(obj):
             if domish.IElement.providedBy(obj) and \
                     not obj.getAttribute('from'):
-                obj['from'] = self.xmlstream.thisHost
+                obj['from'] = self.xmlstream.thisEntity.full()
             old_send(obj)
 
         xs.send = send

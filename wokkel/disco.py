@@ -84,8 +84,8 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         return failure.value.subFailure
 
     def _onDiscoInfo(self, iq):
-        target = jid.internJID(iq["to"])
         requestor = jid.internJID(iq["from"])
+        target = jid.internJID(iq["to"])
         nodeIdentifier = iq.query.getAttribute("node")
 
         def toResponse(results):
@@ -106,7 +106,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         dl = []
         for handler in self.parent:
             if IDisco.providedBy(handler):
-                dl.append(handler.getDiscoInfo(target, requestor,
+                dl.append(handler.getDiscoInfo(requestor, target,
                                                nodeIdentifier))
 
         d = defer.DeferredList(dl, fireOnOneErrback=1, consumeErrors=1)
@@ -114,8 +114,8 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         return d
 
     def _onDiscoItems(self, iq):
-        target = jid.internJID(iq["to"])
         requestor = jid.internJID(iq["from"])
+        target = jid.internJID(iq["to"])
         nodeIdentifier = iq.query.getAttribute("node")
 
         def toResponse(results):
@@ -133,7 +133,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         dl = []
         for handler in self.parent:
             if IDisco.providedBy(handler):
-                dl.append(handler.getDiscoItems(target, requestor,
+                dl.append(handler.getDiscoItems(requestor, target,
                                                 nodeIdentifier))
 
         d = defer.DeferredList(dl, fireOnOneErrback=1, consumeErrors=1)

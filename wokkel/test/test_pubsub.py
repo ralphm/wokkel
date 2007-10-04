@@ -25,6 +25,7 @@ class PubSubServiceTest(unittest.TestCase):
         handler.parent = self
         iq = domish.Element((None, 'iq'))
         iq['from'] = 'user@example.org'
+        iq['to'] = 'pubsub.example.org'
         iq['type'] = 'set'
         iq.addElement(('http://jabber.org/protocol/pubsub', 'pubsub'))
         iq.pubsub.addElement('publish')
@@ -44,18 +45,21 @@ class PubSubServiceTest(unittest.TestCase):
         iq = domish.Element((None, 'iq'))
         iq['type'] = 'set'
         iq['from'] = 'user@example.org'
+        iq['to'] = 'pubsub.example.org'
         iq.addElement(('http://jabber.org/protocol/pubsub', 'pubsub'))
         iq.pubsub.addElement('publish')
         iq.pubsub.publish['node'] = 'test'
         handler.handleRequest(iq)
 
-        self.assertEqual((JID('user@example.org'), 'test', []), handler.args)
+        self.assertEqual((JID('user@example.org'),
+                          JID('pubsub.example.org'), 'test', []), handler.args)
 
     def test_onOptionsGet(self):
         handler = pubsub.PubSubService()
         handler.parent = self
         iq = domish.Element((None, 'iq'))
         iq['from'] = 'user@example.org'
+        iq['to'] = 'pubsub.example.org'
         iq['type'] = 'get'
         iq.addElement(('http://jabber.org/protocol/pubsub', 'pubsub'))
         iq.pubsub.addElement('options')

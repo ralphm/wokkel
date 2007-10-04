@@ -221,37 +221,38 @@ class PubSubClient(XMPPHandler):
 
     def _onItems(self, message):
         try:
-            notifier = jid.JID(message["from"])
-            node = message.event.items["node"]
+            service = jid.JID(message["from"])
+            recipient = jid.JID(message["to"])
+            nodeIdentifier = message.event.items["node"]
         except KeyError:
             return
 
         items = [element for element in message.event.items.elements()
                          if element.name == 'item']
 
-        self.itemsReceived(notifier, node, items)
+        self.itemsReceived(recipient, service, nodeIdentifier, items)
 
-    def itemsReceived(self, notifier, node, items):
+    def itemsReceived(self, recipient, service, nodeIdentifier, items):
         pass
 
-    def createNode(self, service, node=None):
-        request = CreateNode(self.xmlstream, node)
+    def createNode(self, service, nodeIdentifier=None):
+        request = CreateNode(self.xmlstream, nodeIdentifier)
 
         def cb(iq):
             try:
                 new_node = iq.pubsub.create["node"]
             except AttributeError:
                 # the suggested node identifier was accepted
-                new_node = node
+                new_node = nodeIdentifier
             return new_node
 
         return request.send(service).addCallback(cb)
 
-    def deleteNode(self, service, node):
-        return DeleteNode(self.xmlstream, node).send(service)
+    def deleteNode(self, service, nodeIdentifier):
+        return DeleteNode(self.xmlstream, nodeIdentifier).send(service)
 
-    def subscribe(self, service, node, subscriber):
-        request = Subscribe(self.xmlstream, node, subscriber)
+    def subscribe(self, service, nodeIdentifier, subscriber):
+        request = Subscribe(self.xmlstream, nodeIdentifier, subscriber)
 
         def cb(iq):
             subscription = iq.pubsub.subscription["subscription"]
@@ -268,8 +269,8 @@ class PubSubClient(XMPPHandler):
 
         return request.send(service).addCallback(cb)
 
-    def publish(self, service, node, items=[]):
-        request = Publish(self.xmlstream, node)
+    def publish(self, service, nodeIdentifier, items=[]):
+        request = Publish(self.xmlstream, nodeIdentifier)
         for item in items:
             request.command.addChild(item)
 
@@ -342,7 +343,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         self.xmlstream.addObserver(PUBSUB_OWNER_GET, self.handleRequest)
         self.xmlstream.addObserver(PUBSUB_OWNER_SET, self.handleRequest)
 
-    def getDiscoInfo(self, target, requestor, nodeIdentifier):
+    def getDiscoInfo(self, requestor, target, nodeIdentifier):
         info = []
 
         if not nodeIdentifier:
@@ -378,7 +379,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             d.addCallback(toInfo)
             return d
 
-    def getDiscoItems(self, target, requestor, nodeIdentifier):
+    def getDiscoItems(self, requestor, target, nodeIdentifier):
         if nodeIdentifier or self.hideNodes:
             return defer.succeed([])
 
@@ -389,6 +390,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     def _onPublish(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         try:
             nodeIdentifier = iq.pubsub.publish["node"]
@@ -400,10 +402,11 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             if element.uri == NS_PUBSUB and element.name == 'item':
                 items.append(element)
 
-        return self.publish(requestor, nodeIdentifier, items)
+        return self.publish(requestor, service, nodeIdentifier, items)
 
     def _onSubscribe(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         try:
             nodeIdentifier = iq.pubsub.subscribe["node"]
@@ -420,12 +423,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             subscription["subscription"] = state
             return response
 
-        d = self.subscribe(requestor, nodeIdentifier, subscriber)
+        d = self.subscribe(requestor, service, nodeIdentifier, subscriber)
         d.addCallback(toResponse)
         return d
 
     def _onUnsubscribe(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         try:
             nodeIdentifier = iq.pubsub.unsubscribe["node"]
@@ -433,7 +437,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         except KeyError:
             raise BadRequest
 
-        return self.unsubscribe(requestor, nodeIdentifier, subscriber)
+        return self.unsubscribe(requestor, service, nodeIdentifier, subscriber)
 
     def _onOptionsGet(self, iq):
         raise Unsupported('subscription-options-unavailable')
@@ -443,6 +447,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     def _onSubscriptions(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
@@ -454,12 +459,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 item['subscription'] = state
             return response
 
-        d = self.subscriptions(requestor)
+        d = self.subscriptions(requestor, service)
         d.addCallback(toResponse)
         return d
 
     def _onAffiliations(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
@@ -472,12 +478,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
             return response
 
-        d = self.affiliations(requestor)
+        d = self.affiliations(requestor, service)
         d.addCallback(toResponse)
         return d
 
     def _onCreate(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
         nodeIdentifier = iq.pubsub.create.getAttribute("node")
 
         def toResponse(result):
@@ -489,7 +496,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             else:
                 return None
 
-        d = self.create(requestor, nodeIdentifier)
+        d = self.create(requestor, service, nodeIdentifier)
         d.addCallback(toResponse)
         return d
 
@@ -503,6 +510,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     def _onDefault(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         def toResponse(options):
             response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
@@ -510,12 +518,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             default.addChild(self._formFromConfiguration(options))
             return response
 
-        d = self.getDefaultConfiguration(requestor)
+        d = self.getDefaultConfiguration(requestor, service)
         d.addCallback(toResponse)
         return d
 
     def _onConfigureGet(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
         nodeIdentifier = iq.pubsub.configure.getAttribute("node")
 
         def toResponse(options):
@@ -528,12 +537,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
             return response
 
-        d = self.getConfiguration(requestor, nodeIdentifier)
+        d = self.getConfiguration(requestor, service, nodeIdentifier)
         d.addCallback(toResponse)
         return d
 
     def _onConfigureSet(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
         nodeIdentifier = iq.pubsub.configure["node"]
 
         def getFormOptions(self, form):
@@ -565,13 +575,14 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
             if options["FORM_TYPE"] == NS_PUBSUB + "#node_config":
                 del options["FORM_TYPE"]
-                return self.setConfiguration(requestor, nodeIdentifier,
-                                             options)
+                return self.setConfiguration(requestor, service,
+                                             nodeIdentifier, options)
 
         raise BadRequest
 
     def _onItems(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         try:
             nodeIdentifier = iq.pubsub.items["node"]
@@ -604,12 +615,14 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
             return response
 
-        d = self.items(requestor, nodeIdentifier, maxItems, itemIdentifiers)
+        d = self.items(requestor, service, nodeIdentifier, maxItems,
+                       itemIdentifiers)
         d.addCallback(toResponse)
         return d
 
     def _onRetract(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         try:
             nodeIdentifier = iq.pubsub.retract["node"]
@@ -624,27 +637,30 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 except KeyError:
                     raise BadRequest
 
-        return self.retract(requestor, nodeIdentifier, itemIdentifiers)
+        return self.retract(requestor, service, nodeIdentifier,
+                            itemIdentifiers)
 
     def _onPurge(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         try:
             nodeIdentifier = iq.pubsub.purge["node"]
         except KeyError:
             raise BadRequest
 
-        return self.purge(requestor, nodeIdentifier)
+        return self.purge(requestor, service, nodeIdentifier)
 
     def _onDelete(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
+        service = jid.internJID(iq["to"])
 
         try:
             nodeIdentifier = iq.pubsub.delete["node"]
         except KeyError:
             raise BadRequest
 
-        return self.delete(requestor, nodeIdentifier)
+        return self.delete(requestor, service, nodeIdentifier)
 
     def _onAffiliationsGet(self, iq):
         raise Unsupported('modify-affiliations')
@@ -660,12 +676,12 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     # public methods
 
-    def notifyPublish(self, entity, nodeIdentifier, notifications):
+    def notifyPublish(self, service, nodeIdentifier, notifications):
 
         print notifications
         for recipient, items in notifications:
             message = domish.Element((None, "message"))
-            message["from"] = entity.full()
+            message["from"] = service.full()
             message["to"] = recipient.full()
             event = message.addElement((NS_PUBSUB_EVENT, "event"))
             element = event.addElement("items")
@@ -673,48 +689,48 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             element.children = items
             self.send(message)
 
-    def getNodeInfo(self, requestor, nodeIdentifier):
+    def getNodeInfo(self, requestor, service, nodeIdentifier):
         return None
 
-    def getNodes(self, requestor):
+    def getNodes(self, requestor, service):
         return []
 
-    def publish(self, requestor, nodeIdentifier, items):
+    def publish(self, requestor, service, nodeIdentifier, items):
         raise Unsupported('publish')
 
-    def subscribe(self, requestor, nodeIdentifier, subscriber):
+    def subscribe(self, requestor, service, nodeIdentifier, subscriber):
         raise Unsupported('subscribe')
 
-    def unsubscribe(self, requestor, nodeIdentifier, subscriber):
+    def unsubscribe(self, requestor, service, nodeIdentifier, subscriber):
         raise Unsupported('subscribe')
 
-    def subscriptions(self, requestor):
+    def subscriptions(self, requestor, service):
         raise Unsupported('retrieve-subscriptions')
 
-    def affiliations(self, requestor):
+    def affiliations(self, requestor, service):
         raise Unsupported('retrieve-affiliations')
 
-    def create(self, requestor, nodeIdentifier):
+    def create(self, requestor, service, nodeIdentifier):
         raise Unsupported('create-nodes')
 
-    def getDefaultConfiguration(self, requestor):
+    def getDefaultConfiguration(self, requestor, service):
         raise Unsupported('retrieve-default')
 
-    def getConfiguration(self, requestor, nodeIdentifier):
+    def getConfiguration(self, requestor, service, nodeIdentifier):
         raise Unsupported('config-node')
 
-    def setConfiguration(self, requestor, nodeIdentifier, options):
+    def setConfiguration(self, requestor, service, nodeIdentifier, options):
         raise Unsupported('config-node')
 
-    def items(self, requestor, nodeIdentifier, maxItems, itemIdentifiers):
+    def items(self, requestor, service, nodeIdentifier, maxItems,
+                    itemIdentifiers):
         raise Unsupported('retrieve-items')
 
-    def retract(self, requestor, nodeIdentifier, itemIdentifiers):
+    def retract(self, requestor, service, nodeIdentifier, itemIdentifiers):
         raise Unsupported('retract-items')
 
-    def purge(self, requestor, nodeIdentifier):
+    def purge(self, requestor, service, nodeIdentifier):
         raise Unsupported('purge-nodes')
 
-    def delete(self, requestor, nodeIdentifier):
+    def delete(self, requestor, service, nodeIdentifier):
         raise Unsupported('delete-nodes')
-
