@@ -383,7 +383,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         if nodeIdentifier or self.hideNodes:
             return defer.succeed([])
 
-        d = self.getNodes(requestor)
+        d = self.getNodes(requestor, target)
         d.addCallback(lambda nodes: [disco.DiscoItem(target, node)
                                      for node in nodes])
         return d
