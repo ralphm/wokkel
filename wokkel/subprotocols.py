@@ -15,6 +15,11 @@ from twisted.words.protocols.jabber import error, xmlstream
 from twisted.words.xish import xpath
 from twisted.words.xish.domish import IElement
 
+try:
+    from twisted.words.protocols.jabber.xmlstream import toResponse
+except ImportError:
+    from wokkel.compat import toResponse
+
 from wokkel.iwokkel import IXMPPHandler, IXMPPHandlerCollection
 
 class XMPPHandler(object):
@@ -241,7 +246,7 @@ class IQHandlerMixin(object):
         Find a handler and wrap the call for sending a response stanza.
         """
         def toResult(result, iq):
-            response = xmlstream.toResponse(iq, 'result')
+            response = toResponse(iq, 'result')
 
             if result:
                 if IElement.providedBy(result):

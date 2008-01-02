@@ -1,3 +1,5 @@
+# -*- test-case-name: wokkel.test.test_client -*-
+#
 # Copyright (c) 2003-2007 Ralph Meijer
 # See LICENSE for details.
 
@@ -12,7 +14,12 @@ from twisted.application import service
 from twisted.internet import defer, protocol, reactor
 from twisted.names.srvconnect import SRVConnector
 from twisted.words.protocols.jabber import client, sasl, xmlstream
-from twisted.words.xish.xmlstream import XmlStreamFactoryMixin
+
+try:
+    from twisted.words.xish.xmlstream import XmlStreamFactoryMixin
+except ImportError:
+    from wokkel.compat import XmlStreamFactoryMixin
+
 
 from wokkel.subprotocols import StreamManager
 
