@@ -1,4 +1,6 @@
-# Copyright (c) 2003-2007 Ralph Meijer
+# -*- test-case-name: wokkel.test.test_xmppim -*-
+#
+# Copyright (c) 2003-2008 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -194,7 +196,7 @@ class PresenceClientProtocol(XMPPHandler):
         """
         self.send(AvailablePresence(entity, show, statuses, priority))
 
-    def unavailable(self, entity, statuses=None):
+    def unavailable(self, entity=None, statuses=None):
         """
         Send unavailable presence.
 
@@ -206,7 +208,7 @@ class PresenceClientProtocol(XMPPHandler):
                          specified, is keyed with C{None}.
         @type statuses: C{dict}
         """
-        self.send(AvailablePresence(entity, statuses))
+        self.send(UnavailablePresence(entity, statuses))
 
     def subscribe(self, entity):
         """
@@ -313,7 +315,7 @@ class RosterClientProtocol(XMPPHandler):
         def processRoster(result):
             roster = {}
             for element in domish.generateElementsQNamed(result.query.children,
-			                                 'item', NS_ROSTER):
+                                                         'item', NS_ROSTER):
                 item = self._parseRosterItem(element)
                 roster[item.jid.userhost()] = item
 
@@ -384,4 +386,3 @@ class MessageProtocol(XMPPHandler):
         """
         Called when a message stanza was received.
         """
-
