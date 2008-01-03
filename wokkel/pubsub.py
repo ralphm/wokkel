@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_pubsub -*-
 #
-# Copyright (c) 2003-2007 Ralph Meijer
+# Copyright (c) 2003-2008 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -77,7 +77,6 @@ class BadRequest(error.StanzaError):
         error.StanzaError.__init__(self, 'bad-request')
 
 
-
 class SubscriptionPending(Exception):
     """
     Raised when the requested subscription is pending acceptance.
@@ -145,6 +144,7 @@ class Item(domish.Element):
             else:
                 self.addChild(payload)
 
+
 class PubSubRequest(xmlstream.IQ):
     """
     Base class for publish subscribe user requests.
@@ -167,8 +167,18 @@ class PubSubRequest(xmlstream.IQ):
         self.command = self.pubsub.addElement(self.verb)
 
     def send(self, to):
-        destination = unicode(to)
+        """
+        Send out request.
+
+        Extends L{xmlstream.IQ.send} by requiring the C{to} parameter to be
+        a L{JID} instance.
+
+        @param to: Entity to send the request to.
+        @type to: L{JID}
+        """
+        destination = to.full()
         return xmlstream.IQ.send(self, destination)
+
 
 class CreateNode(PubSubRequest):
     verb = 'create'
@@ -178,11 +188,13 @@ class CreateNode(PubSubRequest):
         if node:
             self.command["node"] = node
 
+
 class DeleteNode(PubSubRequest):
     verb = 'delete'
     def __init__(self, xs, node):
         PubSubRequest.__init__(self, xs)
         self.command["node"] = node
+
 
 class Subscribe(PubSubRequest):
     verb = 'subscribe'
@@ -191,6 +203,16 @@ class Subscribe(PubSubRequest):
         PubSubRequest.__init__(self, xs)
         self.command["node"] = node
         self.command["jid"] = subscriber.full()
+
+
+class Unsubscribe(PubSubRequest):
+    verb = 'unsubscribe'
+
+    def __init__(self, xs, node, subscriber):
+        PubSubRequest.__init__(self, xs)
+        self.command["node"] = node
+        self.command["jid"] = subscriber.full()
+
 
 class Publish(PubSubRequest):
     verb = 'publish'
@@ -207,6 +229,7 @@ class Publish(PubSubRequest):
             item["id"] = id
 
         return item
+
 
 class PubSubClient(XMPPHandler):
     """
@@ -269,12 +292,17 @@ class PubSubClient(XMPPHandler):
 
         return request.send(service).addCallback(cb)
 
+    def unsubscribe(self, service, nodeIdentifier, subscriber):
+        request = Unsubscribe(self.xmlstream, nodeIdentifier, subscriber)
+        return request.send(service)
+
     def publish(self, service, nodeIdentifier, items=[]):
         request = Publish(self.xmlstream, nodeIdentifier)
         for item in items:
             request.command.addChild(item)
 
         return request.send(service)
+
 
 class PubSubService(XMPPHandler, IQHandlerMixin):
     """

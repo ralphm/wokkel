@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2007 Ralph Meijer
+# Copyright (c) 2003-2008 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -186,6 +186,19 @@ class IPubSubClient(Interface):
         @param nodeIdentifier: Identifier of the node to subscribe to.
         @type nodeIdentifier: L{unicode}
         @param subscriber: JID to subscribe to the node.
+        @type subscriber: L{jid.JID}
+        @rtype: L{defer.Deferred}
+        """
+
+    def unsubscribe(service, nodeIdentifier, subscriber):
+        """
+        Unsubscribe from a node with a given JID.
+
+        @param service: The publish-subscribe service entity.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node to unsubscribe from.
+        @type nodeIdentifier: L{unicode}
+        @param subscriber: JID to unsubscribe from the node.
         @type subscriber: L{jid.JID}
         @rtype: L{defer.Deferred}
         """
