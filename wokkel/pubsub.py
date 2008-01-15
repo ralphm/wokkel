@@ -387,8 +387,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 if not nodeInfo:
                     return []
 
-                (nodeType, metaData) = nodeInfo
-                info.append(disco.Identity('pubsub', nodeType))
+                (nodeType, metaData) = nodeInfo['type'], nodeInfo['meta-data']
+                info.append(disco.DiscoIdentity('pubsub', nodeType))
                 if metaData:
                     form = data_form.Form(type="result",
                                           form_type=NS_PUBSUB_META_DATA) 
@@ -403,7 +403,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                     info.append(form)
                 return info
 
-            d = self.getNodeInfo(requestor, nodeIdentifier)
+            d = self.getNodeInfo(requestor, target, nodeIdentifier)
             d.addCallback(toInfo)
             return d
 

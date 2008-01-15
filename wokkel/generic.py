@@ -68,8 +68,12 @@ class VersionHandler(XMPPHandler):
         iq.handled = True
 
     def getDiscoInfo(self, requestor, target, node):
+        info = set()
+
         if not node:
-            return defer.succeed(set([disco.DiscoFeature(NS_VERSION)]))
+            info.add(disco.DiscoFeature(NS_VERSION))
+
+        return defer.succeed(info)
 
     def getDiscoItems(self, requestor, target, node):
         return defer.succeed([])
