@@ -44,7 +44,7 @@ class AvailablePresence(Presence):
                     s[(NS_XML, "lang")] = lang
 
         if priority != 0:
-            self.addElement('priority', int(priority))
+            self.addElement('priority', content=unicode(int(priority)))
 
 class UnavailablePresence(Presence):
     def __init__(self, to=None, statuses=None):
