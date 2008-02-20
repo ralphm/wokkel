@@ -12,7 +12,7 @@ U{XEP-0060<http://www.xmpp.org/extensions/xep-0060.html>}.
 
 from zope.interface import implements
 
-from twisted.internet import defer
+from twisted.internet import defer, reactor
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
@@ -239,23 +239,52 @@ class PubSubClient(XMPPHandler):
     implements(IPubSubClient)
 
     def connectionInitialized(self):
-        self.xmlstream.addObserver('/message/event[@xmlns="%s"]/items' %
-                                   NS_PUBSUB_EVENT, self._onItems)
+        self.xmlstream.addObserver('/message/event[@xmlns="%s"]' %
+                                   NS_PUBSUB_EVENT, self._onEvent)
 
-    def _onItems(self, message):
+    def _onEvent(self, message):
         try:
             service = jid.JID(message["from"])
             recipient = jid.JID(message["to"])
-            nodeIdentifier = message.event.items["node"]
         except KeyError:
             return
 
-        items = [element for element in message.event.items.elements()
-                         if element.name == 'item']
+        for element in message.event.elements():
+            if element.uri == NS_PUBSUB_EVENT:
+                actionElement = element
+
+        if not actionElement:
+            return
+
+        eventHandler = getattr(self, "_onEvent_%s" % actionElement.name, None)
+
+        if eventHandler:
+            eventHandler(service, recipient, actionElement)
+            message.handled = True
+
+    def _onEvent_items(self, service, recipient, action):
+        nodeIdentifier = action["node"]
+
+        items = [element for element in action.elements()
+                         if element.name in ('item', 'retract')]
 
         self.itemsReceived(recipient, service, nodeIdentifier, items)
 
+    def _onEvent_delete(self, service, recipient, action):
+        nodeIdentifier = action["node"]
+        self.deleteReceived(recipient, service, nodeIdentifier)
+
+    def _onEvent_purge(self, service, recipient, action):
+        nodeIdentifier = action["node"]
+        self.purgeReceived(recipient, service, nodeIdentifier)
+
     def itemsReceived(self, recipient, service, nodeIdentifier, items):
+        pass
+
+    def deleteReceived(self, recipient, service, nodeIdentifier):
+        pass
+
+    def purgeReceived(self, recipient, service, nodeIdentifier):
         pass
 
     def createNode(self, service, nodeIdentifier=None):

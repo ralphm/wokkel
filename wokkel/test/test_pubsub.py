@@ -6,6 +6,8 @@ Tests for L{wokkel.pubsub}
 """
 
 from twisted.trial import unittest
+from twisted.python import failure
+from twisted.internet import defer, reactor
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
@@ -20,13 +22,33 @@ except ImportError:
 
 NS_PUBSUB = 'http://jabber.org/protocol/pubsub'
 NS_PUBSUB_ERRORS = 'http://jabber.org/protocol/pubsub#errors'
+NS_PUBSUB_EVENT = 'http://jabber.org/protocol/pubsub#event'
+
+def calledAsync(fn):
+    """
+    Function wrapper that fires a deferred upon calling the given function.
+    """
+    d = defer.Deferred()
+
+    def func(*args, **kwargs):
+        try:
+            result = fn(*args, **kwargs)
+        except:
+            d.errback()
+        else:
+            d.callback(result)
+
+    return d, func
+
 
 class PubSubClientTest(unittest.TestCase):
+    timeout = 2
 
     def setUp(self):
         self.stub = XmlStreamStub()
         self.protocol = pubsub.PubSubClient()
         self.protocol.xmlstream = self.stub.xmlstream
+        self.protocol.connectionInitialized()
 
     def test_unsubscribe(self):
         """
@@ -50,6 +72,72 @@ class PubSubClientTest(unittest.TestCase):
         self.stub.send(toResponse(iq, 'result'))
         return d
 
+    def test_event_items(self):
+        """
+        Test receiving an items event resulting in a call to itemsReceived.
+        """
+        message = domish.Element((None, 'message'))
+        message['from'] = 'pubsub.example.org'
+        message['to'] = 'user@example.org/home'
+        event = message.addElement((NS_PUBSUB_EVENT, 'event'))
+        items = event.addElement('items')
+        items['node'] = 'test'
+        item1 = items.addElement('item')
+        item1['id'] = 'item1'
+        item2 = items.addElement('retract')
+        item2['id'] = 'item2'
+        item3 = items.addElement('item')
+        item3['id'] = 'item3'
+
+        def itemsReceived(recipient, service, nodeIdentifier, items):
+            self.assertEquals(JID('user@example.org/home'), recipient)
+            self.assertEquals(JID('pubsub.example.org'), service)
+            self.assertEquals('test', nodeIdentifier)
+            self.assertEquals([item1, item2, item3], items)
+
+        d, self.protocol.itemsReceived = calledAsync(itemsReceived)
+        self.stub.send(message)
+        return d
+
+    def test_event_delete(self):
+        """
+        Test receiving a delete event resulting in a call to deleteReceived.
+        """
+        message = domish.Element((None, 'message'))
+        message['from'] = 'pubsub.example.org'
+        message['to'] = 'user@example.org/home'
+        event = message.addElement((NS_PUBSUB_EVENT, 'event'))
+        items = event.addElement('delete')
+        items['node'] = 'test'
+
+        def deleteReceived(recipient, service, nodeIdentifier):
+            self.assertEquals(JID('user@example.org/home'), recipient)
+            self.assertEquals(JID('pubsub.example.org'), service)
+            self.assertEquals('test', nodeIdentifier)
+
+        d, self.protocol.deleteReceived = calledAsync(deleteReceived)
+        self.stub.send(message)
+        return d
+
+    def test_event_purge(self):
+        """
+        Test receiving a purge event resulting in a call to purgeReceived.
+        """
+        message = domish.Element((None, 'message'))
+        message['from'] = 'pubsub.example.org'
+        message['to'] = 'user@example.org/home'
+        event = message.addElement((NS_PUBSUB_EVENT, 'event'))
+        items = event.addElement('purge')
+        items['node'] = 'test'
+
+        def purgeReceived(recipient, service, nodeIdentifier):
+            self.assertEquals(JID('user@example.org/home'), recipient)
+            self.assertEquals(JID('pubsub.example.org'), service)
+            self.assertEquals('test', nodeIdentifier)
+
+        d, self.protocol.purgeReceived = calledAsync(purgeReceived)
+        self.stub.send(message)
+        return d
 
 class PubSubServiceTest(unittest.TestCase):
 

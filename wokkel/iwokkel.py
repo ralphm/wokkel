@@ -137,7 +137,11 @@ class IPubSubClient(Interface):
 
     def itemsReceived(recipient, service, nodeIdentifier, items):
         """
-        Called when items have been received from a node.
+        Called when an items notification has been received for a node.
+
+        An item can be an element named C{item} or C{retract}. Respectively,
+        they signal an item being published or retracted, optionally
+        accompanied with an item identifier in the C{id} attribute.
 
         @param recipient: The entity to which the notification was sent.
         @type recipient: L{jid.JID}
@@ -147,6 +151,33 @@ class IPubSubClient(Interface):
         @type nodeIdentifier: C{unicode}
         @param items: List of received items as domish elements.
         @type items: C{list} of L{domish.Element}
+        """
+
+    def deleteReceived(recipient, service, nodeIdentifier, items):
+        """
+        Called when a deletion notification has been received for a node.
+
+        @param recipient: The entity to which the notification was sent.
+        @type recipient: L{jid.JID}
+        @param service: The entity from which the notification was received.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node that has been deleted.
+        @type nodeIdentifier: C{unicode}
+        """
+
+    def purgeReceived(recipient, service, nodeIdentifier, items):
+        """
+        Called when a purge notification has been received for a node.
+
+        Upon receiving this notification all items associated should be
+        considered retracted.
+
+        @param recipient: The entity to which the notification was sent.
+        @type recipient: L{jid.JID}
+        @param service: The entity from which the notification was received.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node that has been purged.
+        @type nodeIdentifier: C{unicode}
         """
 
     def createNode(service, nodeIdentifier=None):
