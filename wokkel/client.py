@@ -20,8 +20,7 @@ try:
 except ImportError:
     from wokkel.compat import XmlStreamFactoryMixin
 
-
-from wokkel.subprotocols import StreamManager
+from wokkel.subprotocols import StreamManager, XMPPHandler
 
 class CheckAuthInitializer(object):
     """
@@ -135,12 +134,17 @@ class DeferredClientFactory(XmlStreamFactoryMixin, protocol.ClientFactory):
         self.authenticator = client.XMPPAuthenticator(jid, password)
         XmlStreamFactoryMixin.__init__(self, self.authenticator)
 
-        self.deferred = defer.Deferred()
+        deferred = defer.Deferred()
+        self.deferred = deferred
 
-        self.addBootstrap(xmlstream.STREAM_AUTHD_EVENT, self.deferred.callback)
-        self.addBootstrap(xmlstream.INIT_FAILED_EVENT, self.deferred.errback)
+        self.addBootstrap(xmlstream.INIT_FAILED_EVENT, deferred.errback)
+
+        class ConnectionInitializedHandler(XMPPHandler):
+            def connectionInitialized(self):
+                deferred.callback(None)
 
         self.streamManager = StreamManager(self)
+        self.addHandler(ConnectionInitializedHandler())
 
     def clientConnectionFailed(self, connector, reason):
         self.deferred.errback(reason)
