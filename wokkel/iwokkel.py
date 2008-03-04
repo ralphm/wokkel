@@ -73,6 +73,7 @@ class IXMPPHandler(Interface):
         @type reason: L{twisted.python.failure.Failure}
         """
 
+
 class IXMPPHandlerCollection(Interface):
     """
     Collection of handlers.
@@ -98,6 +99,7 @@ class IXMPPHandlerCollection(Interface):
 
         @type handler: L{IXMPPHandler}
         """
+
 
 class IDisco(Interface):
     """
@@ -275,6 +277,18 @@ class IPubSubService(Interface):
                               the list of items to be notified.
         @type notifications: C{list} of (L{jid.JID}, C{list} of
                              L{domish.Element})
+        """
+
+    def notifyDelete(service, nodeIdentifier, recipients):
+        """
+        Send out node deletion notifications.
+
+        @param service: The entity the notifications will originate from.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: The identifier of the node that was deleted.
+        @type nodeIdentifier: C{unicode}
+        @param recipients: The entities that the notification is sent to.
+        @type notifications: C{list} of L{jid.JID}
         """
 
     def publish(requestor, service, nodeIdentifier, items):

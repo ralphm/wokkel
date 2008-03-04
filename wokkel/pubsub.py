@@ -249,6 +249,7 @@ class PubSubClient(XMPPHandler):
         except KeyError:
             return
 
+        actionElement = None
         for element in message.event.elements():
             if element.uri == NS_PUBSUB_EVENT:
                 actionElement = element
@@ -734,8 +735,6 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
     # public methods
 
     def notifyPublish(self, service, nodeIdentifier, notifications):
-
-        print notifications
         for recipient, items in notifications:
             message = domish.Element((None, "message"))
             message["from"] = service.full()
@@ -744,6 +743,16 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             element = event.addElement("items")
             element["node"] = nodeIdentifier
             element.children = items
+            self.send(message)
+
+    def notifyDelete(self, service, nodeIdentifier, recipients):
+        for recipient in recipients:
+            message = domish.Element((None, "message"))
+            message["from"] = service.full()
+            message["to"] = recipient.full()
+            event = message.addElement((NS_PUBSUB_EVENT, "event"))
+            element = event.addElement("delete")
+            element["node"] = nodeIdentifier
             self.send(message)
 
     def getNodeInfo(self, requestor, service, nodeIdentifier):
