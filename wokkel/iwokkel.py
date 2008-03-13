@@ -40,12 +40,12 @@ class IXMPPHandler(Interface):
         At this point, no traffic has been exchanged over the XML stream
         given in C{xs}.
 
-        This should setup C{self.xmlstream} and call L{connectionMade}.
+        This should setup L{xmlstream} and call L{connectionMade}.
 
         @type xs: L{XmlStream<twisted.words.protocols.jabber.XmlStream>}
         """
 
-    def connectionMade(self):
+    def connectionMade():
         """
         Called after a connection has been established.
 
@@ -59,7 +59,7 @@ class IXMPPHandler(Interface):
         The XML stream has been initialized.
 
         At this point, authentication was successful, and XML stanzas can be
-        exchanged over the XML stream C{self.xmlstream}. This method can be
+        exchanged over the XML stream L{xmlstream}. This method can be
         used to setup observers for incoming stanzas.
         """
 
@@ -67,7 +67,7 @@ class IXMPPHandler(Interface):
         """
         The XML stream has been closed.
 
-        Subsequent use of C{self.parent.send} will result in data being queued
+        Subsequent use of L{parent.send} will result in data being queued
         until a new connection has been established.
 
         @type reason: L{twisted.python.failure.Failure}
