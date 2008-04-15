@@ -230,6 +230,13 @@ class Publish(PubSubRequest):
 
         return item
 
+class Items(PubSubRequest):
+    verb = 'items'
+    method = 'get'
+
+    def __init__(self, xs, node):
+        PubSubRequest.__init__(self, xs)
+        self.command["node"] = node
 
 class PubSubClient(XMPPHandler):
     """
@@ -333,6 +340,16 @@ class PubSubClient(XMPPHandler):
 
         return request.send(service)
 
+    def items(self, service, nodeIdentifier):
+        def cb(iq):
+            items = []
+            for element in iq.pubsub.items.elements():
+                if element.uri == NS_PUBSUB and element.name == 'item':
+                    items.append(element)
+            return items
+
+        request = Items(self.xmlstream, nodeIdentifier)
+        return request.send(service).addCallback(cb)
 
 class PubSubService(XMPPHandler, IQHandlerMixin):
     """

@@ -139,6 +139,36 @@ class PubSubClientTest(unittest.TestCase):
         self.stub.send(message)
         return d
 
+
+    def test_items(self):
+        """
+        Test sending items request.
+        """
+        def cb(items):
+            self.assertEquals([], items)
+
+        d = self.protocol.items(JID('pubsub.example.org'), 'test')
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('get', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'items', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+
+        response = toResponse(iq, 'result')
+        items = response.addElement((NS_PUBSUB, 'pubsub')).addElement('items')
+        items['node'] = 'test'
+
+        self.stub.send(response)
+
+        return d
+
 class PubSubServiceTest(unittest.TestCase):
 
     def setUp(self):
