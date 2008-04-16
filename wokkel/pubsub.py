@@ -77,10 +77,12 @@ class BadRequest(error.StanzaError):
         error.StanzaError.__init__(self, 'bad-request')
 
 
+
 class SubscriptionPending(Exception):
     """
     Raised when the requested subscription is pending acceptance.
     """
+
 
 
 class SubscriptionUnconfigured(Exception):
@@ -88,6 +90,7 @@ class SubscriptionUnconfigured(Exception):
     Raised when the requested subscription needs to be configured before
     becoming active.
     """
+
 
 
 class PubSubError(error.StanzaError):
@@ -103,6 +106,7 @@ class PubSubError(error.StanzaError):
                                          appCondition=appCondition)
 
 
+
 class Unsupported(PubSubError):
     def __init__(self, feature, text=None):
         PubSubError.__init__(self, 'feature-not-implemented',
@@ -111,9 +115,11 @@ class Unsupported(PubSubError):
                                    text)
 
 
+
 class OptionsUnavailable(Unsupported):
     def __init__(self):
         Unsupported.__init__(self, 'subscription-options-unavailable')
+
 
 
 class Item(domish.Element):
@@ -135,7 +141,7 @@ class Item(domish.Element):
         @type payload: object providing L{domish.IElement} or L{unicode}.
         """
 
-        domish.Element.__init__(self, (None, 'item'))
+        domish.Element.__init__(self, (NS_PUBSUB, 'item'))
         if id is not None:
             self['id'] = id
         if payload is not None:
@@ -145,26 +151,27 @@ class Item(domish.Element):
                 self.addChild(payload)
 
 
-class PubSubRequest(xmlstream.IQ):
-    """
-    Base class for publish subscribe user requests.
 
-    @cvar namespace: request namespace
-    @cvar verb: request verb
-    @cvar method: type attribute of the IQ request. Either C{'set'} or C{'get'}
-    @ivar command: command element of the request. This is the direct child of
+class _PubSubRequest(xmlstream.IQ):
+    """
+    Publish subscribe request.
+
+    @ivar verb: Request verb
+    @type verb: C{str}
+    @ivar namespace: Request namespace.
+    @type namespace: C{str}
+    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
+    @type method: C{str}
+    @ivar command: Command element of the request. This is the direct child of
                    the C{pubsub} element in the C{namespace} with the name
                    C{verb}.
     """
 
-    namespace = NS_PUBSUB
-    method = 'set'
+    def __init__(self, xs, verb, namespace=NS_PUBSUB, method='set'):
+        xmlstream.IQ.__init__(self, xs, method)
+        self.addElement((namespace, 'pubsub'))
 
-    def __init__(self, xs):
-        xmlstream.IQ.__init__(self, xs, self.method)
-        self.addElement((self.namespace, 'pubsub'))
-
-        self.command = self.pubsub.addElement(self.verb)
+        self.command = self.pubsub.addElement(verb)
 
     def send(self, to):
         """
@@ -180,63 +187,6 @@ class PubSubRequest(xmlstream.IQ):
         return xmlstream.IQ.send(self, destination)
 
 
-class CreateNode(PubSubRequest):
-    verb = 'create'
-
-    def __init__(self, xs, node=None):
-        PubSubRequest.__init__(self, xs)
-        if node:
-            self.command["node"] = node
-
-
-class DeleteNode(PubSubRequest):
-    verb = 'delete'
-    def __init__(self, xs, node):
-        PubSubRequest.__init__(self, xs)
-        self.command["node"] = node
-
-
-class Subscribe(PubSubRequest):
-    verb = 'subscribe'
-
-    def __init__(self, xs, node, subscriber):
-        PubSubRequest.__init__(self, xs)
-        self.command["node"] = node
-        self.command["jid"] = subscriber.full()
-
-
-class Unsubscribe(PubSubRequest):
-    verb = 'unsubscribe'
-
-    def __init__(self, xs, node, subscriber):
-        PubSubRequest.__init__(self, xs)
-        self.command["node"] = node
-        self.command["jid"] = subscriber.full()
-
-
-class Publish(PubSubRequest):
-    verb = 'publish'
-
-    def __init__(self, xs, node):
-        PubSubRequest.__init__(self, xs)
-        self.command["node"] = node
-
-    def addItem(self, id=None, payload=None):
-        item = self.command.addElement("item")
-        item.addChild(payload)
-
-        if id is not None:
-            item["id"] = id
-
-        return item
-
-class Items(PubSubRequest):
-    verb = 'items'
-    method = 'get'
-
-    def __init__(self, xs, node):
-        PubSubRequest.__init__(self, xs)
-        self.command["node"] = node
 
 class PubSubClient(XMPPHandler):
     """
@@ -296,7 +246,19 @@ class PubSubClient(XMPPHandler):
         pass
 
     def createNode(self, service, nodeIdentifier=None):
-        request = CreateNode(self.xmlstream, nodeIdentifier)
+        """
+        Create a publish subscribe node.
+
+        @param service: The publish subscribe service to create the node at.
+        @type service: L{JID}
+        @param nodeIdentifier: Optional suggestion for the id of the node.
+        @type nodeIdentifier: C{unicode}
+        """
+
+
+        request = _PubSubRequest(self.xmlstream, 'create')
+        if nodeIdentifier:
+            request.command['node'] = nodeIdentifier
 
         def cb(iq):
             try:
@@ -309,10 +271,33 @@ class PubSubClient(XMPPHandler):
         return request.send(service).addCallback(cb)
 
     def deleteNode(self, service, nodeIdentifier):
-        return DeleteNode(self.xmlstream, nodeIdentifier).send(service)
+        """
+        Delete a publish subscribe node.
+
+        @param service: The publish subscribe service to delete the node from.
+        @type service: L{JID}
+        @param nodeIdentifier: The identifier of the node.
+        @type nodeIdentifier: C{unicode}
+        """
+        request = _PubSubRequest(self.xmlstream, 'delete')
+        request.command['node'] = nodeIdentifier
+        return request.send(service)
 
     def subscribe(self, service, nodeIdentifier, subscriber):
-        request = Subscribe(self.xmlstream, nodeIdentifier, subscriber)
+        """
+        Subscribe to a publish subscribe node.
+
+        @param service: The publish subscribe service that keeps the node.
+        @type service: L{JID}
+        @param nodeIdentifier: The identifier of the node.
+        @type nodeIdentifier: C{unicode}
+        @param subscriber: The entity to subscribe to the node. This entity
+                           will get notifications of new published items.
+        @type subscriber: L{JID}
+        """
+        request = _PubSubRequest(self.xmlstream, 'subscribe')
+        request.command['node'] = nodeIdentifier
+        request.command['jid'] = subscriber.full()
 
         def cb(iq):
             subscription = iq.pubsub.subscription["subscription"]
@@ -330,17 +315,56 @@ class PubSubClient(XMPPHandler):
         return request.send(service).addCallback(cb)
 
     def unsubscribe(self, service, nodeIdentifier, subscriber):
-        request = Unsubscribe(self.xmlstream, nodeIdentifier, subscriber)
+        """
+        Unsubscribe from a publish subscribe node.
+
+        @param service: The publish subscribe service that keeps the node.
+        @type service: L{JID}
+        @param nodeIdentifier: The identifier of the node.
+        @type nodeIdentifier: C{unicode}
+        @param subscriber: The entity to unsubscribe from the node.
+        @type subscriber: L{JID}
+        """
+        request = _PubSubRequest(self.xmlstream, 'unsubscribe')
+        request.command['node'] = nodeIdentifier
+        request.command['jid'] = subscriber.full()
         return request.send(service)
 
-    def publish(self, service, nodeIdentifier, items=[]):
-        request = Publish(self.xmlstream, nodeIdentifier)
-        for item in items:
-            request.command.addChild(item)
+    def publish(self, service, nodeIdentifier, items=None):
+        """
+        Publish to a publish subscribe node.
+
+        @param service: The publish subscribe service that keeps the node.
+        @type service: L{JID}
+        @param nodeIdentifier: The identifier of the node.
+        @type nodeIdentifier: C{unicode}
+        @param items: Optional list of L{Item}s to publish.
+        @type items: C{list}
+        """
+        request = _PubSubRequest(self.xmlstream, 'publish')
+        request.command['node'] = nodeIdentifier
+        if items:
+            for item in items:
+                request.command.addChild(item)
 
         return request.send(service)
 
-    def items(self, service, nodeIdentifier):
+    def items(self, service, nodeIdentifier, maxItems=None):
+        """
+        Retrieve previously published items from a publish subscribe node.
+
+        @param service: The publish subscribe service that keeps the node.
+        @type service: L{JID}
+        @param nodeIdentifier: The identifier of the node.
+        @type nodeIdentifier: C{unicode}
+        @param maxItems: Optional limit on the number of retrieved items.
+        @type maxItems: C{int}
+        """
+        request = _PubSubRequest(self.xmlstream, 'items', method='get')
+        request.command['node'] = nodeIdentifier
+        if maxItems:
+            request.command["max_items"] = str(int(maxItems))
+
         def cb(iq):
             items = []
             for element in iq.pubsub.items.elements():
@@ -348,8 +372,9 @@ class PubSubClient(XMPPHandler):
                     items.append(element)
             return items
 
-        request = Items(self.xmlstream, nodeIdentifier)
         return request.send(service).addCallback(cb)
+
+
 
 class PubSubService(XMPPHandler, IQHandlerMixin):
     """

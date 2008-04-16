@@ -50,27 +50,6 @@ class PubSubClientTest(unittest.TestCase):
         self.protocol.xmlstream = self.stub.xmlstream
         self.protocol.connectionInitialized()
 
-    def test_unsubscribe(self):
-        """
-        Test sending unsubscription request.
-        """
-        d = self.protocol.unsubscribe(JID('pubsub.example.org'), 'test',
-                                      JID('user@example.org'))
-
-        iq = self.stub.output[-1]
-        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
-        self.assertEquals('set', iq.getAttribute('type'))
-        self.assertEquals('pubsub', iq.pubsub.name)
-        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
-        children = list(domish.generateElementsQNamed(iq.pubsub.children,
-                                                      'unsubscribe', NS_PUBSUB))
-        self.assertEquals(1, len(children))
-        child = children[0]
-        self.assertEquals('test', child['node'])
-        self.assertEquals('user@example.org', child['jid'])
-
-        self.stub.send(toResponse(iq, 'result'))
-        return d
 
     def test_event_items(self):
         """
@@ -99,6 +78,7 @@ class PubSubClientTest(unittest.TestCase):
         self.stub.send(message)
         return d
 
+
     def test_event_delete(self):
         """
         Test receiving a delete event resulting in a call to deleteReceived.
@@ -119,6 +99,7 @@ class PubSubClientTest(unittest.TestCase):
         self.stub.send(message)
         return d
 
+
     def test_event_purge(self):
         """
         Test receiving a purge event resulting in a call to purgeReceived.
@@ -137,6 +118,249 @@ class PubSubClientTest(unittest.TestCase):
 
         d, self.protocol.purgeReceived = calledAsync(purgeReceived)
         self.stub.send(message)
+        return d
+
+
+    def test_createNode(self):
+        """
+        Test sending create request.
+        """
+
+        def cb(nodeIdentifier):
+            self.assertEquals('test', nodeIdentifier)
+
+        d = self.protocol.createNode(JID('pubsub.example.org'), 'test')
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'create', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_createNodeInstant(self):
+        """
+        Test sending create request resulting in an instant node.
+        """
+
+        def cb(nodeIdentifier):
+            self.assertEquals('test', nodeIdentifier)
+
+        d = self.protocol.createNode(JID('pubsub.example.org'))
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'create', NS_PUBSUB))
+        child = children[0]
+        self.assertFalse(child.hasAttribute('node'))
+
+        response = toResponse(iq, 'result')
+        command = response.addElement((NS_PUBSUB, 'pubsub'))
+        create = command.addElement('create')
+        create['node'] = 'test'
+        self.stub.send(response)
+        return d
+
+
+    def test_createNodeRenamed(self):
+        """
+        Test sending create request resulting in renamed node.
+        """
+
+        def cb(nodeIdentifier):
+            self.assertEquals('test2', nodeIdentifier)
+
+        d = self.protocol.createNode(JID('pubsub.example.org'), 'test')
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'create', NS_PUBSUB))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+
+        response = toResponse(iq, 'result')
+        command = response.addElement((NS_PUBSUB, 'pubsub'))
+        create = command.addElement('create')
+        create['node'] = 'test2'
+        self.stub.send(response)
+        return d
+
+
+    def test_deleteNode(self):
+        """
+        Test sending delete request.
+        """
+
+        d = self.protocol.deleteNode(JID('pubsub.example.org'), 'test')
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'delete', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_publish(self):
+        """
+        Test sending publish request.
+        """
+
+        item = pubsub.Item()
+        d = self.protocol.publish(JID('pubsub.example.org'), 'test', [item])
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'publish', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+        items = list(domish.generateElementsQNamed(child.children,
+                                                   'item', NS_PUBSUB))
+        self.assertEquals(1, len(items))
+        self.assertIdentical(item, items[0])
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_publishNoItems(self):
+        """
+        Test sending publish request without items.
+        """
+
+        d = self.protocol.publish(JID('pubsub.example.org'), 'test')
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'publish', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_subscribe(self):
+        """
+        Test sending subscription request.
+        """
+        d = self.protocol.subscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'subscribe', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+        self.assertEquals('user@example.org', child['jid'])
+
+        response = toResponse(iq, 'result')
+        pubsub = response.addElement((NS_PUBSUB, 'pubsub'))
+        subscription = pubsub.addElement('subscription')
+        subscription['node'] = 'test'
+        subscription['jid'] = 'user@example.org'
+        subscription['subscription'] = 'subscribed'
+        self.stub.send(response)
+        return d
+
+
+    def test_subscribePending(self):
+        """
+        Test sending subscription request that results in a pending
+        subscription.
+        """
+        d = self.protocol.subscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        response = toResponse(iq, 'result')
+        command = response.addElement((NS_PUBSUB, 'pubsub'))
+        subscription = command.addElement('subscription')
+        subscription['node'] = 'test'
+        subscription['jid'] = 'user@example.org'
+        subscription['subscription'] = 'pending'
+        self.stub.send(response)
+        self.assertFailure(d, pubsub.SubscriptionPending)
+        return d
+
+
+    def test_subscribePending(self):
+        """
+        Test sending subscription request that results in an unconfigured
+        subscription.
+        """
+        d = self.protocol.subscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        response = toResponse(iq, 'result')
+        command = response.addElement((NS_PUBSUB, 'pubsub'))
+        subscription = command.addElement('subscription')
+        subscription['node'] = 'test'
+        subscription['jid'] = 'user@example.org'
+        subscription['subscription'] = 'unconfigured'
+        self.stub.send(response)
+        self.assertFailure(d, pubsub.SubscriptionUnconfigured)
+        return d
+
+
+    def test_unsubscribe(self):
+        """
+        Test sending unsubscription request.
+        """
+        d = self.protocol.unsubscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'unsubscribe', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+        self.assertEquals('user@example.org', child['jid'])
+
+        self.stub.send(toResponse(iq, 'result'))
         return d
 
 
@@ -168,6 +392,44 @@ class PubSubClientTest(unittest.TestCase):
         self.stub.send(response)
 
         return d
+
+
+    def test_itemsMaxItems(self):
+        """
+        Test sending items request, with limit on the number of items.
+        """
+        def cb(items):
+            self.assertEquals(2, len(items))
+            self.assertEquals([item1, item2], items)
+
+        d = self.protocol.items(JID('pubsub.example.org'), 'test', maxItems=2)
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('get', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'items', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+        self.assertEquals('2', child['max_items'])
+
+        response = toResponse(iq, 'result')
+        items = response.addElement((NS_PUBSUB, 'pubsub')).addElement('items')
+        items['node'] = 'test'
+        item1 = items.addElement('item')
+        item1['id'] = 'item1'
+        item2 = items.addElement('item')
+        item2['id'] = 'item2'
+
+        self.stub.send(response)
+
+        return d
+
+
 
 class PubSubServiceTest(unittest.TestCase):
 
