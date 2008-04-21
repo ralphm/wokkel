@@ -7,7 +7,7 @@
 from setuptools import setup
 
 setup(name='wokkel',
-      version='0.2.0',
+      version='0.3.0',
       description='Twisted Jabber support library',
       author='Ralph Meijer',
       author_email='ralphm@ik.nu',
@@ -17,5 +17,6 @@ setup(name='wokkel',
       platforms='any',
       packages=[
           'wokkel',
+          'wokkel.test',
       ],
 )

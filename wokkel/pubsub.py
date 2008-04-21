@@ -12,7 +12,7 @@ U{XEP-0060<http://www.xmpp.org/extensions/xep-0060.html>}.
 
 from zope.interface import implements
 
-from twisted.internet import defer, reactor
+from twisted.internet import defer
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 

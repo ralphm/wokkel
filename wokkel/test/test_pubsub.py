@@ -6,8 +6,7 @@ Tests for L{wokkel.pubsub}
 """
 
 from twisted.trial import unittest
-from twisted.python import failure
-from twisted.internet import defer, reactor
+from twisted.internet import defer
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
@@ -321,7 +320,7 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
-    def test_subscribePending(self):
+    def test_subscribeUnconfigured(self):
         """
         Test sending subscription request that results in an unconfigured
         subscription.
