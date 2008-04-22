@@ -1,4 +1,6 @@
-# Copyright (c) 2003-2007 Ralph Meijer
+# -*- test-case-name: wokkel.test.test_generic -*-
+#
+# Copyright (c) 2003-2008 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -9,6 +11,7 @@ from zope.interface import implements
 
 from twisted.internet import defer
 from twisted.words.protocols.jabber import error
+from twisted.words.protocols.jabber.xmlstream import toResponse
 
 from wokkel import disco
 from wokkel.iwokkel import IDisco
@@ -40,6 +43,7 @@ class FallbackHandler(XMPPHandler):
         self.xmlstream.send(reply.toResponse(iq))
 
 
+
 class VersionHandler(XMPPHandler):
     """
     XMPP subprotocol handler for XMPP Software Version.
@@ -58,12 +62,12 @@ class VersionHandler(XMPPHandler):
         self.xmlstream.addObserver(VERSION, self.onVersion)
 
     def onVersion(self, iq):
-        response = iq.toResponse(iq, "result")
+        response = toResponse(iq, "result")
 
-        query = iq.addElement((NS_VERSION, "query"))
+        query = response.addElement((NS_VERSION, "query"))
         name = query.addElement("name", content=self.name)
-        version = iq.addElement("version", content=self.version)
-        self.send(iq)
+        version = query.addElement("version", content=self.version)
+        self.send(response)
 
         iq.handled = True
 
