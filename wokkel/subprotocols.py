@@ -234,6 +234,25 @@ class IQHandlerMixin(object):
     an error response is sent. Any other exception will cause a error
     response of C{internal-server-error} to be sent.
 
+    A typical way to use this mixin, is to set up L{xpath} observers on the
+    C{xmlstream} to call handleRequest, for example in an overridden
+    L{XMPPHandler.connectionMade}. It is likely a good idea to only listen for
+    incoming iq get and/org iq set requests, and not for any iq, to prevent
+    hijacking incoming responses to outgoing iq requests. An example:
+
+        >>> QUERY_ROSTER = "/query[@xmlns='jabber:iq:roster']"
+        >>> class MyHandler(XMPPHandler, IQHandlerMixin):
+        ...    iqHandlers = {"/iq[@type='get']" + QUERY_ROSTER: 'onRosterGet',
+        ...                  "/iq[@type='set']" + QUERY_ROSTER: 'onRosterSet'}
+        ...    def connectionMade(self):
+        ...        self.xmlstream.addObserver(
+        ...          "/iq[@type='get' or @type='set']" + QUERY_ROSTER,
+        ...          self.handleRequest)
+        ...    def onRosterGet(self, iq):
+        ...        pass
+        ...    def onRosterSet(self, iq):
+        ...        pass
+
     @cvar iqHandlers: Mapping from XPath queries (as a string) to the method
                       name that will handle requests that match the query.
     @type iqHandlers: L{dict}

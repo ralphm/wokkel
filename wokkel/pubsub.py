@@ -389,10 +389,10 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
     deferred returned by these methods may have their errback called. These are
     handled as follows:
 
-    * If the exception is an instance of L{error.StanzaError}, an error
-      response iq is returned.
-    * Any other exception is reported using L{log.msg}. An error response
-      with the condition C{internal-server-error} is returned.
+     - If the exception is an instance of L{error.StanzaError}, an error
+       response iq is returned.
+     - Any other exception is reported using L{log.msg}. An error response
+       with the condition C{internal-server-error} is returned.
 
     The default implementation of said methods raises an L{Unsupported}
     exception and are meant to be overridden.
@@ -401,7 +401,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                          keys C{'category'}, C{'type'} and C{'name'}.
     @ivar pubSubFeatures: List of supported publish-subscribe features for
                           service discovery, as C{str}.
-    @type pubSubFeatures: C{list} or C{None}.
+    @type pubSubFeatures: C{list} or C{None}
     """
 
     implements(IPubSubService)
