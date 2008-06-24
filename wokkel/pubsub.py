@@ -646,7 +646,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         service = jid.internJID(iq["to"])
         nodeIdentifier = iq.pubsub.configure["node"]
 
-        def getFormOptions(self, form):
+        def getFormOptions(form):
             options = {}
 
             for element in form.elements():
