@@ -4,14 +4,16 @@
 """
 Tests for L{wokkel.pubsub}
 """
+from zope.interface import verify
 
 from twisted.trial import unittest
 from twisted.internet import defer
-from twisted.words.xish import domish
+from twisted.words.xish import domish, xpath
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 
-from wokkel import pubsub
+from wokkel import iwokkel, pubsub
+from wokkel.generic import parseXml
 from wokkel.test.helpers import XmlStreamStub
 
 try:
@@ -50,7 +52,14 @@ class PubSubClientTest(unittest.TestCase):
         self.protocol.connectionInitialized()
 
 
-    def test_event_items(self):
+    def test_interface(self):
+        """
+        Do instances of L{pubsub.PubSubClient} provide L{iwokkel.IPubSubClient}?
+        """
+        verify.verifyObject(iwokkel.IPubSubClient, self.protocol)
+
+
+    def test_eventItems(self):
         """
         Test receiving an items event resulting in a call to itemsReceived.
         """
@@ -431,59 +440,145 @@ class PubSubClientTest(unittest.TestCase):
 
 
 class PubSubServiceTest(unittest.TestCase):
+    """
+    Tests for L{pubsub.PubSubService}.
+    """
 
-    def setUp(self):
-        self.output = []
+    def handleRequest(self, handler, iq):
+        """
+        Find a handler and call it directly
+        """
+        for queryString, method in handler.iqHandlers.iteritems():
+            if xpath.internQuery(queryString).matches(iq):
+                handler = getattr(handler, method)
 
-    def send(self, obj):
-        self.output.append(obj)
+        if handler:
+            d = defer.maybeDeferred(handler, iq)
+        else:
+            d = defer.fail(NotImplementedError())
+
+        return d
+
+
+    def test_interface(self):
+        """
+        Do instances of L{pubsub.PubSubService} provide L{iwokkel.IPubSubService}?
+        """
+        verify.verifyObject(iwokkel.IPubSubService, pubsub.PubSubService())
+
 
     def test_onPublishNoNode(self):
-        handler = pubsub.PubSubService()
-        handler.parent = self
-        iq = domish.Element((None, 'iq'))
-        iq['from'] = 'user@example.org'
-        iq['to'] = 'pubsub.example.org'
-        iq['type'] = 'set'
-        iq.addElement((NS_PUBSUB, 'pubsub'))
-        iq.pubsub.addElement('publish')
-        handler.handleRequest(iq)
+        """
+        The root node is always a collection, publishing is a bad request.
+        """
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <publish/>
+          </pubsub>
+        </iq>
+        """
 
-        e = error.exceptionFromStanza(self.output[-1])
-        self.assertEquals('bad-request', e.condition)
+        def cb(result):
+            self.assertEquals('bad-request', result.condition)
+
+        handler = pubsub.PubSubService()
+        d = self.handleRequest(handler, parseXml(xml))
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
 
     def test_onPublish(self):
+        """
+        A publish request should result in L{PubSubService.publish} being
+        called.
+        """
         class Handler(pubsub.PubSubService):
-            def publish(self, *args, **kwargs):
-                self.args = args
-                self.kwargs = kwargs
+            def publish(self, requestor, service, nodeIdentifier, items):
+                return defer.succeed((requestor, service,nodeIdentifier,
+                                      items))
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <publish node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEqual((JID('user@example.org'),
+                              JID('pubsub.example.org'),'test', []), result)
 
         handler = Handler()
-        handler.parent = self
-        iq = domish.Element((None, 'iq'))
-        iq['type'] = 'set'
-        iq['from'] = 'user@example.org'
-        iq['to'] = 'pubsub.example.org'
-        iq.addElement((NS_PUBSUB, 'pubsub'))
-        iq.pubsub.addElement('publish')
-        iq.pubsub.publish['node'] = 'test'
-        handler.handleRequest(iq)
+        d = self.handleRequest(handler, parseXml(xml))
+        d.addCallback(cb)
+        return d
 
-        self.assertEqual((JID('user@example.org'),
-                          JID('pubsub.example.org'), 'test', []), handler.args)
 
     def test_onOptionsGet(self):
-        handler = pubsub.PubSubService()
-        handler.parent = self
-        iq = domish.Element((None, 'iq'))
-        iq['from'] = 'user@example.org'
-        iq['to'] = 'pubsub.example.org'
-        iq['type'] = 'get'
-        iq.addElement((NS_PUBSUB, 'pubsub'))
-        iq.pubsub.addElement('options')
-        handler.handleRequest(iq)
+        """
+        Subscription options are not supported.
+        """
 
-        e = error.exceptionFromStanza(self.output[-1])
-        self.assertEquals('feature-not-implemented', e.condition)
-        self.assertEquals('unsupported', e.appCondition.name)
-        self.assertEquals(NS_PUBSUB_ERRORS, e.appCondition.uri)
+        handler = pubsub.PubSubService()
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+
+        handler = pubsub.PubSubService()
+        d = self.handleRequest(handler, parseXml(xml))
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onItems(self):
+        """
+        On a items request, return all items for the given node.
+        """
+        class Handler(pubsub.PubSubService):
+            def items(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+                return defer.succeed([pubsub.Item('current')])
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <items node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(element):
+            self.assertEqual((JID('user@example.org'),
+                              JID('pubsub.example.org'), 'test', None, []),
+                             handler.args)
+
+            self.assertEqual(NS_PUBSUB, element.uri)
+            self.assertEqual(NS_PUBSUB, element.items.uri)
+            self.assertEqual(1, len(element.items.children))
+            item = element.items.children[-1]
+            self.assertTrue(domish.IElement.providedBy(item))
+            self.assertEqual('item', item.name)
+            self.assertEqual(NS_PUBSUB, item.uri)
+            self.assertEqual('current', item['id'])
+
+        handler = Handler()
+        d = self.handleRequest(handler, parseXml(xml))
+        d.addCallback(cb)
+        return d

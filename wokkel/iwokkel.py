@@ -155,7 +155,7 @@ class IPubSubClient(Interface):
         @type items: C{list} of L{domish.Element}
         """
 
-    def deleteReceived(recipient, service, nodeIdentifier, items):
+    def deleteReceived(recipient, service, nodeIdentifier):
         """
         Called when a deletion notification has been received for a node.
 
@@ -167,7 +167,7 @@ class IPubSubClient(Interface):
         @type nodeIdentifier: C{unicode}
         """
 
-    def purgeReceived(recipient, service, nodeIdentifier, items):
+    def purgeReceived(recipient, service, nodeIdentifier):
         """
         Called when a purge notification has been received for a node.
 

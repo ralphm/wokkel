@@ -711,7 +711,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             items["node"] = nodeIdentifier
 
             for item in result:
-                items.addRawXml(item)
+                items.addChild(item)
 
             return response
 

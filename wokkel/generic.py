@@ -12,6 +12,7 @@ from zope.interface import implements
 from twisted.internet import defer
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.xmlstream import toResponse
+from twisted.words.xish import domish
 
 from wokkel import disco
 from wokkel.iwokkel import IDisco
@@ -22,6 +23,26 @@ IQ_SET = '/iq[@type="set"]'
 
 NS_VERSION = 'jabber:iq:version'
 VERSION = IQ_GET + '/query[@xmlns="' + NS_VERSION + '"]'
+
+def parseXml(string):
+    """
+    Parse serialized XML into a DOM structure.
+
+    @param string: The serialized XML to be parsed, UTF-8 encoded.
+    @type string: C{str}.
+    @return: The DOM structure, or C{None} on empty or incomplete input.
+    @rtype: L{domish.Element}
+    """
+    roots = []
+    results = []
+    elementStream = domish.elementStream()
+    elementStream.DocumentStartEvent = roots.append
+    elementStream.ElementEvent = lambda elem: roots[0].addChild(elem)
+    elementStream.DocumentEndEvent = lambda: results.append(roots[0])
+    elementStream.parse(string)
+    return results and results[0] or None
+
+
 
 class FallbackHandler(XMPPHandler):
     """
