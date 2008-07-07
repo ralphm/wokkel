@@ -79,11 +79,11 @@ class PubSubClientTest(unittest.TestCase):
         item3 = items.addElement('item')
         item3['id'] = 'item3'
 
-        def itemsReceived(recipient, service, nodeIdentifier, items):
-            self.assertEquals(JID('user@example.org/home'), recipient)
-            self.assertEquals(JID('pubsub.example.org'), service)
-            self.assertEquals('test', nodeIdentifier)
-            self.assertEquals([item1, item2, item3], items)
+        def itemsReceived(event):
+            self.assertEquals(JID('user@example.org/home'), event.recipient)
+            self.assertEquals(JID('pubsub.example.org'), event.sender)
+            self.assertEquals('test', event.nodeIdentifier)
+            self.assertEquals([item1, item2, item3], event.items)
 
         d, self.protocol.itemsReceived = calledAsync(itemsReceived)
         self.stub.send(message)
@@ -101,10 +101,10 @@ class PubSubClientTest(unittest.TestCase):
         items = event.addElement('delete')
         items['node'] = 'test'
 
-        def deleteReceived(recipient, service, nodeIdentifier):
-            self.assertEquals(JID('user@example.org/home'), recipient)
-            self.assertEquals(JID('pubsub.example.org'), service)
-            self.assertEquals('test', nodeIdentifier)
+        def deleteReceived(event):
+            self.assertEquals(JID('user@example.org/home'), event.recipient)
+            self.assertEquals(JID('pubsub.example.org'), event.sender)
+            self.assertEquals('test', event.nodeIdentifier)
 
         d, self.protocol.deleteReceived = calledAsync(deleteReceived)
         self.stub.send(message)
@@ -122,10 +122,10 @@ class PubSubClientTest(unittest.TestCase):
         items = event.addElement('purge')
         items['node'] = 'test'
 
-        def purgeReceived(recipient, service, nodeIdentifier):
-            self.assertEquals(JID('user@example.org/home'), recipient)
-            self.assertEquals(JID('pubsub.example.org'), service)
-            self.assertEquals('test', nodeIdentifier)
+        def purgeReceived(event):
+            self.assertEquals(JID('user@example.org/home'), event.recipient)
+            self.assertEquals(JID('pubsub.example.org'), event.sender)
+            self.assertEquals('test', event.nodeIdentifier)
 
         d, self.protocol.purgeReceived = calledAsync(purgeReceived)
         self.stub.send(message)

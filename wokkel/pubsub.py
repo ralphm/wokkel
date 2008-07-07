@@ -16,7 +16,7 @@ from twisted.internet import defer
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
-from wokkel import disco, data_form
+from wokkel import disco, data_form, shim
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 from wokkel.iwokkel import IPubSubClient, IPubSubService
 
@@ -189,6 +189,56 @@ class _PubSubRequest(xmlstream.IQ):
 
 
 
+class PubSubEvent(object):
+    """
+    A publish subscribe event.
+
+    @param sender: The entity from which the notification was received.
+    @type sender: L{jid.JID}
+    @param recipient: The entity to which the notification was sent.
+    @type recipient: L{wokkel.pubsub.ItemsEvent}
+    @param nodeIdentifier: Identifier of the node the event pertains to.
+    @type nodeIdentifier: C{unicode}
+    @param headers: SHIM headers, see L{wokkel.shim.extractHeaders}.
+    @type headers: L{dict}
+    """
+
+    def __init__(self, sender, recipient, nodeIdentifier, headers):
+        self.sender = sender
+        self.recipient = recipient
+        self.nodeIdentifier = nodeIdentifier
+        self.headers = headers
+
+
+
+class ItemsEvent(PubSubEvent):
+    """
+    A publish-subscribe event that signifies new, updated and retracted items.
+
+    @param items: List of received items as domish elements.
+    @type items: C{list} of L{domish.Element}
+    """
+
+    def __init__(self, sender, recipient, nodeIdentifier, items, headers):
+        PubSubEvent.__init__(self, sender, recipient, nodeIdentifier, headers)
+        self.items = items
+
+
+
+class DeleteEvent(PubSubEvent):
+    """
+    A publish-subscribe event that signifies the deletion of a node.
+    """
+
+
+
+class PurgeEvent(PubSubEvent):
+    """
+    A publish-subscribe event that signifies the purging of a node.
+    """
+
+
+
 class PubSubClient(XMPPHandler):
     """
     Publish subscribe client protocol.
@@ -203,7 +253,7 @@ class PubSubClient(XMPPHandler):
 
     def _onEvent(self, message):
         try:
-            service = jid.JID(message["from"])
+            sender = jid.JID(message["from"])
             recipient = jid.JID(message["to"])
         except KeyError:
             return
@@ -219,32 +269,36 @@ class PubSubClient(XMPPHandler):
         eventHandler = getattr(self, "_onEvent_%s" % actionElement.name, None)
 
         if eventHandler:
-            eventHandler(service, recipient, actionElement)
+            headers = shim.extractHeaders(message)
+            eventHandler(sender, recipient, actionElement, headers)
             message.handled = True
 
-    def _onEvent_items(self, service, recipient, action):
+    def _onEvent_items(self, sender, recipient, action, headers):
         nodeIdentifier = action["node"]
 
         items = [element for element in action.elements()
                          if element.name in ('item', 'retract')]
 
-        self.itemsReceived(recipient, service, nodeIdentifier, items)
+        event = ItemsEvent(sender, recipient, nodeIdentifier, items, headers)
+        self.itemsReceived(event)
 
-    def _onEvent_delete(self, service, recipient, action):
+    def _onEvent_delete(self, sender, recipient, action, headers):
         nodeIdentifier = action["node"]
-        self.deleteReceived(recipient, service, nodeIdentifier)
+        event = DeleteEvent(sender, recipient, nodeIdentifier, headers)
+        self.deleteReceived(event)
 
-    def _onEvent_purge(self, service, recipient, action):
+    def _onEvent_purge(self, sender, recipient, action, headers):
         nodeIdentifier = action["node"]
-        self.purgeReceived(recipient, service, nodeIdentifier)
+        event = PurgeEvent(sender, recipient, nodeIdentifier, headers)
+        self.purgeReceived(event)
 
-    def itemsReceived(self, recipient, service, nodeIdentifier, items):
+    def itemsReceived(self, event):
         pass
 
-    def deleteReceived(self, recipient, service, nodeIdentifier):
+    def deleteReceived(self, event):
         pass
 
-    def purgeReceived(self, recipient, service, nodeIdentifier):
+    def purgeReceived(self, event):
         pass
 
     def createNode(self, service, nodeIdentifier=None):
