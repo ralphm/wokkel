@@ -4,6 +4,7 @@
 """
 Tests for L{wokkel.pubsub}
 """
+
 from zope.interface import verify
 
 from twisted.trial import unittest
@@ -12,7 +13,7 @@ from twisted.words.xish import domish, xpath
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 
-from wokkel import iwokkel, pubsub
+from wokkel import data_form, iwokkel, pubsub
 from wokkel.generic import parseXml
 from wokkel.test.helpers import XmlStreamStub
 
@@ -22,8 +23,10 @@ except ImportError:
     from wokkel.compat import toResponse
 
 NS_PUBSUB = 'http://jabber.org/protocol/pubsub'
+NS_PUBSUB_CONFIG = 'http://jabber.org/protocol/pubsub#node_config'
 NS_PUBSUB_ERRORS = 'http://jabber.org/protocol/pubsub#errors'
 NS_PUBSUB_EVENT = 'http://jabber.org/protocol/pubsub#event'
+NS_PUBSUB_OWNER = 'http://jabber.org/protocol/pubsub#owner'
 
 def calledAsync(fn):
     """
@@ -444,13 +447,18 @@ class PubSubServiceTest(unittest.TestCase):
     Tests for L{pubsub.PubSubService}.
     """
 
-    def handleRequest(self, handler, iq):
+    def setUp(self):
+        self.service = pubsub.PubSubService()
+
+    def handleRequest(self, xml):
         """
         Find a handler and call it directly
         """
-        for queryString, method in handler.iqHandlers.iteritems():
+        handler = None
+        iq = parseXml(xml)
+        for queryString, method in self.service.iqHandlers.iteritems():
             if xpath.internQuery(queryString).matches(iq):
-                handler = getattr(handler, method)
+                handler = getattr(self.service, method)
 
         if handler:
             d = defer.maybeDeferred(handler, iq)
@@ -464,7 +472,7 @@ class PubSubServiceTest(unittest.TestCase):
         """
         Do instances of L{pubsub.PubSubService} provide L{iwokkel.IPubSubService}?
         """
-        verify.verifyObject(iwokkel.IPubSubService, pubsub.PubSubService())
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
 
 
     def test_onPublishNoNode(self):
@@ -483,21 +491,17 @@ class PubSubServiceTest(unittest.TestCase):
         def cb(result):
             self.assertEquals('bad-request', result.condition)
 
-        handler = pubsub.PubSubService()
-        d = self.handleRequest(handler, parseXml(xml))
+        d = self.handleRequest(xml)
         self.assertFailure(d, error.StanzaError)
         d.addCallback(cb)
         return d
+
 
     def test_onPublish(self):
         """
         A publish request should result in L{PubSubService.publish} being
         called.
         """
-        class Handler(pubsub.PubSubService):
-            def publish(self, requestor, service, nodeIdentifier, items):
-                return defer.succeed((requestor, service,nodeIdentifier,
-                                      items))
 
         xml = """
         <iq type='set' to='pubsub.example.org'
@@ -508,14 +512,15 @@ class PubSubServiceTest(unittest.TestCase):
         </iq>
         """
 
-        def cb(result):
-            self.assertEqual((JID('user@example.org'),
-                              JID('pubsub.example.org'),'test', []), result)
+        def publish(requestor, service, nodeIdentifier, items):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            self.assertEqual('test', nodeIdentifier)
+            self.assertEqual([], items)
+            return defer.succeed(None)
 
-        handler = Handler()
-        d = self.handleRequest(handler, parseXml(xml))
-        d.addCallback(cb)
-        return d
+        self.service.publish = publish
+        return self.handleRequest(xml)
 
 
     def test_onOptionsGet(self):
@@ -523,7 +528,6 @@ class PubSubServiceTest(unittest.TestCase):
         Subscription options are not supported.
         """
 
-        handler = pubsub.PubSubService()
         xml = """
         <iq type='get' to='pubsub.example.org'
                        from='user@example.org'>
@@ -538,23 +542,181 @@ class PubSubServiceTest(unittest.TestCase):
             self.assertEquals('unsupported', result.appCondition.name)
             self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
 
-        handler = pubsub.PubSubService()
-        d = self.handleRequest(handler, parseXml(xml))
+        d = self.handleRequest(xml)
         self.assertFailure(d, error.StanzaError)
         d.addCallback(cb)
         return d
+
+
+    def test_onDefault(self):
+        """
+        A default request should result in
+        L{PubSubService.getDefaultConfiguration} being called.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <default/>
+          </pubsub>
+        </iq>
+        """
+
+        def getConfigurationOptions():
+            return {
+                "pubsub#persist_items":
+                    {"type": "boolean",
+                     "label": "Persist items to storage"},
+                "pubsub#deliver_payloads":
+                    {"type": "boolean",
+                     "label": "Deliver payloads with event notifications"}
+                }
+
+        def getDefaultConfiguration(requestor, service):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            return defer.succeed({})
+
+        def cb(element):
+            self.assertEqual('pubsub', element.name)
+            self.assertEqual(NS_PUBSUB_OWNER, element.uri)
+            self.assertEqual(NS_PUBSUB_OWNER, element.default.uri)
+            form = data_form.Form.fromElement(element.default.x)
+            self.assertEqual(NS_PUBSUB_CONFIG, form.formNamespace)
+
+        self.service.getConfigurationOptions = getConfigurationOptions
+        self.service.getDefaultConfiguration = getDefaultConfiguration
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onConfigureGet(self):
+        """
+        On a node configuration get request L{PubSubService.getConfiguration}
+        is called and results in a data form with the configuration.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def getConfigurationOptions():
+            return {
+                "pubsub#persist_items":
+                    {"type": "boolean",
+                     "label": "Persist items to storage"},
+                "pubsub#deliver_payloads":
+                    {"type": "boolean",
+                     "label": "Deliver payloads with event notifications"}
+                }
+
+        def getConfiguration(requestor, service, nodeIdentifier):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            self.assertEqual('test', nodeIdentifier)
+
+            return defer.succeed({'pubsub#deliver_payloads': '0',
+                                  'pubsub#persist_items': '1'})
+
+        def cb(element):
+            self.assertEqual('pubsub', element.name)
+            self.assertEqual(NS_PUBSUB_OWNER, element.uri)
+            self.assertEqual(NS_PUBSUB_OWNER, element.configure.uri)
+            form = data_form.Form.fromElement(element.configure.x)
+            self.assertEqual(NS_PUBSUB_CONFIG, form.formNamespace)
+            fields = dict([(field.var, field) for field in form.fields])
+
+            self.assertIn('pubsub#deliver_payloads', fields)
+            field = fields['pubsub#deliver_payloads']
+            self.assertEqual('boolean', field.fieldType)
+            self.assertEqual(True, field.value)
+
+            self.assertIn('pubsub#persist_items', fields)
+            field = fields['pubsub#persist_items']
+            self.assertEqual('boolean', field.fieldType)
+            self.assertEqual(True, field.value)
+
+        self.service.getConfigurationOptions = getConfigurationOptions
+        self.service.getConfiguration = getConfiguration
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onConfigureSet(self):
+        """
+        On a node configuration set request the Data Form is parsed and
+        L{PubSubService.setConfiguration} is called with the passed options.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver_payloads'><value>0</value></field>
+                <field var='pubsub#persist_items'><value>1</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        def setConfiguration(requestor, service, nodeIdentifier, options):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            self.assertEqual('test', nodeIdentifier)
+            self.assertEqual({'pubsub#deliver_payloads': '0',
+                              'pubsub#persist_items': '1'}, options)
+            return defer.succeed(None)
+
+        self.service.setConfiguration = setConfiguration
+        return self.handleRequest(xml)
+
+
+    def test_onConfigureSetCancel(self):
+        """
+        The node configuration is cancelled, L{PubSubService.setConfiguration}
+        not called.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='cancel'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        def setConfiguration(requestor, service, nodeIdentifier, options):
+            self.fail("Unexpected call to setConfiguration")
+
+        self.service.setConfiguration = setConfiguration
+        return self.handleRequest(xml)
 
 
     def test_onItems(self):
         """
         On a items request, return all items for the given node.
         """
-        class Handler(pubsub.PubSubService):
-            def items(self, *args, **kwargs):
-                self.args = args
-                self.kwargs = kwargs
-                return defer.succeed([pubsub.Item('current')])
-
         xml = """
         <iq type='get' to='pubsub.example.org'
                        from='user@example.org'>
@@ -564,11 +726,15 @@ class PubSubServiceTest(unittest.TestCase):
         </iq>
         """
 
-        def cb(element):
-            self.assertEqual((JID('user@example.org'),
-                              JID('pubsub.example.org'), 'test', None, []),
-                             handler.args)
+        def items(requestor, service, nodeIdentifier, maxItems, items):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            self.assertEqual('test', nodeIdentifier)
+            self.assertIdentical(None, maxItems)
+            self.assertEqual([], items)
+            return defer.succeed([pubsub.Item('current')])
 
+        def cb(element):
             self.assertEqual(NS_PUBSUB, element.uri)
             self.assertEqual(NS_PUBSUB, element.items.uri)
             self.assertEqual(1, len(element.items.children))
@@ -578,7 +744,7 @@ class PubSubServiceTest(unittest.TestCase):
             self.assertEqual(NS_PUBSUB, item.uri)
             self.assertEqual('current', item['id'])
 
-        handler = Handler()
-        d = self.handleRequest(handler, parseXml(xml))
+        self.service.items = items
+        d = self.handleRequest(xml)
         d.addCallback(cb)
         return d

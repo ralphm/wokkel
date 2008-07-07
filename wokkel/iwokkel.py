@@ -389,6 +389,41 @@ class IPubSubService(Interface):
         @rtype: L{defer.Deferred}
         """
 
+    def getConfigurationOptions():
+        """
+        Retrieve all known node configuration options.
+
+        The returned dictionary holds the possible node configuration options
+        by option name. The value of each entry represents the specifics for
+        that option in a dictionary:
+
+        - C{'type'} (C{str}): The option's type (see
+          L{Field<wokkel.data_form.Field>}'s doc string for possible values).
+        - C{'label'} (C{unicode}): A human readable label for this option.
+        - C{'options'} (C{dict}): Optional list of possible values for this
+          option.
+
+        Example::
+
+            {
+            "pubsub#persist_items":
+                {"type": "boolean",
+                 "label": "Persist items to storage"},
+            "pubsub#deliver_payloads":
+                {"type": "boolean",
+                 "label": "Deliver payloads with event notifications"},
+            "pubsub#send_last_published_item":
+                {"type": "list-single",
+                 "label": "When to send the last published item",
+                 "options": {
+                     "never": "Never",
+                     "on_sub": "When a new subscription is processed"}
+                }
+            }
+
+        @rtype: C{dict}.
+        """
+
     def getDefaultConfiguration(requestor, service):
         """
         Called when a default node configuration request has been received.

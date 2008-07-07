@@ -173,6 +173,7 @@ class _PubSubRequest(xmlstream.IQ):
 
         self.command = self.pubsub.addElement(verb)
 
+
     def send(self, to):
         """
         Send out request.
@@ -198,6 +199,7 @@ class PubSubClient(XMPPHandler):
     def connectionInitialized(self):
         self.xmlstream.addObserver('/message/event[@xmlns="%s"]' %
                                    NS_PUBSUB_EVENT, self._onEvent)
+
 
     def _onEvent(self, message):
         try:
@@ -270,6 +272,7 @@ class PubSubClient(XMPPHandler):
 
         return request.send(service).addCallback(cb)
 
+
     def deleteNode(self, service, nodeIdentifier):
         """
         Delete a publish subscribe node.
@@ -282,6 +285,7 @@ class PubSubClient(XMPPHandler):
         request = _PubSubRequest(self.xmlstream, 'delete')
         request.command['node'] = nodeIdentifier
         return request.send(service)
+
 
     def subscribe(self, service, nodeIdentifier, subscriber):
         """
@@ -314,6 +318,7 @@ class PubSubClient(XMPPHandler):
 
         return request.send(service).addCallback(cb)
 
+
     def unsubscribe(self, service, nodeIdentifier, subscriber):
         """
         Unsubscribe from a publish subscribe node.
@@ -329,6 +334,7 @@ class PubSubClient(XMPPHandler):
         request.command['node'] = nodeIdentifier
         request.command['jid'] = subscriber.full()
         return request.send(service)
+
 
     def publish(self, service, nodeIdentifier, items=None):
         """
@@ -348,6 +354,7 @@ class PubSubClient(XMPPHandler):
                 request.command.addChild(item)
 
         return request.send(service)
+
 
     def items(self, service, nodeIdentifier, maxItems=None):
         """
@@ -430,6 +437,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
             }
 
+
     def __init__(self):
         self.discoIdentity = {'category': 'pubsub',
                               'type': 'generic',
@@ -437,11 +445,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
         self.pubSubFeatures = []
 
+
     def connectionMade(self):
         self.xmlstream.addObserver(PUBSUB_GET, self.handleRequest)
         self.xmlstream.addObserver(PUBSUB_SET, self.handleRequest)
         self.xmlstream.addObserver(PUBSUB_OWNER_GET, self.handleRequest)
         self.xmlstream.addObserver(PUBSUB_OWNER_SET, self.handleRequest)
+
 
     def getDiscoInfo(self, requestor, target, nodeIdentifier):
         info = []
@@ -453,31 +463,33 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             info.extend([disco.DiscoFeature("%s#%s" % (NS_PUBSUB, feature))
                          for feature in self.pubSubFeatures])
 
-            return defer.succeed(info)
-        else:
-            def toInfo(nodeInfo):
-                if not nodeInfo:
-                    return []
+        def toInfo(nodeInfo):
+            if not nodeInfo:
+                return
 
-                (nodeType, metaData) = nodeInfo['type'], nodeInfo['meta-data']
-                info.append(disco.DiscoIdentity('pubsub', nodeType))
-                if metaData:
-                    form = data_form.Form(type="result",
-                                          form_type=NS_PUBSUB_META_DATA) 
-                    form.add_field("text-single",
-                                   "pubsub#node_type",
-                                   "The type of node (collection or leaf)",
-                                   nodeType)
+            (nodeType, metaData) = nodeInfo['type'], nodeInfo['meta-data']
+            info.append(disco.DiscoIdentity('pubsub', nodeType))
+            if metaData:
+                form = data_form.Form(formType="result",
+                                      formNamespace=NS_PUBSUB_META_DATA)
+                form.fields.append(
+                        data_form.Field(
+                            var='pubsub#node_type',
+                            value=nodeType,
+                            label='The type of node (collection or leaf)'
+                        )
+                )
 
-                    for metaDatum in metaData:
-                        form.add_field(**metaDatum)
+                for metaDatum in metaData:
+                    form.fields.append(data_form.Field.fromDict(metaDatum))
 
-                    info.append(form)
-                return info
+                info.append(form.toElement())
 
-            d = self.getNodeInfo(requestor, target, nodeIdentifier)
-            d.addCallback(toInfo)
-            return d
+        d = self.getNodeInfo(requestor, target, nodeIdentifier or '')
+        d.addCallback(toInfo)
+        d.addBoth(lambda result: info)
+        return d
+
 
     def getDiscoItems(self, requestor, target, nodeIdentifier):
         if nodeIdentifier or self.hideNodes:
@@ -487,6 +499,24 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         d.addCallback(lambda nodes: [disco.DiscoItem(target, node)
                                      for node in nodes])
         return d
+
+
+    def _findForm(self, element, formNamespace):
+        if not element:
+            return None
+
+        form = None
+        for child in element.elements():
+            try:
+                form = data_form.Form.fromElement(child)
+            except data_form.Error:
+                continue
+
+            if form.formNamespace != NS_PUBSUB_NODE_CONFIG:
+                continue
+
+        return form
+
 
     def _onPublish(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
@@ -503,6 +533,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 items.append(element)
 
         return self.publish(requestor, service, nodeIdentifier, items)
+
 
     def _onSubscribe(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
@@ -527,6 +558,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         d.addCallback(toResponse)
         return d
 
+
     def _onUnsubscribe(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
         service = jid.internJID(iq["to"])
@@ -539,11 +571,14 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
         return self.unsubscribe(requestor, service, nodeIdentifier, subscriber)
 
+
     def _onOptionsGet(self, iq):
         raise Unsupported('subscription-options-unavailable')
 
+
     def _onOptionsSet(self, iq):
         raise Unsupported('subscription-options-unavailable')
+
 
     def _onSubscriptions(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
@@ -562,6 +597,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         d = self.subscriptions(requestor, service)
         d.addCallback(toResponse)
         return d
+
 
     def _onAffiliations(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
@@ -582,6 +618,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         d.addCallback(toResponse)
         return d
 
+
     def _onCreate(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
         service = jid.internJID(iq["to"])
@@ -600,13 +637,24 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         d.addCallback(toResponse)
         return d
 
-    def _formFromConfiguration(self, options):
-        form = data_form.Form(type="form", form_type=NS_PUBSUB_NODE_CONFIG)
 
-        for option in options:
-            form.add_field(**option)
+    def _formFromConfiguration(self, values):
+        options = self.getConfigurationOptions()
+        form = data_form.Form(formType="form",
+                              formNamespace=NS_PUBSUB_NODE_CONFIG)
+
+        for name, value in values.iteritems():
+            if name in options:
+                option = {'var': name}
+                option.update(options[name])
+                if isinstance(value, list):
+                    option['values'] = value
+                else:
+                    option['value'] = value
+                form.fields.append(data_form.Field.fromDict(option))
 
         return form
+
 
     def _onDefault(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
@@ -615,12 +663,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         def toResponse(options):
             response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
             default = response.addElement("default")
-            default.addChild(self._formFromConfiguration(options))
+            default.addChild(self._formFromConfiguration(options).toElement())
             return response
 
         d = self.getDefaultConfiguration(requestor, service)
         d.addCallback(toResponse)
         return d
+
 
     def _onConfigureGet(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
@@ -630,7 +679,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         def toResponse(options):
             response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
             configure = response.addElement("configure")
-            configure.addChild(self._formFromConfiguration(options))
+            configure.addChild(self._formFromConfiguration(options).toElement())
 
             if nodeIdentifier:
                 configure["node"] = nodeIdentifier
@@ -641,44 +690,27 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         d.addCallback(toResponse)
         return d
 
+
     def _onConfigureSet(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
         service = jid.internJID(iq["to"])
         nodeIdentifier = iq.pubsub.configure["node"]
 
-        def getFormOptions(form):
-            options = {}
-
-            for element in form.elements():
-                if element.name == 'field' and \
-                   element.uri == data_form.NS_X_DATA:
-                    try:
-                        options[element["var"]] = str(element.value)
-                    except (KeyError, AttributeError):
-                        raise BadRequest
-
-            return options
-
         # Search configuration form with correct FORM_TYPE and process it
 
-        for element in iq.pubsub.configure.elements():
-            if element.name != 'x' or element.uri != data_form.NS_X_DATA:
-                continue
+        form = self._findForm(iq.pubsub.configure, NS_PUBSUB_NODE_CONFIG)
 
-            type = element.getAttribute("type")
-            if type == "cancel":
-                return None
-            elif type != "submit":
-                continue
+        if form:
+            if form.formType == 'submit':
+                options = form.getValues()
 
-            options = getFormOptions(element)
-
-            if options["FORM_TYPE"] == NS_PUBSUB + "#node_config":
-                del options["FORM_TYPE"]
                 return self.setConfiguration(requestor, service,
                                              nodeIdentifier, options)
+            elif form.formType == 'cancel':
+                return None
 
-        raise BadRequest
+        raise BadRequest()
+
 
     def _onItems(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
@@ -720,6 +752,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         d.addCallback(toResponse)
         return d
 
+
     def _onRetract(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
         service = jid.internJID(iq["to"])
@@ -740,6 +773,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return self.retract(requestor, service, nodeIdentifier,
                             itemIdentifiers)
 
+
     def _onPurge(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
         service = jid.internJID(iq["to"])
@@ -750,6 +784,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             raise BadRequest
 
         return self.purge(requestor, service, nodeIdentifier)
+
 
     def _onDelete(self, iq):
         requestor = jid.internJID(iq["from"]).userhostJID()
@@ -762,14 +797,18 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
         return self.delete(requestor, service, nodeIdentifier)
 
+
     def _onAffiliationsGet(self, iq):
         raise Unsupported('modify-affiliations')
+
 
     def _onAffiliationsSet(self, iq):
         raise Unsupported('modify-affiliations')
 
+
     def _onSubscriptionsGet(self, iq):
         raise Unsupported('manage-subscriptions')
+
 
     def _onSubscriptionsSet(self, iq):
         raise Unsupported('manage-subscriptions')
@@ -787,6 +826,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             element.children = items
             self.send(message)
 
+
     def notifyDelete(self, service, nodeIdentifier, recipients):
         for recipient in recipients:
             message = domish.Element((None, "message"))
@@ -797,48 +837,67 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             element["node"] = nodeIdentifier
             self.send(message)
 
+
     def getNodeInfo(self, requestor, service, nodeIdentifier):
         return None
+
 
     def getNodes(self, requestor, service):
         return []
 
+
     def publish(self, requestor, service, nodeIdentifier, items):
         raise Unsupported('publish')
+
 
     def subscribe(self, requestor, service, nodeIdentifier, subscriber):
         raise Unsupported('subscribe')
 
+
     def unsubscribe(self, requestor, service, nodeIdentifier, subscriber):
         raise Unsupported('subscribe')
+
 
     def subscriptions(self, requestor, service):
         raise Unsupported('retrieve-subscriptions')
 
+
     def affiliations(self, requestor, service):
         raise Unsupported('retrieve-affiliations')
+
 
     def create(self, requestor, service, nodeIdentifier):
         raise Unsupported('create-nodes')
 
+
+    def getConfigurationOptions(self):
+        return {}
+
+
     def getDefaultConfiguration(self, requestor, service):
         raise Unsupported('retrieve-default')
+
 
     def getConfiguration(self, requestor, service, nodeIdentifier):
         raise Unsupported('config-node')
 
+
     def setConfiguration(self, requestor, service, nodeIdentifier, options):
         raise Unsupported('config-node')
+
 
     def items(self, requestor, service, nodeIdentifier, maxItems,
                     itemIdentifiers):
         raise Unsupported('retrieve-items')
 
+
     def retract(self, requestor, service, nodeIdentifier, itemIdentifiers):
         raise Unsupported('retract-items')
 
+
     def purge(self, requestor, service, nodeIdentifier):
         raise Unsupported('purge-nodes')
+
 
     def delete(self, requestor, service, nodeIdentifier):
         raise Unsupported('delete-nodes')
