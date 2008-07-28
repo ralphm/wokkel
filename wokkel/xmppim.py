@@ -327,6 +327,23 @@ class RosterClientProtocol(XMPPHandler):
         d.addCallback(processRoster)
         return d
 
+
+    def removeItem(self, entity):
+        """
+        Remove an item from the contact list.
+
+        @param entity: The contact to remove the roster item for.
+        @type entity: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @rtype: L{twisted.internet.defer.Deferred}
+        """
+        iq = IQ(self.xmlstream, 'set')
+        iq.addElement((NS_ROSTER, 'query'))
+        item = iq.query.addElement('item')
+        item['jid'] = entity.full()
+        item['subscription'] = 'remove'
+        return iq.send()
+
+
     def _onRosterSet(self, iq):
         if iq.handled or \
            iq.hasAttribute('from') and iq['from'] != self.xmlstream:
