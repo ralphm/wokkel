@@ -631,12 +631,12 @@ class PubSubServiceTest(unittest.TestCase):
             self.assertEqual(NS_PUBSUB_OWNER, element.configure.uri)
             form = data_form.Form.fromElement(element.configure.x)
             self.assertEqual(NS_PUBSUB_CONFIG, form.formNamespace)
-            fields = dict([(field.var, field) for field in form.fields])
+            fields = form.fields
 
             self.assertIn('pubsub#deliver_payloads', fields)
             field = fields['pubsub#deliver_payloads']
             self.assertEqual('boolean', field.fieldType)
-            self.assertEqual(True, field.value)
+            self.assertEqual(False, field.value)
 
             self.assertIn('pubsub#persist_items', fields)
             field = fields['pubsub#persist_items']
@@ -673,14 +673,25 @@ class PubSubServiceTest(unittest.TestCase):
         </iq>
         """
 
+        def getConfigurationOptions():
+            return {
+                "pubsub#persist_items":
+                    {"type": "boolean",
+                     "label": "Persist items to storage"},
+                "pubsub#deliver_payloads":
+                    {"type": "boolean",
+                     "label": "Deliver payloads with event notifications"}
+                }
+
         def setConfiguration(requestor, service, nodeIdentifier, options):
             self.assertEqual(JID('user@example.org'), requestor)
             self.assertEqual(JID('pubsub.example.org'), service)
             self.assertEqual('test', nodeIdentifier)
-            self.assertEqual({'pubsub#deliver_payloads': '0',
-                              'pubsub#persist_items': '1'}, options)
+            self.assertEqual({'pubsub#deliver_payloads': False,
+                              'pubsub#persist_items': True}, options)
             return defer.succeed(None)
 
+        self.service.getConfigurationOptions = getConfigurationOptions
         self.service.setConfiguration = setConfiguration
         return self.handleRequest(xml)
 
@@ -709,6 +720,46 @@ class PubSubServiceTest(unittest.TestCase):
         def setConfiguration(requestor, service, nodeIdentifier, options):
             self.fail("Unexpected call to setConfiguration")
 
+        self.service.setConfiguration = setConfiguration
+        return self.handleRequest(xml)
+
+
+    def test_onConfigureSetIgnoreUnknown(self):
+        """
+        On a node configuration set request unknown fields should be ignored.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver_payloads'><value>0</value></field>
+                <field var='x-myfield'><value>1</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        def getConfigurationOptions():
+            return {
+                "pubsub#persist_items":
+                    {"type": "boolean",
+                     "label": "Persist items to storage"},
+                "pubsub#deliver_payloads":
+                    {"type": "boolean",
+                     "label": "Deliver payloads with event notifications"}
+                }
+
+        def setConfiguration(requestor, service, nodeIdentifier, options):
+            self.assertEquals(['pubsub#deliver_payloads'], options.keys())
+
+        self.service.getConfigurationOptions = getConfigurationOptions
         self.service.setConfiguration = setConfiguration
         return self.handleRequest(xml)
 

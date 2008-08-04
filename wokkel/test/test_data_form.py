@@ -115,7 +115,7 @@ class FormTest(unittest.TestCase):
         self.assertEquals('result', form.formType)
         self.assertEquals(None, form.title)
         self.assertEquals([], form.instructions)
-        self.assertEquals([], form.fields)
+        self.assertEquals({}, form.fields)
 
 
     def test_fromElementInvalidElementName(self):
@@ -163,7 +163,8 @@ class FormTest(unittest.TestCase):
         element.addElement('field')
         form = Form.fromElement(element)
 
-        self.assertEquals(1, len(form.fields))
+        self.assertEquals(1, len(form.fieldList))
+        self.assertNotIn('field', form.fields)
 
 
     def test_fromElementTwoFields(self):
@@ -172,6 +173,8 @@ class FormTest(unittest.TestCase):
         element.addElement('field')['var'] = 'field2'
         form = Form.fromElement(element)
 
-        self.assertEquals(2, len(form.fields))
-        self.assertEquals('field1', form.fields[0].var)
-        self.assertEquals('field2', form.fields[1].var)
+        self.assertEquals(2, len(form.fieldList))
+        self.assertIn('field1', form.fields)
+        self.assertEquals('field1', form.fieldList[0].var)
+        self.assertIn('field2', form.fields)
+        self.assertEquals('field2', form.fieldList[1].var)

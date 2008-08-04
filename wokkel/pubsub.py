@@ -526,7 +526,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             if metaData:
                 form = data_form.Form(formType="result",
                                       formNamespace=NS_PUBSUB_META_DATA)
-                form.fields.append(
+                form.addField(
                         data_form.Field(
                             var='pubsub#node_type',
                             value=nodeType,
@@ -535,7 +535,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 )
 
                 for metaDatum in metaData:
-                    form.fields.append(data_form.Field.fromDict(metaDatum))
+                    form.addField(data_form.Field.fromDict(metaDatum))
 
                 info.append(form.toElement())
 
@@ -692,22 +692,53 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return d
 
 
+    def _makeFields(self, options, values):
+        fields = []
+        for name, value in values.iteritems():
+            if name not in options:
+                continue
+
+            option = {'var': name}
+            option.update(options[name])
+            if isinstance(value, list):
+                option['values'] = value
+            else:
+                option['value'] = value
+            fields.append(data_form.Field.fromDict(option))
+        return fields
+
     def _formFromConfiguration(self, values):
         options = self.getConfigurationOptions()
+        fields = self._makeFields(options, values)
         form = data_form.Form(formType="form",
-                              formNamespace=NS_PUBSUB_NODE_CONFIG)
-
-        for name, value in values.iteritems():
-            if name in options:
-                option = {'var': name}
-                option.update(options[name])
-                if isinstance(value, list):
-                    option['values'] = value
-                else:
-                    option['value'] = value
-                form.fields.append(data_form.Field.fromDict(option))
+                              formNamespace=NS_PUBSUB_NODE_CONFIG,
+                              fields=fields)
 
         return form
+
+    def _checkConfiguration(self, values):
+        options = self.getConfigurationOptions()
+        processedValues = {}
+
+        for key, value in values.iteritems():
+            if key not in options:
+                continue
+
+            option = {'var': key}
+            option.update(options[key])
+            field = data_form.Field.fromDict(option)
+            if isinstance(value, list):
+                field.values = value
+            else:
+                field.value = value
+            field.typeCheck()
+
+            if isinstance(value, list):
+                processedValues[key] = field.values
+            else:
+                processedValues[key] = field.value
+
+        return processedValues
 
 
     def _onDefault(self, iq):
@@ -756,7 +787,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
         if form:
             if form.formType == 'submit':
-                options = form.getValues()
+                options = self._checkConfiguration(form.getValues())
 
                 return self.setConfiguration(requestor, service,
                                              nodeIdentifier, options)

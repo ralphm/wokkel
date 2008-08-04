@@ -203,20 +203,12 @@ class Field(object):
             """)
 
 
-    def toElement(self):
+    def typeCheck(self):
         """
-        Return the DOM representation of this Field.
-
-        @rtype L{domish.Element}.
+        Check field properties agains the set field type.
         """
         if self.var is None and self.fieldType != 'fixed':
             raise FieldNameRequiredError()
-
-        field = domish.Element((NS_X_DATA, 'field'))
-        field['type'] = self.fieldType
-
-        if self.var is not None:
-            field['var'] = self.var
 
         if self.values:
             if (self.fieldType not in ('hidden', 'jid-multi', 'list-multi',
@@ -224,14 +216,37 @@ class Field(object):
                 len(self.values) > 1):
                 raise TooManyValuesError()
 
+            newValues = []
             for value in self.values:
                 if self.fieldType == 'boolean':
                     # We send out the textual representation of boolean values
-                    value = unicode(bool(value)).lower()
+                    value = bool(int(value))
                 elif self.fieldType in ('jid-single', 'jid-multi'):
                     value = value.full()
 
-                field.addElement('value', content=value)
+                newValues.append(value)
+
+            self.values = newValues
+
+    def toElement(self):
+        """
+        Return the DOM representation of this Field.
+
+        @rtype L{domish.Element}.
+        """
+
+        self.typeCheck()
+
+        field = domish.Element((NS_X_DATA, 'field'))
+        field['type'] = self.fieldType
+
+        if self.var is not None:
+            field['var'] = self.var
+
+        for value in self.values:
+            if self.fieldType == 'boolean':
+                value = unicode(value).lower()
+            field.addElement('value', content=value)
 
         if self.fieldType in ('list-single', 'list-multi'):
             for option in self.options:
@@ -301,15 +316,19 @@ class Field(object):
 
     @staticmethod
     def fromDict(dictionary):
+        kwargs = dictionary.copy()
+
         if 'type' in dictionary:
-            dictionary['fieldType'] = dictionary['type']
-            del dictionary['type']
+            kwargs['fieldType'] = dictionary['type']
+            del kwargs['type']
+
         if 'options' in dictionary:
             options = []
             for value, label in dictionary['options'].iteritems():
                 options.append(Option(value, label))
-            dictionary['options'] = options
-        return Field(**dictionary)
+            kwargs['options'] = options
+
+        return Field(**kwargs)
 
 
 
@@ -334,6 +353,10 @@ class Form(object):
                          form. This goes in the special field named
                          C{'FORM_TYPE'}, if set.
     @type formNamespace: C{str}.
+    @ivar fields: Dictionary of fields that have a name. Note that this is
+                  meant to be used for reading, only. One should use
+                  L{addField} for adding fields.
+    @type fields: C{dict}
     """
 
     def __init__(self, formType, title=None, instructions=None,
@@ -342,8 +365,13 @@ class Form(object):
         self.title = title
         self.instructions = instructions or []
         self.formNamespace = formNamespace
-        self.fields = fields or []
 
+        self.fieldList = []
+        self.fields = {}
+
+        if fields:
+            for field in fields:
+                self.addField(field)
 
     def __repr__(self):
         r = ["Form(formType=", repr(self.formType)]
@@ -359,9 +387,26 @@ class Form(object):
             r.append(repr(self.formNamespace))
         if self.fields:
             r.append(", fields=")
-            r.append(repr(self.fields))
+            r.append(repr(self.fieldList))
         r.append(")")
         return u"".join(r)
+
+
+    def addField(self, field):
+        """
+        Add a field to this form.
+
+        Fields are added in order, and L{fields} is a dictionary of the
+        named fields, that is kept in sync only if this method is used for
+        adding new fields. Multiple fields with the same name are disallowed.
+        """
+        if field.var is not None:
+            if field.var in self.fields:
+                raise Error("Duplicate field %r" % field.var)
+
+            self.fields[field.var] = field
+
+        self.fieldList.append(field)
 
 
     def toElement(self):
@@ -378,7 +423,7 @@ class Form(object):
             field = Field('hidden', 'FORM_TYPE', self.formNamespace)
             form.addChild(field.toElement())
 
-        for field in self.fields:
+        for field in self.fieldList:
             form.addChild(field.toElement())
 
         return form
@@ -406,7 +451,7 @@ class Form(object):
             field.value):
             form.formNamespace = field.value
         else:
-            form.fields.append(field)
+            form.addField(field)
 
     @staticmethod
     def fromElement(element):
@@ -428,13 +473,12 @@ class Form(object):
     def getValues(self):
         values = {}
 
-        for field in self.fields:
+        for name, field in self.fields.iteritems():
             if len(field.values) > 1:
                 value = field.values
             else:
                 value = field.value
 
-            if field.var:
-                values[field.var] = value
+            values[name] = value
 
         return values
