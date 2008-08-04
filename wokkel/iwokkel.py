@@ -106,7 +106,7 @@ class IDisco(Interface):
     Interface for XMPP service discovery.
     """
 
-    def getDiscoInfo(requestor, target, nodeIdentifier=None):
+    def getDiscoInfo(requestor, target, nodeIdentifier=''):
         """
         Get identity and features from this entity, node.
 
@@ -116,11 +116,11 @@ class IDisco(Interface):
         @type target: L{jid.JID}
         @param nodeIdentifier: The optional identifier of the node at this
                                entity to retrieve the identify and features of.
-                               The default is C{None}, meaning the root node.
+                               The default is C{''}, meaning the root node.
         @type nodeIdentifier: C{unicode}
         """
 
-    def getDiscoItems(requestor, target, nodeIdentifier=None):
+    def getDiscoItems(requestor, target, nodeIdentifier=''):
         """
         Get contained items for this entity, node.
 
@@ -130,7 +130,7 @@ class IDisco(Interface):
         @type target: L{jid.JID}
         @param nodeIdentifier: The optional identifier of the node at this
                                entity to retrieve the identify and features of.
-                               The default is C{None}, meaning the root node.
+                               The default is C{''}, meaning the root node.
         @type nodeIdentifier: C{unicode}
         """
 

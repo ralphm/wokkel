@@ -44,6 +44,24 @@ def parseXml(string):
 
 
 
+def stripNamespace(rootElement):
+    namespace = rootElement.uri
+
+    def strip(element):
+        if element.uri == namespace:
+            element.uri = None
+            if element.defaultUri == namespace:
+                element.defaultUri = None
+            for child in element.elements():
+                strip(child)
+
+    if namespace is not None:
+        strip(rootElement)
+
+    return rootElement
+
+
+
 class FallbackHandler(XMPPHandler):
     """
     XMPP subprotocol handler that catches unhandled iq requests.

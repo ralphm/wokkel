@@ -21,7 +21,7 @@ class DiscoResponder(XMPPHandler):
     implements(disco.IDisco)
 
     def getDiscoInfo(self, requestor, target, nodeIdentifier):
-        if nodeIdentifier is None:
+        if not nodeIdentifier:
             return defer.succeed([
                 disco.DiscoIdentity('dummy', 'generic', 'Generic Dummy Entity'),
                 disco.DiscoFeature('jabber:iq:version')

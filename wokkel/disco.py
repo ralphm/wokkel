@@ -53,7 +53,7 @@ class DiscoItem(domish.Element):
     Element representing an XMPP service discovery item.
     """
 
-    def __init__(self, jid, node = None, name = None):
+    def __init__(self, jid, node='', name=None):
         domish.Element.__init__(self, (NS_ITEMS, 'item'),
                                 attribs={'jid': jid.full()})
         if node:
@@ -86,7 +86,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
     def _onDiscoInfo(self, iq):
         requestor = jid.internJID(iq["from"])
         target = jid.internJID(iq["to"])
-        nodeIdentifier = iq.query.getAttribute("node")
+        nodeIdentifier = iq.query.getAttribute("node", '')
 
         def toResponse(results):
             info = []
@@ -116,7 +116,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
     def _onDiscoItems(self, iq):
         requestor = jid.internJID(iq["from"])
         target = jid.internJID(iq["to"])
-        nodeIdentifier = iq.query.getAttribute("node")
+        nodeIdentifier = iq.query.getAttribute("node", '')
 
         def toResponse(results):
             items = []

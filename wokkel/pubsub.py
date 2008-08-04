@@ -69,15 +69,6 @@ PUBSUB_RETRACT = PUBSUB_SET + '/retract' + IN_NS_PUBSUB
 PUBSUB_PURGE = PUBSUB_OWNER_SET + '/purge' + IN_NS_PUBSUB_OWNER
 PUBSUB_DELETE = PUBSUB_OWNER_SET + '/delete' + IN_NS_PUBSUB_OWNER
 
-class BadRequest(error.StanzaError):
-    """
-    Bad request stanza error.
-    """
-    def __init__(self):
-        error.StanzaError.__init__(self, 'bad-request')
-
-
-
 class SubscriptionPending(Exception):
     """
     Raised when the requested subscription is pending acceptance.
@@ -107,6 +98,15 @@ class PubSubError(error.StanzaError):
 
 
 
+class BadRequest(PubSubError):
+    """
+    Bad request stanza error.
+    """
+    def __init__(self, pubsubCondition=None, text=None):
+        PubSubError.__init__(self, 'bad-request', pubsubCondition, text)
+
+
+
 class Unsupported(PubSubError):
     def __init__(self, feature, text=None):
         PubSubError.__init__(self, 'feature-not-implemented',
@@ -116,9 +116,24 @@ class Unsupported(PubSubError):
 
 
 
-class OptionsUnavailable(Unsupported):
-    def __init__(self):
-        Unsupported.__init__(self, 'subscription-options-unavailable')
+class Subscription(object):
+    """
+    A subscription to a node.
+
+    @ivar nodeIdentifier: The identifier of the node subscribed to.
+                          The root node is denoted by C{None}.
+    @ivar subscriber: The subscribing entity.
+    @ivar state: The subscription state. One of C{'subscribed'}, C{'pending'},
+                 C{'unconfigured'}.
+    @ivar options: Optional list of subscription options.
+    @type options: C{dict}.
+    """
+
+    def __init__(self, nodeIdentifier, subscriber, state, options=None):
+        self.nodeIdentifier = nodeIdentifier
+        self.subscriber = subscriber
+        self.state = state
+        self.options = options or {}
 
 
 
@@ -273,6 +288,7 @@ class PubSubClient(XMPPHandler):
             eventHandler(sender, recipient, actionElement, headers)
             message.handled = True
 
+
     def _onEvent_items(self, sender, recipient, action, headers):
         nodeIdentifier = action["node"]
 
@@ -282,24 +298,30 @@ class PubSubClient(XMPPHandler):
         event = ItemsEvent(sender, recipient, nodeIdentifier, items, headers)
         self.itemsReceived(event)
 
+
     def _onEvent_delete(self, sender, recipient, action, headers):
         nodeIdentifier = action["node"]
         event = DeleteEvent(sender, recipient, nodeIdentifier, headers)
         self.deleteReceived(event)
+
 
     def _onEvent_purge(self, sender, recipient, action, headers):
         nodeIdentifier = action["node"]
         event = PurgeEvent(sender, recipient, nodeIdentifier, headers)
         self.purgeReceived(event)
 
+
     def itemsReceived(self, event):
         pass
+
 
     def deleteReceived(self, event):
         pass
 
+
     def purgeReceived(self, event):
         pass
+
 
     def createNode(self, service, nodeIdentifier=None):
         """
@@ -354,7 +376,8 @@ class PubSubClient(XMPPHandler):
         @type subscriber: L{JID}
         """
         request = _PubSubRequest(self.xmlstream, 'subscribe')
-        request.command['node'] = nodeIdentifier
+        if nodeIdentifier:
+            request.command['node'] = nodeIdentifier
         request.command['jid'] = subscriber.full()
 
         def cb(iq):
@@ -385,7 +408,8 @@ class PubSubClient(XMPPHandler):
         @type subscriber: L{JID}
         """
         request = _PubSubRequest(self.xmlstream, 'unsubscribe')
-        request.command['node'] = nodeIdentifier
+        if nodeIdentifier:
+            request.command['node'] = nodeIdentifier
         request.command['jid'] = subscriber.full()
         return request.send(service)
 
@@ -422,7 +446,8 @@ class PubSubClient(XMPPHandler):
         @type maxItems: C{int}
         """
         request = _PubSubRequest(self.xmlstream, 'items', method='get')
-        request.command['node'] = nodeIdentifier
+        if nodeIdentifier:
+            request.command['node'] = nodeIdentifier
         if maxItems:
             request.command["max_items"] = str(int(maxItems))
 
@@ -572,14 +597,63 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return form
 
 
-    def _onPublish(self, iq):
+    def _getParameter_node(self, commandElement):
+        try:
+            return commandElement["node"]
+        except KeyError:
+            raise BadRequest('nodeid-required')
+
+
+    def _getParameter_nodeOrEmpty(self, commandElement):
+        return commandElement.getAttribute("node", '')
+
+
+    def _getParameter_jid(self, commandElement):
+        try:
+            return jid.internJID(commandElement["jid"])
+        except KeyError:
+            raise BadRequest('jid-required')
+
+
+    def _getParameter_max_items(self, commandElement):
+        value = commandElement.getAttribute('max_items')
+
+        if value:
+            try:
+                return int(value)
+            except ValueError:
+                raise BadRequest(text="Field max_items requires a positive " +
+                                      "integer value")
+        else:
+            return None
+
+
+    def _getParameters(self, iq, *names):
         requestor = jid.internJID(iq["from"]).userhostJID()
         service = jid.internJID(iq["to"])
 
-        try:
-            nodeIdentifier = iq.pubsub.publish["node"]
-        except KeyError:
-            raise BadRequest
+        params = [requestor, service]
+
+        if names:
+            command = names[0]
+            commandElement = getattr(iq.pubsub, command)
+            if not commandElement:
+                raise Exception("Could not find command element %r" % command)
+
+        for name in names[1:]:
+            try:
+                getter = getattr(self, '_getParameter_' + name)
+            except KeyError:
+                raise Exception("No parameter getter for this name")
+
+            params.append(getter(commandElement))
+
+        return params
+
+
+    def _onPublish(self, iq):
+        requestor, service, nodeIdentifier = self._getParameters(
+                iq, 'publish', 'node')
 
         items = []
         for element in iq.pubsub.publish.elements():
@@ -590,22 +664,16 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onSubscribe(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
+        requestor, service, nodeIdentifier, subscriber = self._getParameters(
+                iq, 'subscribe', 'nodeOrEmpty', 'jid')
 
-        try:
-            nodeIdentifier = iq.pubsub.subscribe["node"]
-            subscriber = jid.internJID(iq.pubsub.subscribe["jid"])
-        except KeyError:
-            raise BadRequest
-
-        def toResponse(subscription):
-            nodeIdentifier, state = subscription
+        def toResponse(result):
             response = domish.Element((NS_PUBSUB, "pubsub"))
             subscription = response.addElement("subscription")
-            subscription["node"] = nodeIdentifier
-            subscription["jid"] = subscriber.full()
-            subscription["subscription"] = state
+            if result.nodeIdentifier:
+                subscription["node"] = result.nodeIdentifier
+            subscription["jid"] = result.subscriber.full()
+            subscription["subscription"] = result.state
             return response
 
         d = self.subscribe(requestor, service, nodeIdentifier, subscriber)
@@ -614,29 +682,22 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onUnsubscribe(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
-
-        try:
-            nodeIdentifier = iq.pubsub.unsubscribe["node"]
-            subscriber = jid.internJID(iq.pubsub.unsubscribe["jid"])
-        except KeyError:
-            raise BadRequest
+        requestor, service, nodeIdentifier, subscriber = self._getParameters(
+                iq, 'unsubscribe', 'nodeOrEmpty', 'jid')
 
         return self.unsubscribe(requestor, service, nodeIdentifier, subscriber)
 
 
     def _onOptionsGet(self, iq):
-        raise Unsupported('subscription-options-unavailable')
+        raise Unsupported('subscription-options')
 
 
     def _onOptionsSet(self, iq):
-        raise Unsupported('subscription-options-unavailable')
+        raise Unsupported('subscription-options')
 
 
     def _onSubscriptions(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
+        requestor, service = self._getParameters(iq)
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
@@ -654,8 +715,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onAffiliations(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
+        requestor, service = self._getParameters(iq)
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
@@ -674,8 +734,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onCreate(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
+        requestor, service = self._getParameters(iq)
         nodeIdentifier = iq.pubsub.create.getAttribute("node")
 
         def toResponse(result):
@@ -742,8 +801,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onDefault(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
+        requestor, service = self._getParameters(iq)
 
         def toResponse(options):
             response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
@@ -751,15 +809,21 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             default.addChild(self._formFromConfiguration(options).toElement())
             return response
 
-        d = self.getDefaultConfiguration(requestor, service)
+        form = self._findForm(iq.pubsub.config, NS_PUBSUB_NODE_CONFIG)
+        values = form and form.formType == 'result' and form.getValues() or {}
+        nodeType = values.get('pubsub#node_type', 'leaf')
+
+        if nodeType not in ('leaf', 'collections'):
+            return defer.fail(error.StanzaError('not-acceptable'))
+
+        d = self.getDefaultConfiguration(requestor, service, nodeType)
         d.addCallback(toResponse)
         return d
 
 
     def _onConfigureGet(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
-        nodeIdentifier = iq.pubsub.configure.getAttribute("node")
+        requestor, service, nodeIdentifier = self._getParameters(
+                iq, 'configure', 'nodeOrEmpty')
 
         def toResponse(options):
             response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
@@ -777,9 +841,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onConfigureSet(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
-        nodeIdentifier = iq.pubsub.configure["node"]
+        requestor, service, nodeIdentifier = self._getParameters(
+                iq, 'configure', 'nodeOrEmpty')
 
         # Search configuration form with correct FORM_TYPE and process it
 
@@ -798,21 +861,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onItems(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
-
-        try:
-            nodeIdentifier = iq.pubsub.items["node"]
-        except KeyError:
-            raise BadRequest
-
-        maxItems = iq.pubsub.items.getAttribute('max_items')
-
-        if maxItems:
-            try:
-                maxItems = int(maxItems)
-            except ValueError:
-                raise BadRequest
+        requestor, service, nodeIdentifier, maxItems = self._getParameters(
+                iq, 'items', 'nodeOrEmpty', 'max_items')
 
         itemIdentifiers = []
         for child in iq.pubsub.items.elements():
@@ -820,12 +870,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 try:
                     itemIdentifiers.append(child["id"])
                 except KeyError:
-                    raise BadRequest
+                    raise BadRequest()
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
             items = response.addElement('items')
-            items["node"] = nodeIdentifier
+            if nodeIdentifier:
+                items["node"] = nodeIdentifier
 
             for item in result:
                 items.addChild(item)
@@ -839,47 +890,30 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onRetract(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
-
-        try:
-            nodeIdentifier = iq.pubsub.retract["node"]
-        except KeyError:
-            raise BadRequest
+        requestor, service, nodeIdentifier = self._getParameters(
+                iq, 'retract', 'node')
 
         itemIdentifiers = []
         for child in iq.pubsub.retract.elements():
-            if child.uri == NS_PUBSUB_OWNER and child.name == 'item':
+            if child.uri == NS_PUBSUB and child.name == 'item':
                 try:
                     itemIdentifiers.append(child["id"])
                 except KeyError:
-                    raise BadRequest
+                    raise BadRequest()
 
         return self.retract(requestor, service, nodeIdentifier,
                             itemIdentifiers)
 
 
     def _onPurge(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
-
-        try:
-            nodeIdentifier = iq.pubsub.purge["node"]
-        except KeyError:
-            raise BadRequest
-
+        requestor, service, nodeIdentifier = self._getParameters(
+                iq, 'purge', 'node')
         return self.purge(requestor, service, nodeIdentifier)
 
 
     def _onDelete(self, iq):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
-
-        try:
-            nodeIdentifier = iq.pubsub.delete["node"]
-        except KeyError:
-            raise BadRequest
-
+        requestor, service, nodeIdentifier = self._getParameters(
+                iq, 'delete', 'node')
         return self.delete(requestor, service, nodeIdentifier)
 
 
@@ -900,26 +934,42 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     # public methods
 
+    def _createNotification(self, eventType, service, nodeIdentifier,
+                                  subscriber, subscriptions=None):
+        headers = []
+
+        if subscriptions:
+            for subscription in subscriptions:
+                if nodeIdentifier != subscription.nodeIdentifier:
+                    headers.append(('Collection', subscription.nodeIdentifier))
+
+        message = domish.Element((None, "message"))
+        message["from"] = service.full()
+        message["to"] = subscriber.full()
+        event = message.addElement((NS_PUBSUB_EVENT, "event"))
+
+        element = event.addElement(eventType)
+        element["node"] = nodeIdentifier
+
+        if headers:
+            message.addChild(shim.Headers(headers))
+
+        return message
+
     def notifyPublish(self, service, nodeIdentifier, notifications):
-        for recipient, items in notifications:
-            message = domish.Element((None, "message"))
-            message["from"] = service.full()
-            message["to"] = recipient.full()
-            event = message.addElement((NS_PUBSUB_EVENT, "event"))
-            element = event.addElement("items")
-            element["node"] = nodeIdentifier
-            element.children = items
+        for subscriber, subscriptions, items in notifications:
+            message = self._createNotification('items', service,
+                                               nodeIdentifier, subscriber,
+                                               subscriptions)
+            message.event.items.children = items
             self.send(message)
 
 
-    def notifyDelete(self, service, nodeIdentifier, recipients):
-        for recipient in recipients:
-            message = domish.Element((None, "message"))
-            message["from"] = service.full()
-            message["to"] = recipient.full()
-            event = message.addElement((NS_PUBSUB_EVENT, "event"))
-            element = event.addElement("delete")
-            element["node"] = nodeIdentifier
+    def notifyDelete(self, service, nodeIdentifier, subscriptions):
+        for subscription in subscriptions:
+            message = self._createNotification('delete', service,
+                                               nodeIdentifier,
+                                               subscription.subscriber)
             self.send(message)
 
 

@@ -13,7 +13,7 @@ from twisted.words.xish import domish, xpath
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 
-from wokkel import data_form, iwokkel, pubsub
+from wokkel import data_form, iwokkel, pubsub, shim
 from wokkel.generic import parseXml
 from wokkel.test.helpers import XmlStreamStub
 
@@ -84,6 +84,31 @@ class PubSubClientTest(unittest.TestCase):
             self.assertEquals(JID('pubsub.example.org'), event.sender)
             self.assertEquals('test', event.nodeIdentifier)
             self.assertEquals([item1, item2, item3], event.items)
+
+        d, self.protocol.itemsReceived = calledAsync(itemsReceived)
+        self.stub.send(message)
+        return d
+
+
+    def test_eventItemsCollection(self):
+        """
+        Test receiving an items event resulting in a call to itemsReceived.
+        """
+        message = domish.Element((None, 'message'))
+        message['from'] = 'pubsub.example.org'
+        message['to'] = 'user@example.org/home'
+        event = message.addElement((NS_PUBSUB_EVENT, 'event'))
+        items = event.addElement('items')
+        items['node'] = 'test'
+
+        headers = shim.Headers([('Collection', 'collection')])
+        message.addChild(headers)
+
+        def itemsReceived(event):
+            self.assertEquals(JID('user@example.org/home'), event.recipient)
+            self.assertEquals(JID('pubsub.example.org'), event.sender)
+            self.assertEquals('test', event.nodeIdentifier)
+            self.assertEquals({'Collection': ['collection']}, event.headers)
 
         d, self.protocol.itemsReceived = calledAsync(itemsReceived)
         self.stub.send(message)
@@ -573,9 +598,10 @@ class PubSubServiceTest(unittest.TestCase):
                      "label": "Deliver payloads with event notifications"}
                 }
 
-        def getDefaultConfiguration(requestor, service):
+        def getDefaultConfiguration(requestor, service, nodeType):
             self.assertEqual(JID('user@example.org'), requestor)
             self.assertEqual(JID('pubsub.example.org'), service)
+            self.assertEqual('leaf', nodeType)
             return defer.succeed({})
 
         def cb(element):
@@ -799,3 +825,82 @@ class PubSubServiceTest(unittest.TestCase):
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
+
+
+    def test_onRetract(self):
+        """
+        A retract request should result in L{PubSubService.retract} being
+        called.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <retract node='test'>
+              <item id='item1'/>
+              <item id='item2'/>
+            </retract>
+          </pubsub>
+        </iq>
+        """
+
+        def retract(requestor, service, nodeIdentifier, itemIdentifiers):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            self.assertEqual('test', nodeIdentifier)
+            self.assertEqual(['item1', 'item2'], itemIdentifiers)
+            return defer.succeed(None)
+
+        self.service.retract = retract
+        return self.handleRequest(xml)
+
+
+    def test_onPurge(self):
+        """
+        A purge request should result in L{PubSubService.purge} being
+        called.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <purge node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def purge(requestor, service, nodeIdentifier):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            self.assertEqual('test', nodeIdentifier)
+            return defer.succeed(None)
+
+        self.service.purge = purge
+        return self.handleRequest(xml)
+
+
+    def test_onDelete(self):
+        """
+        A delete request should result in L{PubSubService.delete} being
+        called.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <delete node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def delete(requestor, service, nodeIdentifier):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            self.assertEqual('test', nodeIdentifier)
+            return defer.succeed(None)
+
+        self.service.delete = delete
+        return self.handleRequest(xml)
