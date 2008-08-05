@@ -261,13 +261,15 @@ class IPubSubService(Interface):
         @param nodeIdentifier: The identifier of the node that was published
                                to.
         @type nodeIdentifier: C{unicode}
-        @param notifications: The notifications as tuples of subscriber and
-                              the list of items to be notified.
+        @param notifications: The notifications as tuples of subscriber, the
+                              list of subscriptions and the list of items to be
+                              notified.
         @type notifications: C{list} of (L{jid.JID}, C{list} of
-                             L{domish.Element})
+                             L{Subscription<wokkel.pubsub.Subscription>},
+                             C{list} of L{domish.Element})
         """
 
-    def notifyDelete(service, nodeIdentifier, recipients):
+    def notifyDelete(service, nodeIdentifier, subscriptions):
         """
         Send out node deletion notifications.
 
@@ -275,8 +277,9 @@ class IPubSubService(Interface):
         @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node that was deleted.
         @type nodeIdentifier: C{unicode}
-        @param recipients: The entities that the notification is sent to.
-        @type notifications: C{list} of L{jid.JID}
+        @param subscriptions: The subscriptions for which a notification should
+                              be sent out.
+        @type subscriptions: C{list} of L{jid.JID}
         """
 
     def publish(requestor, service, nodeIdentifier, items):
@@ -307,8 +310,8 @@ class IPubSubService(Interface):
         @type nodeIdentifier: C{unicode}
         @param subscriber: The entity to be subscribed.
         @type subscriber: L{jid.JID}
-        @return: A deferred that fires with a C{str} representing the
-                 subscription state, C{'subscribed'} or C{'pending'}.
+        @return: A deferred that fires with a
+                 L{Subscription<wokkel.pubsub.Subscription>}.
         @rtype: L{defer.Deferred}
         """
 
@@ -337,10 +340,8 @@ class IPubSubService(Interface):
         @type requestor: L{jid.JID}
         @param service: The entity the request was addressed to.
         @type service: L{jid.JID}
-        @return: A deferred that fires with a C{list} of suscriptions as
-                 C{tuple}s of (node identifier as C{unicode}, subscriber as
-                 L{jid.JID}, subscription state as C{str}). The subscription
-                 state can be C{'subscribed'} or C{'pending'}.
+        @return: A deferred that fires with a C{list} of subscriptions as
+                 L{Subscription<wokkel.pubsub.Subscription>}.
         @rtype: L{defer.Deferred}
         """
 

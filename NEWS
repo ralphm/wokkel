@@ -1,3 +1,25 @@
+0.4.0 (2008-08-05)
+==================
+
+ - Refactoring of Data Forms support (#13).
+ - Added support for Stanza Headers and Internet Metadata (SHIM) (#14).
+ - API change for PubSubClient's methods called upon event reception (#14).
+ - Added client-side support for removing roster items.
+ - Implement type checking for data forms (#15).
+ - Added support for publish-subscribe collections:
+   - Correct handling for the root node (empty node identifier).
+   - Send out SHIM 'Collection' header when appropriate.
+   - New Subscription class for working with subscriptions.
+   - API change for PubSubService:
+     - The subscribe method returns a deferred that fires a Subscription
+     - The subscriptions method returns a deferred that fires a list of
+       Subscriptions.
+     - notifyPublish's notifications parameter now expects a list of tuples
+       that includes a list of subscriptions.
+ - Added PubSubService.notifyDelete to allow sending out node deletion
+   notifications.
+
+
 0.3.1 (2008-04-22)
 ==================
 
