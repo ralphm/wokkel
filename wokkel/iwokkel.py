@@ -510,3 +510,10 @@ class IPubSubService(Interface):
         @param nodeIdentifier: The identifier of the node to be delete.
         @type nodeIdentifier: C{unicode}
         """
+
+
+class IMUCClient(Interface):
+    """
+    Multi-User Chat Client
+    """
+
