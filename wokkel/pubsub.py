@@ -702,11 +702,11 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
             subscriptions = response.addElement('subscriptions')
-            for node, subscriber, state in result:
+            for subscription in result:
                 item = subscriptions.addElement('subscription')
-                item['node'] = node
-                item['jid'] = subscriber.full()
-                item['subscription'] = state
+                item['node'] = subscription.nodeIdentifier
+                item['jid'] = subscription.subscriber.full()
+                item['subscription'] = subscription.state
             return response
 
         d = self.subscriptions(requestor, service)

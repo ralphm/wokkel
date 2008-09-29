@@ -573,6 +573,49 @@ class PubSubServiceTest(unittest.TestCase):
         return d
 
 
+    def test_onSubscriptions(self):
+        """
+        A subscriptions request should result in
+        L{PubSubService.subscriptions} being called and the result prepared
+        for the response.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscriptions/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(element):
+            self.assertEqual('pubsub', element.name)
+            self.assertEqual(NS_PUBSUB, element.uri)
+            self.assertEqual(NS_PUBSUB, element.subscriptions.uri)
+            children = list(element.subscriptions.elements())
+            self.assertEqual(1, len(children))
+            subscription = children[0]
+            self.assertEqual('subscription', subscription.name)
+            self.assertEqual(NS_PUBSUB, subscription.uri)
+            self.assertEqual('user@example.org', subscription['jid'])
+            self.assertEqual('test', subscription['node'])
+            self.assertEqual('subscribed', subscription['subscription'])
+
+
+        def subscriptions(requestor, service):
+            self.assertEqual(JID('user@example.org'), requestor)
+            self.assertEqual(JID('pubsub.example.org'), service)
+            subscription = pubsub.Subscription('test', JID('user@example.org'),
+                                               'subscribed')
+            return defer.succeed([subscription])
+
+        self.service.subscriptions = subscriptions
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
     def test_onDefault(self):
         """
         A default request should result in
