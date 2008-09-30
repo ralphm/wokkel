@@ -11,7 +11,7 @@ U{XEP-0030<http://www.xmpp.org/extensions/xep-0030.html>}.
 """
 
 from twisted.internet import defer
-from twisted.words.protocols.jabber import error, jid
+from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.xish import domish
 
 from wokkel.iwokkel import IDisco
@@ -61,6 +61,22 @@ class DiscoItem(domish.Element):
 
         if name:
             self['name'] = name
+
+
+class DiscoRequest(xmlstream.IQ):
+    """
+    Disco request.
+
+    @ivar namespace: Request namespace.
+    @type namespace: C{str}
+    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
+    @type method: C{str}
+    """
+
+    def __init__(self, xs, namespace=NS, method='get'):
+        xmlstream.IQ.__init__(self, xs, method)
+        self.addElement((namespace, 'query'))
+
 
 
 class DiscoHandler(XMPPHandler, IQHandlerMixin):

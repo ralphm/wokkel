@@ -18,15 +18,15 @@ from twisted.words.xish import domish
 
 from wokkel import disco, data_form, shim, xmppim
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
-from wokkel.iwokkel import IMUCClient, IMUCService
+from wokkel.iwokkel import IMUCClient
 
 # Multi User Chat namespaces
-NS_MUC          = 'http://jabber.org/protocol/muc'
-NS_MUC_USER     = NS_MUC + '#user'
-NS_MUC_ADMIN    = NS_MUC + '#admin'
-NS_MUC_OWNER    = NS_MUC + '#owner'
-NS_MUC_ROOMINFO = NS_MUC + '#roominfo'
-NS_MUC_CONFIG   = NS_MUC + '#roomconfig'
+NS          = 'http://jabber.org/protocol/muc'
+NS_USER     = NS + '#user'
+NS_ADMIN    = NS + '#admin'
+NS_OWNER    = NS + '#owner'
+NS_ROOMINFO = NS + '#roominfo'
+NS_CONFIG   = NS + '#roomconfig'
 
 # ad hoc commands
 NS_AD_HOC       = "http://jabber.org/protocol/commands"
@@ -46,8 +46,8 @@ IQ_SET_QUERY = IQ_SET + '/query'
 
 IQ_COMMAND   = IQ+'/command'
 
-MUC_ADMIN = IQ_QUERY+'[@xmlns="' + NS_MUC_ADMIN + '"]'
-MUC_OWNER = IQ_QUERY+'[@xmlns="' + NS_MUC_OWNER + '"]'
+MUC_ADMIN = IQ_QUERY+'[@xmlns="' + NS_ADMIN + '"]'
+MUC_OWNER = IQ_QUERY+'[@xmlns="' + NS_OWNER + '"]'
 
 MUC_AO = MUC_ADMIN + '|' + MUC_OWNER
 
@@ -68,7 +68,7 @@ class MUCError(error.StanzaError):
     Exception with muc specific condition.
     """
     def __init__(self, condition, mucCondition, feature=None, text=None):
-        appCondition = domish.Element((NS_MUC_ERRORS, mucCondition))
+        appCondition = domish.Element((NS, mucCondition))
         if feature:
             appCondition['feature'] = feature
         error.StanzaError.__init__(self, condition,
@@ -91,6 +91,7 @@ class Unsupported(MUCError):
                           'unsupported',
                           feature,
                           text)
+
 
 
 class Room(object):
@@ -123,7 +124,7 @@ class BasicPresence(xmppim.Presence):
         xmppim.Presence.__init__(self, to, type)
         
         # add muc elements
-        x = self.addElement('x', NS_MUC)
+        x = self.addElement('x', NS)
 
 
 class UserPresence(xmppim.Presence):
@@ -137,7 +138,7 @@ class UserPresence(xmppim.Presence):
         if frm:
             self['from'] = frm
         # add muc elements
-        x = self.addElement('x', NS_MUC_USER)
+        x = self.addElement('x', NS_USER)
         if affiliation:
             x['affiliation'] = affiliation
         if role:
@@ -150,11 +151,12 @@ class PresenceError(BasicPresence):
 
     """
 
-    def __init__(self, error, to=None):
+    def __init__(self, error, to=None, frm=None):
         BasicPresence.__init__(self, to, type='error')
-        
+        if frm:
+            self['from'] = frm
         # add muc elements
-        x = self.addElement('x', NS_MUC)
+        x = self.addElement('x', NS)
         # add error 
         self.addChild(error)
         
@@ -169,8 +171,7 @@ class MUCClient(XMPPHandler):
 
     def connectionInitialized(self):
         self.rooms = {}
-        self.xmlstream.addObserver(PRESENCE, self._onPresence)
-        self.xmlstream.addObserver(GROUPCHAT, self._onGroupChat)
+        
 
     def _setRoom(self, room):
         self.rooms[room.entity_id.full().lower()] = room
@@ -178,39 +179,44 @@ class MUCClient(XMPPHandler):
     def _getRoom(self, room_jid):
         return self.rooms.get(room_jid.full().lower())
 
-    def _onGroupChat(self, msg):
-        """handle groupchat message stanzas
-        """
-
-
-    def _onPresence(self, prs):
-        """handle groupchat presence
-        """
-        x = getattr(prs, 'x', None)
-        if x.uri == NS_MUC_USER:
-            self.userPresence(prs)
 
 
     def _joinedRoom(self, d, prs):
         """We have presence that says we joined a room.
         """
         room_jid = jid.internJID(prs['from'])
-        print type(prs)
-        print type(d)
+        
         # check for errors
         if prs.hasAttribute('type') and prs['type'] == 'error':            
-            print room_jid.full()
-        # change the state of the room
-        r = self._getRoom(room_jid)
-        r.state = 'joined'
-        d.callback(room_jid, r)
+            d.errback(prs)
+        else:    
+            # change the state of the room
+            r = self._getRoom(room_jid)
+            r.state = 'joined'
+            d.callback(r)
 
     def userPresence(self, prs):
         """User Presence has been received
         """
         pass
         
-    def joinRoom(self, server, room, nick):
+
+    def _cbDisco(self, iq):
+        # grab query
+        
+        return iq.query
+        
+    def disco(self, entity, type='info'):
+        """Send disco queries to a XMPP entity
+        """
+
+        iq = disco.DiscoRequest(self.xmlstream, disco.NS_INFO, 'get')
+        iq['to'] = entity
+
+        return iq.send().addCallback(self._cbDisco)
+        
+
+    def join(self, server, room, nick):
         """
         """
         d = defer.Deferred()
@@ -223,7 +229,7 @@ class MUCClient(XMPPHandler):
 
         # add observer for joining the room
         self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()), 
-                                          self._joinedRoom, d)
+                                          self._joinedRoom, 1, d)
 
         return d
     

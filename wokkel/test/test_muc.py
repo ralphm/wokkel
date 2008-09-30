@@ -13,7 +13,7 @@ from twisted.words.xish import domish, xpath
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 
-from wokkel import data_form, iwokkel, muc, shim
+from wokkel import data_form, iwokkel, muc, shim, disco
 from wokkel.generic import parseXml
 from wokkel.test.helpers import XmlStreamStub
 
@@ -57,20 +57,36 @@ class MucClientTest(unittest.TestCase):
         verify.verifyObject(iwokkel.IMUCClient, self.protocol)
 
 
-    def test_presence(self):
-        """Test receiving room presence 
-        """
-        p = muc.UserPresence()
 
-        def userPresence(prs):
-            self.failUnless(len(prs.children)==1, 'Not enough children')
-            self.failUnless(getattr(prs,'x',None), 'No x element')
+    def test_discoServerSupport(self):
+        """Test for disco support from a server.
+        """
+        test_srv = 'shakespeare.lit'
+
+        def cb(query):
+            # check namespace
+            self.failUnless(query.uri==disco.NS_INFO, 'Wrong namespace')
             
 
-        d, self.protocol.userPresence = calledAsync(userPresence)
-        self.stub.send(p)
-        return d
+        d = self.protocol.disco(test_srv)
+        d.addCallback(cb)
 
+        iq = self.stub.output[-1]
+        
+        # send back a response
+        response = toResponse(iq, 'result')
+        response.addElement('query', disco.NS_INFO)
+        # need to add information to response
+        response.query.addChild(disco.DiscoFeature(muc.NS))
+        response.query.addChild(disco.DiscoIdentity(category='conference',
+                                                    name='Macbeth Chat Service',
+                                                    type='text'))
+        
+        self.stub.send(response)
+        return d
+        
+
+        
     def test_joinRoom(self):
         """Test joining a room
         """
@@ -78,54 +94,47 @@ class MucClientTest(unittest.TestCase):
         test_srv  = 'conference.example.org'
         test_nick = 'Nick'
 
-        # p = muc.BasicPresenc(to=)
-
         def cb(room):
             self.assertEquals(test_room, room.name)
 
-        d = self.protocol.joinRoom(test_srv, test_room, test_nick)
+        d = self.protocol.join(test_srv, test_room, test_nick)
         d.addCallback(cb)
+
+        prs = self.stub.output[-1]
+        self.failUnless(prs.name=='presence', "Need to be presence")
+        self.failUnless(getattr(prs, 'x', None), 'No muc x element')
+
+        # send back user presence, they joined        
+        response = muc.UserPresence(frm=test_room+'@'+test_srv+'/'+test_nick)
+        self.stub.send(response)
+        return d
+
+
+    def test_joinRoomForbidden(self):
+        """Test joining a room and getting an error
+        """
+        test_room = 'test'
+        test_srv  = 'conference.example.org'
+        test_nick = 'Nick'
+
+        # p = muc.BasicPresenc(to=)
+
+        def cb(error):
+            self.failUnless(isinstance(error.value,muc.PresenceError), 'Wrong type')
+            self.failUnless(error.value['type']=='error', 'Not an error returned')
+            
+            
+        d = self.protocol.join(test_srv, test_room, test_nick)
+        d.addBoth(cb)
 
         prs = self.stub.output[-1]
         self.failUnless(prs.name=='presence', "Need to be presence")
         self.failUnless(getattr(prs, 'x', None), 'No muc x element')
         # send back user presence, they joined
         
-        response = muc.UserPresence()
-        print response.toXml()
+        response = muc.PresenceError(error=muc.MUCError('auth',
+                                                        'forbidden'
+                                                        ),
+                                     frm=test_room+'@'+test_srv+'/'+test_nick)
         self.stub.send(response)
-        return d
-
-class MucServiceTest(unittest.TestCase):
-    """
-    Tests for L{muc.MUCService}.
-    """
-
-    def setUp(self):
-        self.service = muc.MUCService()
-
-    def handleRequest(self, xml):
-        """
-        Find a handler and call it directly
-        """
-        handler = None
-        iq = parseXml(xml)
-        for queryString, method in self.service.iqHandlers.iteritems():
-            if xpath.internQuery(queryString).matches(iq):
-                handler = getattr(self.service, method)
-
-        if handler:
-            d = defer.maybeDeferred(handler, iq)
-        else:
-            d = defer.fail(NotImplementedError())
-
-        return d
-
-
-    def test_interface(self):
-        """
-        Do instances of L{muc.MucService} provide L{iwokkel.IMucService}?
-        """
-        verify.verifyObject(iwokkel.IMUCService, self.service)
-
-
+        return d        
