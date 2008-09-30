@@ -57,6 +57,35 @@ class MucClientTest(unittest.TestCase):
         verify.verifyObject(iwokkel.IMUCClient, self.protocol)
 
 
+    def test_presence(self):
+        """Test receiving room presence
+        """
+        p = muc.UserPresence()
+	
+        def userPresence(prs):
+            self.failUnless(len(prs.children)==1, 'Not enough children')
+            self.failUnless(getattr(prs,'x',None), 'No x element')
+	           
+	
+        d, self.protocol.receivedUserPresence = calledAsync(userPresence)
+        self.stub.send(p)
+        return d
+
+
+    def test_groupChat(self):
+        """Test receiving room presence
+        """
+        m = muc.GroupChat('test@test.com',body='test')
+	
+        def groupChat(elem):
+            self.failUnless(elem.name=='message','Wrong stanza')
+            self.failUnless(elem['type'] == 'groupchat', 'Wrong attribute')
+            	           
+	
+        d, self.protocol.receivedGroupChat = calledAsync(groupChat)
+        self.stub.send(m)
+        return d
+
 
     def test_discoServerSupport(self):
         """Test for disco support from a server.
@@ -117,8 +146,6 @@ class MucClientTest(unittest.TestCase):
         test_srv  = 'conference.example.org'
         test_nick = 'Nick'
 
-        # p = muc.BasicPresenc(to=)
-
         def cb(error):
             self.failUnless(isinstance(error.value,muc.PresenceError), 'Wrong type')
             self.failUnless(error.value['type']=='error', 'Not an error returned')
@@ -138,3 +165,13 @@ class MucClientTest(unittest.TestCase):
                                      frm=test_room+'@'+test_srv+'/'+test_nick)
         self.stub.send(response)
         return d        
+
+    def test_roomConfigure(self):
+
+        test_room = 'test'
+        test_srv  = 'conference.example.org'
+        test_nick = 'Nick'        
+
+        self.fail('Not Implemented')
+        
+
