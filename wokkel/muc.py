@@ -9,6 +9,7 @@ XMPP Multi-User Chat protocol.
 This protocol is specified in
 U{XEP-0045<http://www.xmpp.org/extensions/xep-0045.html>}.
 """
+import datetime
 
 from zope.interface import implements
 
@@ -27,6 +28,9 @@ NS_ADMIN    = NS + '#admin'
 NS_OWNER    = NS + '#owner'
 NS_ROOMINFO = NS + '#roominfo'
 NS_CONFIG   = NS + '#roomconfig'
+NS_REQUEST  = NS + '#request'
+
+NS_DELAY    = 'urn:xmpp:delay'
 
 # ad hoc commands
 NS_AD_HOC       = "http://jabber.org/protocol/commands"
@@ -58,9 +62,25 @@ PRESENCE = '/presence'
 CHAT_BODY = MESSAGE +'[@type="chat"]/body'
 CHAT      = MESSAGE +'[@type="chat"]'
 
-GROUPCHAT    = MESSAGE +'[@type="groupchat"]'
+GROUPCHAT     = MESSAGE +'[@type="groupchat"]/body'
+SUBJECT       = MESSAGE +'[@type="groupchat"]/body'
 MESSAGE_ERROR = MESSAGE +'[@type="error"]'
 
+STATUS_CODES = { # see http://www.xmpp.org/extensions/xep-0045.html#registrar-statuscodes
+    100:
+        {'name':'fulljid',
+         'stanza':'presence',
+         
+         },
+    201: 
+        {'name':'created', 
+         'stanza': 'presence',
+         'context':'Entering a room',
+         'purpose':'Inform user that a new room has been created'
+         },    
+}
+
+STATUS_CODE_CREATED = 201
 
 
 class MUCError(error.StanzaError):
@@ -94,6 +114,47 @@ class Unsupported(MUCError):
 
 
 
+class ConfigureRequest(xmlstream.IQ):
+    """
+    Configure MUC room request.
+
+    @ivar namespace: Request namespace.
+    @type namespace: C{str}
+    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
+    @type method: C{str}
+    """
+
+    def __init__(self, xs, method='get', fields=[]):
+        xmlstream.IQ.__init__(self, xs, method)
+        q = self.addElement((NS_OWNER, 'query'))
+        if method == 'set':
+            # build data form
+            form = data_form.Form('submit', formNamespace=NS_CONFIG)
+            q.addChild(form.toElement())
+            
+            for f in fields:
+                # create a field
+                form.addField(f)
+
+
+class GroupChat(domish.Element):
+    """
+    """
+    def __init__(self, to, body=None, subject=None, frm=None):
+        """To needs to be a string
+        """
+        domish.Element.__init__(self, (None, 'message'))
+        self['type'] = 'groupchat'
+        self['to']   = to 
+        if frm:
+            self['from'] = frm
+        if body:
+            self.addElement('body',None, body)
+        if subject:
+            self.addElement('subject',None, subject)
+            
+
+
 class Room(object):
     """
     A Multi User Chat Room
@@ -107,7 +168,8 @@ class Room(object):
         self.name   = name
         self.server = server
         self.nick   = nick
-        
+        self.status = None
+
         self.entity_id = jid.internJID(name+'@'+server+'/'+nick)
                
         self.roster = {}
@@ -145,6 +207,27 @@ class UserPresence(xmppim.Presence):
             x['role'] = role
 
 
+class PasswordPresence(BasicPresence):
+    """
+    """
+    def __init__(self, to, password):
+        BasicPresence.__init__(self, to)
+        
+        self.x.addElement('password', None, password)
+
+
+class MessageVoice(GroupChat):
+    """
+    """
+    def __init__(self, to=None, frm=None):
+        GroupChat.__init__(self, to=to, frm=frm)
+        # build data form
+        form = data_form.Form('submit', formNamespace=NS_REQUEST)
+        form.addField(data_form.Field(var='muc#role',
+                                      value='participant', 
+                                      label='Requested role'))
+        self.addChild(form.toElement())            
+
 class PresenceError(BasicPresence):
     """
     This behaves like an object providing L{domish.IElement}.
@@ -168,10 +251,13 @@ class MUCClient(XMPPHandler):
 
     implements(IMUCClient)
 
+    rooms = {}
 
     def connectionInitialized(self):
-        self.rooms = {}
-        
+        self.xmlstream.addObserver(PRESENCE+"/x", self._onXPresence)
+        self.xmlstream.addObserver(GROUPCHAT, self._onGroupChat)
+        self.xmlstream.addObserver(SUBJECT, self._onSubject)
+        # add history
 
     def _setRoom(self, room):
         self.rooms[room.entity_id.full().lower()] = room
@@ -179,6 +265,32 @@ class MUCClient(XMPPHandler):
     def _getRoom(self, room_jid):
         return self.rooms.get(room_jid.full().lower())
 
+
+    def _onXPresence(self, prs):
+        """
+        """
+        if prs.x.uri == NS_USER:
+            self.receivedUserPresence(prs)
+            
+
+    def _onGroupChat(self, msg):
+        """
+        """
+        self.receivedGroupChat(msg)
+
+
+
+    def _onSubject(self, msg):
+        """
+        """
+        self.receivedSubject(msg)
+
+
+    def _makeTimeStamp(self, stamp=None):
+        if stamp is None:
+            stamp = datetime.datetime.now()
+            
+        return stamp.strftime('%Y%m%dT%H:%M:%S')
 
 
     def _joinedRoom(self, d, prs):
@@ -192,19 +304,32 @@ class MUCClient(XMPPHandler):
         else:    
             # change the state of the room
             r = self._getRoom(room_jid)
+            if r is None:
+                raise 
             r.state = 'joined'
+            
+            # grab status
+            status = getattr(prs.x,'status',None)
+            if status:
+                r.status = status.getAttribute('code', None)
+
             d.callback(r)
 
-    def userPresence(self, prs):
+    def receivedUserPresence(self, prs):
         """User Presence has been received
         """
         pass
         
 
+    def receivedSubject(self, msg):
+        """
+        """
+        pass
+
     def _cbDisco(self, iq):
         # grab query
         
-        return iq.query
+        return getattr(iq,'query', None)
         
     def disco(self, entity, type='info'):
         """Send disco queries to a XMPP entity
@@ -213,8 +338,22 @@ class MUCClient(XMPPHandler):
         iq = disco.DiscoRequest(self.xmlstream, disco.NS_INFO, 'get')
         iq['to'] = entity
 
-        return iq.send().addCallback(self._cbDisco)
+        return iq.send().addBoth(self._cbDisco)
         
+
+    def configure(self, room_jid, **kwargs):
+        """Configure a room
+        """
+        request = ConfigureRequest(self.xmlstream, method='set', **kwargs)
+        request['to'] = room_jid
+        
+        return request.send()
+
+    def getConfigureForm(self, room_jid):
+        request = ConfigureRequest(self.xmlstream)
+        request['to'] = room_jid
+        return request.send()
+
 
     def join(self, server, room, nick):
         """
@@ -233,4 +372,45 @@ class MUCClient(XMPPHandler):
 
         return d
     
+
+    def groupChat(self, to, message, children=None):
+        """Send a groupchat message
+        """
+        msg = GroupChat(to, body=message)
+
+        if children:
+            for c in children:
+                msg.addChild(c)
+        
+        self.xmlstream.send(msg)
+
+    
+    def subject(self, to, subject):
+        """
+        """
+        msg = GroupChat(to, subject=subject)
+        self.xmlstream.send(msg)
+
+    def voice(self, to):
+        """
+        """
+        msg = MessageVoice(to=to)
+        self.xmlstream.send(msg)
+
+
+    def history(self, to, message_list):
+        """
+        """
+        
+        for m in message_list:
+            m['type'] = 'groupchat'
+            mto = m['to']
+            frm = m.getAttribute('from', None)
+            m['to'] = to
+
+            d = m.addElement('delay', NS_DELAY)
+            d['stamp'] = self._makeTimeStamp()
+            d['from'] = mto 
+
+            self.xmlstream.send(m)
 

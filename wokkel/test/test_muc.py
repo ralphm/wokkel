@@ -48,7 +48,11 @@ class MucClientTest(unittest.TestCase):
         self.protocol = muc.MUCClient()
         self.protocol.xmlstream = self.stub.xmlstream
         self.protocol.connectionInitialized()
+        self.test_room = 'test'
+        self.test_srv  = 'conference.example.org'
+        self.test_nick = 'Nick'
 
+        self.room_jid = JID(self.test_room+'@'+self.test_srv+'/'+self.test_nick)
 
     def test_interface(self):
         """
@@ -119,14 +123,12 @@ class MucClientTest(unittest.TestCase):
     def test_joinRoom(self):
         """Test joining a room
         """
-        test_room = 'test'
-        test_srv  = 'conference.example.org'
-        test_nick = 'Nick'
+        
 
         def cb(room):
-            self.assertEquals(test_room, room.name)
+            self.assertEquals(self.test_room, room.name)
 
-        d = self.protocol.join(test_srv, test_room, test_nick)
+        d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
         d.addCallback(cb)
 
         prs = self.stub.output[-1]
@@ -134,7 +136,7 @@ class MucClientTest(unittest.TestCase):
         self.failUnless(getattr(prs, 'x', None), 'No muc x element')
 
         # send back user presence, they joined        
-        response = muc.UserPresence(frm=test_room+'@'+test_srv+'/'+test_nick)
+        response = muc.UserPresence(frm=self.test_room+'@'+self.test_srv+'/'+self.test_nick)
         self.stub.send(response)
         return d
 
@@ -142,16 +144,13 @@ class MucClientTest(unittest.TestCase):
     def test_joinRoomForbidden(self):
         """Test joining a room and getting an error
         """
-        test_room = 'test'
-        test_srv  = 'conference.example.org'
-        test_nick = 'Nick'
 
         def cb(error):
             self.failUnless(isinstance(error.value,muc.PresenceError), 'Wrong type')
             self.failUnless(error.value['type']=='error', 'Not an error returned')
             
             
-        d = self.protocol.join(test_srv, test_room, test_nick)
+        d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
         d.addBoth(cb)
 
         prs = self.stub.output[-1]
@@ -162,15 +161,88 @@ class MucClientTest(unittest.TestCase):
         response = muc.PresenceError(error=muc.MUCError('auth',
                                                         'forbidden'
                                                         ),
-                                     frm=test_room+'@'+test_srv+'/'+test_nick)
+                                     frm=self.room_jid.full())
         self.stub.send(response)
         return d        
 
-    def test_roomConfigure(self):
+    def test_partRoom(self):
+        self.fail('Not Implemented')
+        
 
-        test_room = 'test'
-        test_srv  = 'conference.example.org'
-        test_nick = 'Nick'        
+    def test_ban(self):
+        
+        self.fail('Not Implemented')
+
+    def test_kick(self):
+        self.fail('Not Implemented')
+        
+
+    def test_password(self):
+        """Test sending a password via presence to a password protected room.
+        """
+        
+        
+        self.fail('Not Implemented')
+
+    def test_history(self):
+        
+        self.fail('Not Implemented')
+
+
+    def test_oneToOneChat(self):
+        """Test converting a one to one chat
+        """
+        archive = []
+        thread = "e0ffe42b28561960c6b12b944a092794b9683a38"
+        # create messages
+        msg = domish.Element((None, 'message'))
+        msg['to'] = 'testing@example.com'
+        msg['type'] = 'chat'
+        msg.addElement('body', None, 'test')
+        msg.addElement('thread', None, thread)
+
+        archive.append(msg)
+
+        msg = domish.Element((None, 'message'))
+        msg['to'] = 'testing2@example.com'
+        msg['type'] = 'chat'
+        msg.addElement('body', None, 'yo')
+        msg.addElement('thread', None, thread)
+
+        archive.append(msg)
+
+        self.protocol.history(self.room_jid.userhost(), archive)
+
+
+        while len(self.stub.output)>0:
+            m = self.stub.output.pop()
+            # check for delay element
+            self.failUnless(m.name=='message', 'Wrong stanza')
+            self.failUnless(xpath.matches("/message/delay", m), 'Invalid history stanza')
+        
+
+    def test_invite(self):
+        self.fail('Not Implemented')
+
+        
+    def test_privateMessage(self):
+        self.fail('Not Implemented')
+
+    def test_register(self):
+        self.fail('Not Implemented')
+
+    def test_voice(self):
+        
+        self.protocol.voice(self.room_jid.userhost())
+
+        m = self.stub.output[-1]
+        self.failUnless(m.name=='message', "Need to be message stanza")
+        self.failUnless(getattr(m, 'x', None), 'No muc x element')
+
+        self.failUnless(xpath.matches("/message/x[@type='submit']/field/value[text()='%s']" % (muc.NS_REQUEST,), m), 'Invalid voice message stanza')
+
+
+    def test_roomConfigure(self):
 
         self.fail('Not Implemented')
         
