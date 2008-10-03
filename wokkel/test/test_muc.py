@@ -226,24 +226,61 @@ class MucClientTest(unittest.TestCase):
 
         
     def test_privateMessage(self):
+        
         self.fail('Not Implemented')
 
     def test_register(self):
-        self.fail('Not Implemented')
+        """Test client registering with a room. http://xmpp.org/extensions/xep-0045.html#register
+
+        """
+        
+        def cb(iq):
+            # check for a result
+            self.failUnless(iq['type']=='result', 'We did not get a result')
+        
+        d = self.protocol.register(self.room_jid.userhost())
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        
+        self.failUnless(xpath.matches("/iq/query[@xmlns='%s']" % (muc.NS_REQUEST), iq), 'Invalid iq register request')
+        
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
 
     def test_voice(self):
-        
+        """
+        """
         self.protocol.voice(self.room_jid.userhost())
 
         m = self.stub.output[-1]
-        self.failUnless(m.name=='message', "Need to be message stanza")
-        self.failUnless(getattr(m, 'x', None), 'No muc x element')
-
+        
         self.failUnless(xpath.matches("/message/x[@type='submit']/field/value[text()='%s']" % (muc.NS_REQUEST,), m), 'Invalid voice message stanza')
 
 
     def test_roomConfigure(self):
+        """
+        """
 
-        self.fail('Not Implemented')
+        def cb(iq):
+            self.failUnless(iq['type']=='result', 'Not a result')
+            
+
+        fields = []
+
+        fields.append(data_form.Field(label='Natural-Language Room Name',
+                                      var='muc#roomconfig_roomname',
+                                      value=self.test_room))
         
+        d = self.protocol.configure(self.room_jid.userhost(), fields)
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.failUnless(xpath.matches("/iq/query[@xmlns='%s']/x"% (muc.NS_OWNER,), iq), 'Bad configure request')
+        
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
 

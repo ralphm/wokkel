@@ -29,8 +29,10 @@ NS_OWNER    = NS + '#owner'
 NS_ROOMINFO = NS + '#roominfo'
 NS_CONFIG   = NS + '#roomconfig'
 NS_REQUEST  = NS + '#request'
+NS_REGISTER = NS + '#register'
 
 NS_DELAY    = 'urn:xmpp:delay'
+NS_REQUEST  = 'jabber:iq:register'
 
 # ad hoc commands
 NS_AD_HOC       = "http://jabber.org/protocol/commands"
@@ -137,6 +139,29 @@ class ConfigureRequest(xmlstream.IQ):
                 form.addField(f)
 
 
+class RegisterRequest(xmlstream.IQ):
+    """
+    Register room request.
+
+    @ivar namespace: Request namespace.
+    @type namespace: C{str}
+    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
+    @type method: C{str}
+    """
+
+    def __init__(self, xs, method='get', fields=[]):
+        xmlstream.IQ.__init__(self, xs, method)
+        q = self.addElement((NS_REQUEST, 'query'))
+        if method == 'set':
+            # build data form
+            form_type = 'submit'        
+            form = data_form.Form(form_type, formNamespace=NS_REGISTER)
+            q.addChild(form.toElement())        
+            
+            for f in fields:
+                # create a field
+                form.addField(f)
+
 class GroupChat(domish.Element):
     """
     """
@@ -176,15 +201,14 @@ class Room(object):
 
         
 
-class BasicPresence(xmppim.Presence):
+class BasicPresence(xmppim.AvailablePresence):
     """
     This behaves like an object providing L{domish.IElement}.
 
     """
 
-    def __init__(self, to=None, type=None):
-        xmppim.Presence.__init__(self, to, type)
-        
+    def __init__(self, to=None, show=None, statuses=None):
+        xmppim.AvailablePresence.__init__(self, to=to, show=show, statuses=statuses)
         # add muc elements
         x = self.addElement('x', NS)
 
@@ -228,14 +252,14 @@ class MessageVoice(GroupChat):
                                       label='Requested role'))
         self.addChild(form.toElement())            
 
-class PresenceError(BasicPresence):
+class PresenceError(xmppim.Presence):
     """
     This behaves like an object providing L{domish.IElement}.
 
     """
 
     def __init__(self, error, to=None, frm=None):
-        BasicPresence.__init__(self, to, type='error')
+        xmppim.Presence.__init__(self, to, type='error')
         if frm:
             self['from'] = frm
         # add muc elements
@@ -265,6 +289,9 @@ class MUCClient(XMPPHandler):
     def _getRoom(self, room_jid):
         return self.rooms.get(room_jid.full().lower())
 
+    def _removeRoom(self, room_jid):
+        if self.rooms.has_key(room_jid.full().lower()):
+            del self.rooms[room_jid.full().lower()]
 
     def _onXPresence(self, prs):
         """
@@ -305,7 +332,7 @@ class MUCClient(XMPPHandler):
             # change the state of the room
             r = self._getRoom(room_jid)
             if r is None:
-                raise 
+                raise Exception, 'Room Not Found' 
             r.state = 'joined'
             
             # grab status
@@ -314,6 +341,24 @@ class MUCClient(XMPPHandler):
                 r.status = status.getAttribute('code', None)
 
             d.callback(r)
+
+
+    def _leftRoom(self, d, prs):
+        """We have presence that says we joined a room.
+        """
+        room_jid = jid.internJID(prs['from'])
+        
+        # check for errors
+        if prs.hasAttribute('type') and prs['type'] == 'error':            
+            d.errback(prs)
+        else:    
+            # change the state of the room
+            r = self._getRoom(room_jid)
+            if r is None:
+                raise Exception, 'Room Not Found' 
+            self._removeRoom(room_jid)
+            
+            d.callback(True)
 
     def receivedUserPresence(self, prs):
         """User Presence has been received
@@ -341,10 +386,10 @@ class MUCClient(XMPPHandler):
         return iq.send().addBoth(self._cbDisco)
         
 
-    def configure(self, room_jid, **kwargs):
+    def configure(self, room_jid, fields=[]):
         """Configure a room
         """
-        request = ConfigureRequest(self.xmlstream, method='set', **kwargs)
+        request = ConfigureRequest(self.xmlstream, method='set', fields=fields)
         request['to'] = room_jid
         
         return request.send()
@@ -373,6 +418,27 @@ class MUCClient(XMPPHandler):
         return d
     
 
+    
+    def leave(self, room_jid):
+        """
+        """
+        d = defer.Deferred()
+
+        self._getRoom(room_jid)
+ 
+        p = xmppim.UnavailablePresence(to=r.entity_id)
+        # p['from'] = self.jid.full()
+        self.xmlstream.send(p)
+
+        # add observer for joining the room
+        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s' and type='unavailable']" % (r.entity_id.full()), 
+                                          self._leftRoom, 1, d)
+
+        return d
+    
+
+    
+
     def groupChat(self, to, message, children=None):
         """Send a groupchat message
         """
@@ -385,6 +451,16 @@ class MUCClient(XMPPHandler):
         self.xmlstream.send(msg)
 
     
+    def register(self, to, fields=[]):
+        iq = RegisterRequest(self.xmlstream, method='set', fields=fields)
+        iq['to'] = to
+        return iq.send()
+
+    def getRegisterForm(self, to):
+        iq = RegisterRequest(self.xmlstream)
+        iq['to'] = to
+        return iq.send()
+
     def subject(self, to, subject):
         """
         """
