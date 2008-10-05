@@ -245,9 +245,9 @@ class PubSubClientTest(unittest.TestCase):
         self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
         self.assertEquals('set', iq.getAttribute('type'))
         self.assertEquals('pubsub', iq.pubsub.name)
-        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        self.assertEquals(NS_PUBSUB_OWNER, iq.pubsub.uri)
         children = list(domish.generateElementsQNamed(iq.pubsub.children,
-                                                      'delete', NS_PUBSUB))
+                                                      'delete', NS_PUBSUB_OWNER))
         self.assertEquals(1, len(children))
         child = children[0]
         self.assertEquals('test', child['node'])

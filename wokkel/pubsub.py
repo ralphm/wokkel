@@ -358,7 +358,7 @@ class PubSubClient(XMPPHandler):
         @param nodeIdentifier: The identifier of the node.
         @type nodeIdentifier: C{unicode}
         """
-        request = _PubSubRequest(self.xmlstream, 'delete')
+        request = _PubSubRequest(self.xmlstream, 'delete', NS_PUBSUB_OWNER)
         request.command['node'] = nodeIdentifier
         return request.send(service)
 
