@@ -54,6 +54,8 @@ class MucClientTest(unittest.TestCase):
 
         self.room_jid = JID(self.test_room+'@'+self.test_srv+'/'+self.test_nick)
 
+        self.user_jid = JID('test@jabber.org/Testing')
+
     def test_interface(self):
         """
         Do instances of L{muc.MUCClient} provide L{iwokkel.IMUCClient}?
@@ -166,14 +168,67 @@ class MucClientTest(unittest.TestCase):
         return d        
 
     def test_partRoom(self):
-        self.fail('Not Implemented')
+        
+        def cb(left):
+            self.failUnless(left, 'did not leave room')
+
+
+        d = self.protocol.leave(self.room_jid)
+        d.addCallback(cb)
+
+        prs = self.stub.output[-1]
+        
+        self.failUnless(prs['type']=='unavailable', 'Unavailable is not being sent')
+        
+        response = prs
+        response['from'] = response['to']
+        response['to'] = 'test@jabber.org'
+
+        self.stub.send(response)
+        return d
         
 
     def test_ban(self):
         
-        self.fail('Not Implemented')
+        banned = JID('ban@jabber.org/TroubleMakger')
+        def cb(banned):
+            self.failUnless(banned, 'Did not ban user')
+
+            
+        d = self.protocol.ban(self.room_jid, banned, self.user_jid, reason='Spam')
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        
+        self.failUnless(xpath.matches("/iq[@type='set' and @to='%s']/query/item[@affiliation='outcast']" % (self.room_jid.userhost(),), iq), 'Wrong ban stanza')
+
+        response = toResponse(iq, 'result')
+
+        self.stub.send(response)
+
+        return d
+
 
     def test_kick(self):
+
+        kicked = JID('kick@jabber.org/TroubleMakger')
+        def cb(kicked):
+            self.failUnless(kicked, 'Did not kick user')
+
+            
+        d = self.protocol.kick(self.room_jid, kicked, self.user_jid, reason='Spam')
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        
+        self.failUnless(xpath.matches("/iq[@type='set' and @to='%s']/query/item[@affiliation='none']" % (self.room_jid.userhost(),), iq), 'Wrong kick stanza')
+
+        response = toResponse(iq, 'result')
+
+        self.stub.send(response)
+
+        return d
+
         self.fail('Not Implemented')
         
 
@@ -181,12 +236,25 @@ class MucClientTest(unittest.TestCase):
         """Test sending a password via presence to a password protected room.
         """
         
+        self.protocol.password(self.room_jid, 'secret')
         
-        self.fail('Not Implemented')
+        prs = self.stub.output[-1]
+        
+        self.failUnless(xpath.matches("/presence[@to='%s']/x/password[text()='secret']" % (self.room_jid.full(),), prs), 'Wrong presence stanza')
+
 
     def test_history(self):
-        
-        self.fail('Not Implemented')
+        """Test receiving history on room join.
+        """
+        m = muc.HistoryMessage(self.room_jid.userhost(), self.protocol._makeTimeStamp(), body='test')
+	
+        def roomHistory(h):
+            self.failUnless(getattr(h,'delay',None), 'No delay element')
+	           
+
+        d, self.protocol.receivedHistory = calledAsync(roomHistory)
+        self.stub.send(m)
+        return d
 
 
     def test_oneToOneChat(self):
@@ -222,12 +290,27 @@ class MucClientTest(unittest.TestCase):
         
 
     def test_invite(self):
-        self.fail('Not Implemented')
+        other_jid = 'test@jabber.org'
+
+        self.protocol.invite(other_jid, 'This is a test')
+
+        msg = self.stub.output[-1]
+
+        self.failUnless(xpath.matches("/message[@to='%s']/x/invite/reason" % (other_jid,), msg), 'Wrong message type')
+
 
         
     def test_privateMessage(self):
-        
-        self.fail('Not Implemented')
+        """Test sending private messages to muc entities.
+        """
+        other_nick = self.room_jid.userhost()+'/OtherNick'
+
+        self.protocol.chat(other_nick, 'This is a test')
+
+        msg = self.stub.output[-1]
+
+        self.failUnless(xpath.matches("/message[@type='chat' and @to='%s']/body" % (other_nick,), msg), 'Wrong message type')
+
 
     def test_register(self):
         """Test client registering with a room. http://xmpp.org/extensions/xep-0045.html#register

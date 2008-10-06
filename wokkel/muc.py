@@ -120,8 +120,6 @@ class ConfigureRequest(xmlstream.IQ):
     """
     Configure MUC room request.
 
-    @ivar namespace: Request namespace.
-    @type namespace: C{str}
     @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
     @type method: C{str}
     """
@@ -143,10 +141,9 @@ class RegisterRequest(xmlstream.IQ):
     """
     Register room request.
 
-    @ivar namespace: Request namespace.
-    @type namespace: C{str}
     @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
     @type method: C{str}
+
     """
 
     def __init__(self, xs, method='get', fields=[]):
@@ -161,6 +158,35 @@ class RegisterRequest(xmlstream.IQ):
             for f in fields:
                 # create a field
                 form.addField(f)
+
+
+class AffiliationRequest(xmlstream.IQ):
+    """
+    Register room request.
+
+    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
+    @type method: C{str}
+
+    @ivar affiliation: The affiliation type to send to room.
+    @type affiliation: C{str}
+
+    """
+
+    def __init__(self, xs, method='get', affiliation='none', a_jid=None, reason=None):
+        xmlstream.IQ.__init__(self, xs, method)
+        
+        q = self.addElement((NS_ADMIN, 'query'))
+        i = q.addElement('item')
+
+        i['affiliation'] = affiliation
+        if a_jid:
+            i['jid'] = a_jid.full()
+            
+        if reason:
+            i.addElement('reason', None, reason)
+
+            
+        
 
 class GroupChat(domish.Element):
     """
@@ -177,8 +203,44 @@ class GroupChat(domish.Element):
             self.addElement('body',None, body)
         if subject:
             self.addElement('subject',None, subject)
-            
 
+
+class PrivateChat(domish.Element):
+    """
+    """
+    def __init__(self, to, body=None, frm=None):
+        """To needs to be a string
+        """
+        domish.Element.__init__(self, (None, 'message'))
+        self['type'] = 'chat'
+        self['to']   = to 
+        if frm:
+            self['from'] = frm
+        if body:
+            self.addElement('body',None, body)
+            
+class InviteMessage(PrivateChat):
+    def __init__(self, to, reason=None, full_jid=None, body=None, frm=None, password=None):
+        PrivateChat.__init__(self, to, body=body, frm=frm)
+        del self['type'] # remove type
+        x = self.addElement('x', NS_USER)
+        invite = x.addElement('invite')
+        if full_jid:
+            invite['to'] = full_jid
+        if reason:
+            invite.addElement('reason', None, reason)
+        if password:
+            invite.addElement('password', None, password)
+
+class HistoryMessage(GroupChat):
+    """
+    """
+    def __init__(self, to, stamp, body=None, subject=None, frm=None, h_frm=None):
+        GroupChat.__init__(self, to, body=body, subject=subject, frm=frm)
+        d = self.addElement('delay', NS_DELAY)
+        d['stamp'] = stamp
+        if h_frm:
+            d['from'] = h_frm
 
 class Room(object):
     """
@@ -303,8 +365,11 @@ class MUCClient(XMPPHandler):
     def _onGroupChat(self, msg):
         """
         """
-        self.receivedGroupChat(msg)
-
+        delay = getattr(msg, 'delay', None)
+        if delay is None:
+            self.receivedGroupChat(msg)
+        else:
+            self.receivedHistory(msg)
 
 
     def _onSubject(self, msg):
@@ -371,6 +436,13 @@ class MUCClient(XMPPHandler):
         """
         pass
 
+
+    def receivedHistory(self, msg):
+        """
+        """
+        pass
+
+
     def _cbDisco(self, iq):
         # grab query
         
@@ -424,14 +496,14 @@ class MUCClient(XMPPHandler):
         """
         d = defer.Deferred()
 
-        self._getRoom(room_jid)
+        r = self._getRoom(room_jid)
  
         p = xmppim.UnavailablePresence(to=r.entity_id)
         # p['from'] = self.jid.full()
         self.xmlstream.send(p)
 
         # add observer for joining the room
-        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s' and type='unavailable']" % (r.entity_id.full()), 
+        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s' and @type='unavailable']" % (r.entity_id.full()), 
                                           self._leftRoom, 1, d)
 
         return d
@@ -439,10 +511,7 @@ class MUCClient(XMPPHandler):
 
     
 
-    def groupChat(self, to, message, children=None):
-        """Send a groupchat message
-        """
-        msg = GroupChat(to, body=message)
+    def _sendMessage(self, msg, children=None):
 
         if children:
             for c in children:
@@ -450,6 +519,27 @@ class MUCClient(XMPPHandler):
         
         self.xmlstream.send(msg)
 
+    def groupChat(self, to, message, children=None):
+        """Send a groupchat message
+        """
+        msg = GroupChat(to, body=message)
+        
+        self._sendMessage(msg, children=children)
+
+    def chat(self, to, message, children=None):
+        msg = PrivateChat(to, body=message)
+
+        self._sendMessage(msg, children=children)
+        
+    def invite(self, to, reason=None, full_jid=None):
+        msg = InviteMessage(to, reason=reason, full_jid=full_jid)
+        self._sendMessage(msg)
+
+
+    def password(self, to, password):
+        p = PasswordPresence(to, password)
+
+        self.xmlstream.send(p)
     
     def register(self, to, fields=[]):
         iq = RegisterRequest(self.xmlstream, method='set', fields=fields)
@@ -490,3 +580,24 @@ class MUCClient(XMPPHandler):
 
             self.xmlstream.send(m)
 
+    def ban(self, to, ban_jid, frm, reason=None):
+        
+        iq = AffiliationRequest(self.xmlstream,
+                                method='set',
+                                affiliation='outcast', 
+                                a_jid=ban_jid, 
+                                reason=reason)
+        iq['to'] = to.userhost() # this is a room jid, only send to room
+        iq['from'] = frm.full()
+        return iq.send()
+
+
+    def kick(self, to, kick_jid, frm, reason=None):
+        
+        iq = AffiliationRequest(self.xmlstream,
+                                method='set',
+                                a_jid=kick_jid, 
+                                reason=reason)
+        iq['to'] = to.userhost() # this is a room jid, only send to room
+        iq['from'] = frm.full()
+        return iq.send()
