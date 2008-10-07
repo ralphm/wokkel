@@ -56,6 +56,12 @@ class MucClientTest(unittest.TestCase):
 
         self.user_jid = JID('test@jabber.org/Testing')
 
+    def _createRoom(self):
+        # create a room
+        self.current_room = muc.Room(self.test_room, self.test_srv, self.test_nick)
+        self.protocol._setRoom(self.current_room)
+
+
     def test_interface(self):
         """
         Do instances of L{muc.MUCClient} provide L{iwokkel.IMUCClient}?
@@ -63,17 +69,22 @@ class MucClientTest(unittest.TestCase):
         verify.verifyObject(iwokkel.IMUCClient, self.protocol)
 
 
-    def test_presence(self):
-        """Test receiving room presence
+    def test_userJoinedRoom(self):
+        """Test receiving a user joined event.
         """
         p = muc.UserPresence()
+	p['to'] = self.user_jid.full()
+        p['from'] = self.room_jid.full()
+
+        # create a room
+        self._createRoom()
+
+        def userPresence(room, user):
+            self.failUnless(room.name==self.test_room, 'Wrong room name')
+            self.failUnless(room.inRoster(user), 'User not in roster')
+            	           
 	
-        def userPresence(prs):
-            self.failUnless(len(prs.children)==1, 'Not enough children')
-            self.failUnless(getattr(prs,'x',None), 'No x element')
-	           
-	
-        d, self.protocol.receivedUserPresence = calledAsync(userPresence)
+        d, self.protocol.userJoinedRoom = calledAsync(userPresence)
         self.stub.send(p)
         return d
 
@@ -82,10 +93,13 @@ class MucClientTest(unittest.TestCase):
         """Test receiving room presence
         """
         m = muc.GroupChat('test@test.com',body='test')
-	
-        def groupChat(elem):
-            self.failUnless(elem.name=='message','Wrong stanza')
-            self.failUnless(elem['type'] == 'groupchat', 'Wrong attribute')
+	m['from'] = self.room_jid.full()
+
+        self._createRoom()
+
+        def groupChat(room, user, message):
+            self.failUnless(message=='test', "Wrong group chat message")
+            self.failUnless(room.name==self.test_room, 'Wrong room name')
             	           
 	
         d, self.protocol.receivedGroupChat = calledAsync(groupChat)
@@ -229,7 +243,6 @@ class MucClientTest(unittest.TestCase):
 
         return d
 
-        self.fail('Not Implemented')
         
 
     def test_password(self):
@@ -247,9 +260,13 @@ class MucClientTest(unittest.TestCase):
         """Test receiving history on room join.
         """
         m = muc.HistoryMessage(self.room_jid.userhost(), self.protocol._makeTimeStamp(), body='test')
-	
-        def roomHistory(h):
-            self.failUnless(getattr(h,'delay',None), 'No delay element')
+ 	m['from'] = self.room_jid.full()
+        
+        self._createRoom()
+
+        def roomHistory(room, user, body, stamp, frm=None):
+            self.failUnless(body=='test', "wrong message body")
+            self.failUnless(stamp, 'Does not have a history stamp')
 	           
 
         d, self.protocol.receivedHistory = calledAsync(roomHistory)

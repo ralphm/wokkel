@@ -515,5 +515,143 @@ class IPubSubService(Interface):
 class IMUCClient(Interface):
     """
     Multi-User Chat Client
+
+    A client interface to XEP-045 : http://xmpp.org/extensions/xep-0045.html
+
     """
+
+    def receivedSubject(room, subject):
+        """
+        A subject is received when you join a room and when the subject is changed. This
+        method is triggered by one of those two events.
+
+        @param room: The room the subject was accepted for.
+        @type room: L{muc.Room}
+
+        @param subject: The subject of the given room.
+        @type subject: C{unicode}
+        """
+
+
+    def receivedHistory(room, user, message, history, frm=None):
+        """
+        Past messages from a chat room has been received. This occurs when you join a room.
+
+
+        """
+
+    
+    def disco(entity, type='info'):
+        """Send disco queries to a XMPP entity
+
+        @param entity: A XMPP entity to send the disco request to.
+        @type entity: C{unicode}
+
+        @param type: Optional argument to determine the type of discovery being done.
+        @type type: C{str}
+
+        """
+
+        
+
+    def configure(room_jid, fields=[]):
+        """Configure a room. When a user has administration privledges they can configure 
+        a room. 
+
+        @param room_jid: A XMPP entity for the room.
+        @type room_jid: L{jid.JID}
+
+        @param fields: A list of fields to change or add to the room's configuration.
+        @type fields: C{list}
+
+        """
+
+    def getConfigureForm(room_jid):
+        """
+        In order to know the fields to change in a room you will need to get the form.
+        
+        @param room_jid: The room you want the configuration form from.
+        @type room_jid: L{jid.JID}
+
+        """
+
+    def join(server, room, nick):
+        """
+        Join a multi-user chat room. 
+
+        @param server: The server the room is on.
+        @type server: C{str}
+
+        @param room: The room name.
+        @type room: C{str}
+        
+        @param nick: The nick name you want when you join the room.
+        @type nick: C{str}
+
+        """
+
+
+    def leave(room_jid):
+        """
+        Leave a multi-user chat room.
+
+        @param room_jid: The room you want the configuration form from.
+        @type room_jid: L{jid.JID}
+
+        """
+
+    def userJoinedRoom(room, user):
+        """User has joined the room.
+
+        @param room: The room the user joined.
+        @type  room: L{muc.Room}
+
+        @param user: The user that joined the room.
+        @type  user: L{muc.User}
+
+        """
+   
+
+    def groupChat(to, message, children=None):
+        """Send a groupchat message to a room.
+
+        """
+
+
+    def chat(to, message, children=None):
+        """
+
+        """
+
+
+    def password(to, password):
+        """
+        """
+    
+    def register(to, fields=[]):
+        """
+        """
+
+
+    def subject(to, subject):
+        """
+        """
+
+    def voice(to):
+        """
+        """
+
+
+    def history(to, message_list):
+        """
+        """
+
+    def ban(to, ban_jid, frm, reason=None):
+        """
+        """
+
+
+    def kick(to, kick_jid, frm, reason=None):
+        """
+        """
 

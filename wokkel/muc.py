@@ -65,7 +65,7 @@ CHAT_BODY = MESSAGE +'[@type="chat"]/body'
 CHAT      = MESSAGE +'[@type="chat"]'
 
 GROUPCHAT     = MESSAGE +'[@type="groupchat"]/body'
-SUBJECT       = MESSAGE +'[@type="groupchat"]/body'
+SUBJECT       = MESSAGE +'[@type="groupchat"]/subject'
 MESSAGE_ERROR = MESSAGE +'[@type="error"]'
 
 STATUS_CODES = { # see http://www.xmpp.org/extensions/xep-0045.html#registrar-statuscodes
@@ -119,6 +119,8 @@ class Unsupported(MUCError):
 class ConfigureRequest(xmlstream.IQ):
     """
     Configure MUC room request.
+
+    http://xmpp.org/extensions/xep-0045.html#roomconfig
 
     @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
     @type method: C{str}
@@ -242,6 +244,21 @@ class HistoryMessage(GroupChat):
         if h_frm:
             d['from'] = h_frm
 
+class User(object):
+    """
+    A user/entity in a multi-user chat room.
+    """
+    
+    def __init__(self, nick, user_jid=None):
+        self.nick = nick
+        self.user_jid = user_jid
+        self.affiliation = 'none'
+        self.role = 'none'
+        
+        self.status = None
+        self.show   = None
+
+
 class Room(object):
     """
     A Multi User Chat Room
@@ -260,6 +277,24 @@ class Room(object):
         self.entity_id = jid.internJID(name+'@'+server+'/'+nick)
                
         self.roster = {}
+
+        
+
+    def addUser(self, user):
+        """
+        """
+        self.roster[user.nick.lower()] = user
+
+    def inRoster(self, user):
+        """
+        """
+
+        return self.roster.has_key(user.nick.lower())
+
+    def getUser(self, nick):
+        """
+        """
+        return self.roster.get(nick.lower())
 
         
 
@@ -340,7 +375,9 @@ class MUCClient(XMPPHandler):
     rooms = {}
 
     def connectionInitialized(self):
-        self.xmlstream.addObserver(PRESENCE+"/x", self._onXPresence)
+        self.xmlstream.addObserver(PRESENCE+"[not(@type) or @type='available']/x", self._onXPresence)
+        self.xmlstream.addObserver(PRESENCE+"[@type='unavailable']", self._onUnavailablePresence)
+        self.xmlstream.addObserver(PRESENCE+"[@type='error']", self._onPresenceError)
         self.xmlstream.addObserver(GROUPCHAT, self._onGroupChat)
         self.xmlstream.addObserver(SUBJECT, self._onSubject)
         # add history
@@ -355,27 +392,94 @@ class MUCClient(XMPPHandler):
         if self.rooms.has_key(room_jid.full().lower()):
             del self.rooms[room_jid.full().lower()]
 
+
+    def _onUnavailablePresence(self, prs):
+        """
+        """
+        if not prs.hasAttribute('from'):
+            return
+        room_jid = jid.internJID(prs.getAttribute('from', ''))
+
+
+    def _onPresenceError(self, prs):
+        """
+        """
+        if not prs.hasAttribute('from'):
+            return
+        room_jid = jid.internJID(prs.getAttribute('from', ''))
+
+
     def _onXPresence(self, prs):
         """
         """
-        if prs.x.uri == NS_USER:
-            self.receivedUserPresence(prs)
+        if not prs.hasAttribute('from'):
+            return
+        room_jid = jid.internJID(prs.getAttribute('from', ''))
+            
+        status = getattr(prs, 'status', None)
+        show   = getattr(prs, 'show', None)
+        
+        # grab room
+        room = self._getRoom(room_jid)
+        if room is None:
+            # not in the room yet
+            return
+
+        # check if user is in roster
+        user = room.getUser(room_jid.resource)
+        if user is None: # create a user that does not exist
+            user = User(room_jid.resource)
+            
+        
+        if room.inRoster(user):
+            # we changed status or nick 
+            muc_status = getattr(prs.x, 'status', None)
+            if muc_status:
+                code = muc_status.getAttribute('code', 0)
+            else:
+                self.userUpdatedStatus(room, user, show, status)
+        else:            
+            room.addUser(user)
+            self.userJoinedRoom(room, user)
             
 
     def _onGroupChat(self, msg):
         """
         """
+        if not msg.hasAttribute('from'):
+            # need to return an error here
+            return
+        room_jid = jid.internJID(msg.getAttribute('from', ''))
+
+        room = self._getRoom(room_jid)
+        if room is None:
+            # not in the room yet
+            return
+        user = room.getUser(room_jid.resource)
+
         delay = getattr(msg, 'delay', None)
+        body  = unicode(msg.body)
+        # grab room
         if delay is None:
-            self.receivedGroupChat(msg)
+            self.receivedGroupChat(room, user, body)
         else:
-            self.receivedHistory(msg)
+            self.receivedHistory(room, user, body, delay['stamp'], frm=delay.getAttribute('from',None))
 
 
     def _onSubject(self, msg):
         """
         """
-        self.receivedSubject(msg)
+        if not msg.hasAttribute('from'):
+            return
+        room_jid = jid.internJID(msg['from'])
+
+        # grab room
+        room = self._getRoom(room_jid)
+        if room is None:
+            # not in the room yet
+            return
+
+        self.receivedSubject(room_jid, unicode(msg.subject))
 
 
     def _makeTimeStamp(self, stamp=None):
@@ -425,19 +529,25 @@ class MUCClient(XMPPHandler):
             
             d.callback(True)
 
-    def receivedUserPresence(self, prs):
+    def userJoinedRoom(self, room, user):
+        """User has joined a room
+        """
+        pass
+
+
+    def userUserUpdatedStatus(self, room, user, show, status):
         """User Presence has been received
         """
         pass
         
 
-    def receivedSubject(self, msg):
+    def receivedSubject(self, room, subject):
         """
         """
         pass
 
 
-    def receivedHistory(self, msg):
+    def receivedHistory(self, room, user, message, history, frm=None):
         """
         """
         pass
@@ -532,6 +642,8 @@ class MUCClient(XMPPHandler):
         self._sendMessage(msg, children=children)
         
     def invite(self, to, reason=None, full_jid=None):
+        """
+        """
         msg = InviteMessage(to, reason=reason, full_jid=full_jid)
         self._sendMessage(msg)
 
@@ -546,9 +658,11 @@ class MUCClient(XMPPHandler):
         iq['to'] = to
         return iq.send()
 
-    def getRegisterForm(self, to):
+    def getRegisterForm(self, room):
+        """
+        """
         iq = RegisterRequest(self.xmlstream)
-        iq['to'] = to
+        iq['to'] = room.userhost()
         return iq.send()
 
     def subject(self, to, subject):
