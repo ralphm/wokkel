@@ -272,7 +272,7 @@ class Room(object):
         self.name   = name
         self.server = server
         self.nick   = nick
-        self.status = None
+        self.status = 0
 
         self.entity_id = jid.internJID(name+'@'+server+'/'+nick)
                
@@ -296,6 +296,9 @@ class Room(object):
         """
         return self.roster.get(nick.lower())
 
+    def removeUser(self, user):
+        if self.inRoster(user):
+            del self.roster[user.nick.lower()]
         
 
 class BasicPresence(xmppim.AvailablePresence):
@@ -382,15 +385,16 @@ class MUCClient(XMPPHandler):
         self.xmlstream.addObserver(SUBJECT, self._onSubject)
         # add history
 
+
     def _setRoom(self, room):
-        self.rooms[room.entity_id.full().lower()] = room
+        self.rooms[room.entity_id.userhost().lower()] = room
 
     def _getRoom(self, room_jid):
-        return self.rooms.get(room_jid.full().lower())
+        return self.rooms.get(room_jid.userhost().lower())
 
     def _removeRoom(self, room_jid):
-        if self.rooms.has_key(room_jid.full().lower()):
-            del self.rooms[room_jid.full().lower()]
+        if self.rooms.has_key(room_jid.userhost().lower()):
+            del self.rooms[room_jid.userhost().lower()]
 
 
     def _onUnavailablePresence(self, prs):
@@ -399,7 +403,7 @@ class MUCClient(XMPPHandler):
         if not prs.hasAttribute('from'):
             return
         room_jid = jid.internJID(prs.getAttribute('from', ''))
-
+        self._userLeavesRoom(room_jid)
 
     def _onPresenceError(self, prs):
         """
@@ -407,8 +411,22 @@ class MUCClient(XMPPHandler):
         if not prs.hasAttribute('from'):
             return
         room_jid = jid.internJID(prs.getAttribute('from', ''))
+        # add an error hook here?
+        self._userLeavesRoom(room_jid)
 
-
+    def _userLeavesRoom(self, room_jid):
+        room = self._getRoom(room_jid)
+        if room is None:
+            # not in the room yet
+            return
+        # check if user is in roster
+        user = room.getUser(room_jid.resource)
+        if user is None:
+            return
+        if room.inRoster(user):
+            room.removeUser(user)
+            self.userLeftRoom(room, user)
+        
     def _onXPresence(self, prs):
         """
         """
@@ -531,6 +549,11 @@ class MUCClient(XMPPHandler):
 
     def userJoinedRoom(self, room, user):
         """User has joined a room
+        """
+        pass
+
+    def userLeftRoom(self, room, user):
+        """User has left a room
         """
         pass
 
