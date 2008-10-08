@@ -385,6 +385,7 @@ class MUCClient(XMPPHandler):
         self.xmlstream.addObserver(SUBJECT, self._onSubject)
         # add history
 
+        self.initialized()
 
     def _setRoom(self, room):
         self.rooms[room.entity_id.userhost().lower()] = room
@@ -547,6 +548,11 @@ class MUCClient(XMPPHandler):
             
             d.callback(True)
 
+    def initialized(self):
+        """Client is initialized and ready!
+        """
+        pass
+
     def userJoinedRoom(self, room, user):
         """User has joined a room
         """
@@ -558,7 +564,7 @@ class MUCClient(XMPPHandler):
         pass
 
 
-    def userUserUpdatedStatus(self, room, user, show, status):
+    def userUpdatedStatus(self, room, user, show, status):
         """User Presence has been received
         """
         pass
