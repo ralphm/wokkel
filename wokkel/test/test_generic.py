@@ -48,3 +48,41 @@ class VersionHandlerTest(unittest.TestCase):
                                                       'version', NS_VERSION))
         self.assertEquals(1, len(elements))
         self.assertEquals('0.1.0', unicode(elements[0]))
+
+
+
+class XmlPipeTest(unittest.TestCase):
+    """
+    Tests for L{wokkel.generic.XmlPipe}.
+    """
+
+    def setUp(self):
+        self.pipe = generic.XmlPipe()
+
+
+    def test_sendFromSource(self):
+        """
+        Send an element from the source and observe it from the sink.
+        """
+        def cb(obj):
+            called.append(obj)
+
+        called = []
+        self.pipe.sink.addObserver('/test[@xmlns="testns"]', cb)
+        element = domish.Element(('testns', 'test'))
+        self.pipe.source.send(element)
+        self.assertEquals([element], called)
+
+
+    def test_sendFromSink(self):
+        """
+        Send an element from the sink and observe it from the source.
+        """
+        def cb(obj):
+            called.append(obj)
+
+        called = []
+        self.pipe.source.addObserver('/test[@xmlns="testns"]', cb)
+        element = domish.Element(('testns', 'test'))
+        self.pipe.sink.send(element)
+        self.assertEquals([element], called)
