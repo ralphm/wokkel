@@ -5,7 +5,6 @@
 Tests for L{wokkel.client}.
 """
 
-from twisted.trial import unittest
 from twisted.words.protocols.jabber import xmlstream
 from twisted.words.protocols.jabber.client import XMPPAuthenticator
 from twisted.words.protocols.jabber.jid import JID
