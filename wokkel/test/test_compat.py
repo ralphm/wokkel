@@ -9,13 +9,13 @@ Tests for L{wokkel.compat}.
 from twisted.internet import defer, protocol
 from twisted.trial import unittest
 from twisted.words.xish import domish, utility
-from wokkel.compat import toResponse, XmlStreamFactoryMixin
+from wokkel.compat import toResponse, BootstrapMixin
 
 class DummyProtocol(protocol.Protocol, utility.EventDispatcher):
     """
     I am a protocol with an event dispatcher without further processing.
 
-    This protocol is only used for testing XmlStreamFactoryMixin to make
+    This protocol is only used for testing BootstrapMixin to make
     sure the bootstrap observers are added to the protocol instance.
     """
 
@@ -27,27 +27,29 @@ class DummyProtocol(protocol.Protocol, utility.EventDispatcher):
         utility.EventDispatcher.__init__(self)
 
 
-class XmlStreamFactoryMixinTest(unittest.TestCase):
 
-    def test_buildProtocol(self):
+class BootstrapMixinTest(unittest.TestCase):
+    """
+    Tests for L{BootstrapMixin}.
+
+    @ivar factory: Instance of the factory or mixin under test.
+    """
+
+    def setUp(self):
+        self.factory = BootstrapMixin()
+
+
+    def test_installBootstraps(self):
         """
-        Test building of protocol.
-
-        Arguments passed to Factory should be passed to protocol on
-        instantiation. Bootstrap observers should be setup.
+        Dispatching an event should fire registered bootstrap observers.
         """
         d = defer.Deferred()
-
-        f = XmlStreamFactoryMixin(None, test=None)
-        f.protocol = DummyProtocol
-        f.addBootstrap('//event/myevent', d.callback)
-        xs = f.buildProtocol(None)
-
-        self.assertEquals(f, xs.factory)
-        self.assertEquals((None,), xs.args)
-        self.assertEquals({'test': None}, xs.kwargs)
-        xs.dispatch(None, '//event/myevent')
+        dispatcher = DummyProtocol()
+        self.factory.addBootstrap('//event/myevent', d.callback)
+        self.factory.installBootstraps(dispatcher)
+        dispatcher.dispatch(None, '//event/myevent')
         return d
+
 
     def test_addAndRemoveBootstrap(self):
         """
@@ -56,13 +58,13 @@ class XmlStreamFactoryMixinTest(unittest.TestCase):
         def cb(self):
             pass
 
-        f = XmlStreamFactoryMixin(None, test=None)
+        self.factory.addBootstrap('//event/myevent', cb)
+        self.assertIn(('//event/myevent', cb), self.factory.bootstraps)
 
-        f.addBootstrap('//event/myevent', cb)
-        self.assertIn(('//event/myevent', cb), f.bootstraps)
+        self.factory.removeBootstrap('//event/myevent', cb)
+        self.assertNotIn(('//event/myevent', cb), self.factory.bootstraps)
 
-        f.removeBootstrap('//event/myevent', cb)
-        self.assertNotIn(('//event/myevent', cb), f.bootstraps)
+
 
 class ToResponseTest(unittest.TestCase):
 

@@ -1,8 +1,10 @@
 # -*- test-case-name: wokkel.test.test_compat -*-
 #
-# Copyright (c) 2001-2007 Twisted Matrix Laboratories.
+# Copyright (c) 2001-2008 Twisted Matrix Laboratories.
 # See LICENSE for details.
 
+from twisted.internet import protocol
+from twisted.words.protocols.jabber import xmlstream
 from twisted.words.xish import domish
 
 def toResponse(stanza, stanzaType=None):
@@ -38,34 +40,39 @@ def toResponse(stanza, stanzaType=None):
     return response
 
 
-class XmlStreamFactoryMixin(object):
+
+class BootstrapMixin(object):
     """
-    XmlStream factory mixin that takes care of event handlers.
+    XmlStream factory mixin to install bootstrap event observers.
 
-    To make sure certain event observers are set up before incoming data is
-    processed, you can set up bootstrap event observers using C{addBootstrap}.
+    This mixin is for factories providing
+    L{IProtocolFactory<twisted.internet.interfaces.IProtocolFactory>} to make
+    sure bootstrap event observers are set up on protocols, before incoming
+    data is processed. Such protocols typically derive from
+    L{utility.EventDispatcher}, like L{XmlStream}.
 
-    The C{event} and C{fn} parameters correspond with the C{event} and
+    You can set up bootstrap event observers using C{addBootstrap}. The
+    C{event} and C{fn} parameters correspond with the C{event} and
     C{observerfn} arguments to L{utility.EventDispatcher.addObserver}.
+
+    @ivar bootstraps: The list of registered bootstrap event observers.
+    @type bootstrap: C{list}
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         self.bootstraps = []
-        self.args = args
-        self.kwargs = kwargs
 
-    def buildProtocol(self, addr):
-        """
-        Create an instance of XmlStream.
 
-        The returned instance will have bootstrap event observers registered
-        and will proceed to handle input on an incoming connection.
+    def installBootstraps(self, dispatcher):
         """
-        xs = self.protocol(*self.args, **self.kwargs)
-        xs.factory = self
+        Install registered bootstrap observers.
+
+        @param dispatcher: Event dispatcher to add the observers to.
+        @type dispatcher: L{utility.EventDispatcher}
+        """
         for event, fn in self.bootstraps:
-            xs.addObserver(event, fn)
-        return xs
+            dispatcher.addObserver(event, fn)
+
 
     def addBootstrap(self, event, fn):
         """
@@ -73,8 +80,42 @@ class XmlStreamFactoryMixin(object):
         """
         self.bootstraps.append((event, fn))
 
+
     def removeBootstrap(self, event, fn):
         """
         Remove a bootstrap event handler.
         """
         self.bootstraps.remove((event, fn))
+
+
+
+class XmlStreamServerFactory(BootstrapMixin,
+                             protocol.ServerFactory):
+    """
+    Factory for Jabber XmlStream objects as a server.
+
+    @since: 8.2.
+    @ivar authenticatorFactory: Factory callable that takes no arguments, to
+                                create a fresh authenticator to be associated
+                                with the XmlStream.
+    """
+
+    protocol = xmlstream.XmlStream
+
+    def __init__(self, authenticatorFactory):
+        xmlstream.BootstrapMixin.__init__(self)
+        self.authenticatorFactory = authenticatorFactory
+
+
+    def buildProtocol(self, addr):
+        """
+        Create an instance of XmlStream.
+
+        A new authenticator instance will be created and passed to the new
+        XmlStream. Registered bootstrap event observers are installed as well.
+        """
+        authenticator = self.authenticatorFactory()
+        xs = self.protocol(authenticator)
+        xs.factory = self
+        self.installBootstraps(xs)
+        return xs

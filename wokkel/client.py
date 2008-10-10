@@ -16,9 +16,9 @@ from twisted.names.srvconnect import SRVConnector
 from twisted.words.protocols.jabber import client, sasl, xmlstream
 
 try:
-    from twisted.words.xish.xmlstream import XmlStreamFactoryMixin
+    from twisted.words.xish.xmlstream import BootstrapMixin
 except ImportError:
-    from wokkel.compat import XmlStreamFactoryMixin
+    from wokkel.compat import BootstrapMixin
 
 from wokkel.subprotocols import StreamManager, XMPPHandler
 
@@ -127,16 +127,17 @@ class XMPPClient(StreamManager, service.Service):
             return c
 
 
-class DeferredClientFactory(XmlStreamFactoryMixin, protocol.ClientFactory):
+class DeferredClientFactory(BootstrapMixin, protocol.ClientFactory):
     protocol = xmlstream.XmlStream
 
     def __init__(self, jid, password):
-        self.authenticator = client.XMPPAuthenticator(jid, password)
-        XmlStreamFactoryMixin.__init__(self, self.authenticator)
+        BootstrapMixin.__init__(self)
+
+        self.jid = jid
+        self.password = password
 
         deferred = defer.Deferred()
         self.deferred = deferred
-
         self.addBootstrap(xmlstream.INIT_FAILED_EVENT, deferred.errback)
 
         class ConnectionInitializedHandler(XMPPHandler):
@@ -146,14 +147,31 @@ class DeferredClientFactory(XmlStreamFactoryMixin, protocol.ClientFactory):
         self.streamManager = StreamManager(self)
         self.addHandler(ConnectionInitializedHandler())
 
+
+    def buildProtocol(self, addr):
+        """
+        Create an instance of XmlStream.
+
+        A new authenticator instance will be created and passed to the new
+        XmlStream. Registered bootstrap event observers are installed as well.
+        """
+        self.authenticator = client.XMPPAuthenticator(self.jid, self.password)
+        xs = self.protocol(self.authenticator)
+        xs.factory = self
+        self.installBootstraps(xs)
+        return xs
+
+
     def clientConnectionFailed(self, connector, reason):
         self.deferred.errback(reason)
+
 
     def addHandler(self, handler):
         """
         Add a subprotocol handler to the stream manager.
         """
         self.streamManager.addHandler(handler)
+
 
     def removeHandler(self, handler):
         """
