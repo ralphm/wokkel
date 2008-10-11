@@ -6,10 +6,13 @@
 Tests for L{wokkel.compat}.
 """
 
+from zope.interface.verify import verifyObject
 from twisted.internet import defer, protocol
+from twisted.internet.interfaces import IProtocolFactory
 from twisted.trial import unittest
 from twisted.words.xish import domish, utility
-from wokkel.compat import toResponse, BootstrapMixin
+from twisted.words.protocols.jabber import xmlstream
+from wokkel.compat import toResponse, BootstrapMixin, XmlStreamServerFactory
 
 class DummyProtocol(protocol.Protocol, utility.EventDispatcher):
     """
@@ -132,3 +135,50 @@ class ToResponseTest(unittest.TestCase):
         stanza = domish.Element(('jabber:client', 'message'))
         response = toResponse(stanza)
         self.failIf(response.hasAttribute('type'))
+
+
+
+class XmlStreamServerFactoryTest(BootstrapMixinTest):
+    """
+    Tests for L{XmlStreamServerFactory}.
+    """
+
+    def setUp(self):
+        """
+        Set up a server factory with a authenticator factory function.
+        """
+        def authenticatorFactory():
+            return xmlstream.Authenticator()
+
+        self.factory = XmlStreamServerFactory(authenticatorFactory)
+
+
+    def test_interface(self):
+        """
+        L{XmlStreamServerFactory} is a L{Factory}.
+        """
+        verifyObject(IProtocolFactory, self.factory)
+
+
+    def test_buildProtocol(self):
+        """
+        The authenticator factory should be passed to its protocol and it
+        should instantiate the authenticator and save it.
+        L{xmlstream.XmlStream}s do that, but we also want to ensure it really
+        is one.
+        """
+        xs = self.factory.buildProtocol(None)
+        self.assertIdentical(self.factory, xs.factory)
+        self.assertIsInstance(xs, xmlstream.XmlStream)
+        self.assertIsInstance(xs.authenticator, xmlstream.Authenticator)
+
+
+    def test_buildProtocolTwice(self):
+        """
+        Subsequent calls to buildProtocol should result in different instances
+        of the protocol, as well as their authenticators.
+        """
+        xs1 = self.factory.buildProtocol(None)
+        xs2 = self.factory.buildProtocol(None)
+        self.assertNotIdentical(xs1, xs2)
+        self.assertNotIdentical(xs1.authenticator, xs2.authenticator)

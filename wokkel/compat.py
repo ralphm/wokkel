@@ -103,7 +103,7 @@ class XmlStreamServerFactory(BootstrapMixin,
     protocol = xmlstream.XmlStream
 
     def __init__(self, authenticatorFactory):
-        xmlstream.BootstrapMixin.__init__(self)
+        BootstrapMixin.__init__(self)
         self.authenticatorFactory = authenticatorFactory
 
 
