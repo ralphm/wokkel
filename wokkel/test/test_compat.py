@@ -123,3 +123,12 @@ class ToResponseTest(unittest.TestCase):
         stanza = domish.Element(('jabber:client', 'message'))
         response = toResponse(stanza)
         self.failIf(response.hasAttribute('id'))
+
+
+    def test_noType(self):
+        """
+        Test that a proper response is generated without type attribute.
+        """
+        stanza = domish.Element(('jabber:client', 'message'))
+        response = toResponse(stanza)
+        self.failIf(response.hasAttribute('type'))

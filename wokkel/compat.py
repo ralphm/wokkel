@@ -34,7 +34,7 @@ def toResponse(stanza, stanzaType=None):
         response['from'] = fromAddr
     if stanzaID:
         response['id'] = stanzaID
-    if type:
+    if stanzaType:
         response['type'] = stanzaType
 
     return response
