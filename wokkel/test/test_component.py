@@ -5,14 +5,121 @@
 Tests for L{wokkel.component}
 """
 
+from zope.interface.verify import verifyObject
+
+from twisted.internet import defer
 from twisted.python import failure
 from twisted.trial import unittest
-from twisted.words.protocols.jabber import xmlstream
+from twisted.words.protocols.jabber import ijabber, xmlstream
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
 
 from wokkel import component
 from wokkel.generic import XmlPipe
+
+class InternalComponentTest(unittest.TestCase):
+    """
+    Tests for L{component.InternalComponent}.
+    """
+
+    def setUp(self):
+        self.router = component.RouterService()
+        self.component = component.InternalComponent(self.router, 'component')
+
+
+    def test_interface(self):
+        """
+        L{component.InternalComponent} implements
+        L{ijabber.IXMPPHandlerCollection}.
+        """
+        verifyObject(ijabber.IXMPPHandlerCollection, self.component)
+
+
+    def test_startService(self):
+        """
+        Starting the service creates a new route and hooks up handlers.
+        """
+
+        events = []
+
+        class TestHandler(xmlstream.XMPPHandler):
+
+            def connectionInitialized(self):
+                fn = lambda obj: events.append(obj)
+                self.xmlstream.addObserver('//event/test', fn)
+
+        TestHandler().setHandlerParent(self.component)
+
+        self.assertFalse(self.component.running)
+
+        self.component.startService()
+
+        self.assertTrue(self.component.running)
+        self.assertIn('component', self.router.routes)
+
+        self.assertEquals([], events)
+        self.component.xmlstream.dispatch(None, '//event/test')
+        self.assertEquals([None], events)
+
+
+    def test_stopService(self):
+        """
+        Stopping the service removes the route and disconnects handlers.
+        """
+
+        events = []
+
+        class TestHandler(xmlstream.XMPPHandler):
+
+            def connectionLost(self, reason):
+                events.append(reason)
+
+        TestHandler().setHandlerParent(self.component)
+
+        self.component.startService()
+        self.component.stopService()
+
+        self.assertFalse(self.component.running)
+        self.assertEquals(1, len(events))
+        self.assertNotIn('component', self.router.routes)
+
+
+    def test_addHandler(self):
+        """
+        Adding a handler connects it to the stream.
+        """
+        events = []
+
+        class TestHandler(xmlstream.XMPPHandler):
+
+            def connectionInitialized(self):
+                fn = lambda obj: events.append(obj)
+                self.xmlstream.addObserver('//event/test', fn)
+
+        self.component.startService()
+        self.component.xmlstream.dispatch(None, '//event/test')
+        self.assertEquals([], events)
+
+        TestHandler().setHandlerParent(self.component)
+        self.component.xmlstream.dispatch(None, '//event/test')
+        self.assertEquals([None], events)
+
+
+    def test_send(self):
+        """
+        A message sent from the component ends up at the router.
+        """
+        events = []
+        fn = lambda obj: events.append(obj)
+        message = domish.Element((None, 'message'))
+
+        self.component.startService()
+        self.router.routes['component'].addObserver('/message', fn)
+        self.component.send(message)
+
+        self.assertEquals([message], events)
+
+
 
 class RouterServiceTest(unittest.TestCase):
     """

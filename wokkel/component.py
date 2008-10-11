@@ -14,6 +14,7 @@ from twisted.words.protocols.jabber.jid import internJID as JID
 from twisted.words.protocols.jabber import component, error, xmlstream
 from twisted.words.xish import domish
 
+from wokkel.generic import XmlPipe
 from wokkel.subprotocols import StreamManager
 
 NS_COMPONENT_ACCEPT = 'jabber:component:accept'
@@ -62,6 +63,70 @@ class Component(StreamManager, service.Service):
 
     def _getConnection(self):
         return reactor.connectTCP(self.host, self.port, self.factory)
+
+
+
+class InternalComponent(xmlstream.XMPPHandlerCollection, service.Service):
+    """
+    Component service that connects directly to a router.
+
+    Instead of opening a socket to connect to a router, like L{Component},
+    components of this type connect to a router in the same process. This
+    allows for one-process XMPP servers.
+    """
+
+    def __init__(self, router, domain):
+        xmlstream.XMPPHandlerCollection.__init__(self)
+        self.router = router
+        self.domain = domain
+
+        self.xmlstream = None
+
+    def startService(self):
+        """
+        Create a XML pipe, connect to the router and setup handlers.
+        """
+        service.Service.startService(self)
+
+        self.pipe = XmlPipe()
+        self.xmlstream = self.pipe.source
+        self.router.addRoute(self.domain, self.pipe.sink)
+
+        for e in self:
+            e.makeConnection(self.xmlstream)
+            e.connectionInitialized()
+
+
+    def stopService(self):
+        """
+        Disconnect from the router and handlers.
+        """
+        service.Service.stopService(self)
+
+        self.router.removeRoute(self.domain, self.pipe.sink)
+        self.pipe = None
+        self.xmlstream = None
+
+        for e in self:
+            e.connectionLost(None)
+
+
+    def addHandler(self, handler):
+        """
+        Add a new handler and connect it to the stream.
+        """
+        xmlstream.XMPPHandlerCollection.addHandler(self, handler)
+
+        if self.xmlstream:
+            handler.makeConnection(self.xmlstream)
+            handler.connectionInitialized()
+
+
+    def send(self, obj):
+        """
+        Send data to the XML stream, so it ends up at the router.
+        """
+        self.xmlstream.send(obj)
 
 
 
