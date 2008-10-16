@@ -22,16 +22,18 @@ from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 from wokkel.iwokkel import IMUCClient
 
 # Multi User Chat namespaces
-NS          = 'http://jabber.org/protocol/muc'
-NS_USER     = NS + '#user'
-NS_ADMIN    = NS + '#admin'
-NS_OWNER    = NS + '#owner'
-NS_ROOMINFO = NS + '#roominfo'
-NS_CONFIG   = NS + '#roomconfig'
-NS_REQUEST  = NS + '#request'
-NS_REGISTER = NS + '#register'
+NS_MUC          = 'http://jabber.org/protocol/muc'
+NS_MUC_USER     = NS_MUC + '#user'
+NS_MUC_ADMIN    = NS_MUC + '#admin'
+NS_MUC_OWNER    = NS_MUC + '#owner'
+NS_MUC_ROOMINFO = NS_MUC + '#roominfo'
+NS_MUC_CONFIG   = NS_MUC + '#roomconfig'
+NS_MUC_REQUEST  = NS_MUC + '#request'
+NS_MUC_REGISTER = NS_MUC + '#register'
 
-NS_DELAY    = 'urn:xmpp:delay'
+NS_DELAY        = 'urn:xmpp:delay'
+NS_JABBER_DELAY = 'jabber:x:delay'
+
 NS_REQUEST  = 'jabber:iq:register'
 
 # ad hoc commands
@@ -52,8 +54,8 @@ IQ_SET_QUERY = IQ_SET + '/query'
 
 IQ_COMMAND   = IQ+'/command'
 
-MUC_ADMIN = IQ_QUERY+'[@xmlns="' + NS_ADMIN + '"]'
-MUC_OWNER = IQ_QUERY+'[@xmlns="' + NS_OWNER + '"]'
+MUC_ADMIN = IQ_QUERY+'[@xmlns="' + NS_MUC_ADMIN + '"]'
+MUC_OWNER = IQ_QUERY+'[@xmlns="' + NS_MUC_OWNER + '"]'
 
 MUC_AO = MUC_ADMIN + '|' + MUC_OWNER
 
@@ -90,7 +92,7 @@ class MUCError(error.StanzaError):
     Exception with muc specific condition.
     """
     def __init__(self, condition, mucCondition, feature=None, text=None):
-        appCondition = domish.Element((NS, mucCondition))
+        appCondition = domish.Element((NS_MUC, mucCondition))
         if feature:
             appCondition['feature'] = feature
         error.StanzaError.__init__(self, condition,
@@ -128,10 +130,10 @@ class ConfigureRequest(xmlstream.IQ):
 
     def __init__(self, xs, method='get', fields=[]):
         xmlstream.IQ.__init__(self, xs, method)
-        q = self.addElement((NS_OWNER, 'query'))
+        q = self.addElement((NS_MUC_OWNER, 'query'))
         if method == 'set':
             # build data form
-            form = data_form.Form('submit', formNamespace=NS_CONFIG)
+            form = data_form.Form('submit', formNamespace=NS_MUC_CONFIG)
             q.addChild(form.toElement())
             
             for f in fields:
@@ -154,7 +156,7 @@ class RegisterRequest(xmlstream.IQ):
         if method == 'set':
             # build data form
             form_type = 'submit'        
-            form = data_form.Form(form_type, formNamespace=NS_REGISTER)
+            form = data_form.Form(form_type, formNamespace=NS_MUC_REGISTER)
             q.addChild(form.toElement())        
             
             for f in fields:
@@ -177,7 +179,7 @@ class AffiliationRequest(xmlstream.IQ):
     def __init__(self, xs, method='get', affiliation='none', a_jid=None, reason=None):
         xmlstream.IQ.__init__(self, xs, method)
         
-        q = self.addElement((NS_ADMIN, 'query'))
+        q = self.addElement((NS_MUC_ADMIN, 'query'))
         i = q.addElement('item')
 
         i['affiliation'] = affiliation
@@ -198,7 +200,10 @@ class GroupChat(domish.Element):
         """
         domish.Element.__init__(self, (None, 'message'))
         self['type'] = 'groupchat'
-        self['to']   = to 
+        if isinstance(to, jid.JID):
+            self['to'] = to.userhost()
+        else:
+            self['to'] = to
         if frm:
             self['from'] = frm
         if body:
@@ -225,7 +230,7 @@ class InviteMessage(PrivateChat):
     def __init__(self, to, reason=None, full_jid=None, body=None, frm=None, password=None):
         PrivateChat.__init__(self, to, body=body, frm=frm)
         del self['type'] # remove type
-        x = self.addElement('x', NS_USER)
+        x = self.addElement('x', NS_MUC_USER)
         invite = x.addElement('invite')
         if full_jid:
             invite['to'] = full_jid
@@ -310,7 +315,7 @@ class BasicPresence(xmppim.AvailablePresence):
     def __init__(self, to=None, show=None, statuses=None):
         xmppim.AvailablePresence.__init__(self, to=to, show=show, statuses=statuses)
         # add muc elements
-        x = self.addElement('x', NS)
+        x = self.addElement('x', NS_MUC)
 
 
 class UserPresence(xmppim.Presence):
@@ -324,7 +329,7 @@ class UserPresence(xmppim.Presence):
         if frm:
             self['from'] = frm
         # add muc elements
-        x = self.addElement('x', NS_USER)
+        x = self.addElement('x', NS_MUC_USER)
         if affiliation:
             x['affiliation'] = affiliation
         if role:
@@ -346,7 +351,7 @@ class MessageVoice(GroupChat):
     def __init__(self, to=None, frm=None):
         GroupChat.__init__(self, to=to, frm=frm)
         # build data form
-        form = data_form.Form('submit', formNamespace=NS_REQUEST)
+        form = data_form.Form('submit', formNamespace=NS_MUC_REQUEST)
         form.addField(data_form.Field(var='muc#role',
                                       value='participant', 
                                       label='Requested role'))
@@ -363,7 +368,7 @@ class PresenceError(xmppim.Presence):
         if frm:
             self['from'] = frm
         # add muc elements
-        x = self.addElement('x', NS)
+        x = self.addElement('x', NS_MUC)
         # add error 
         self.addChild(error)
         
@@ -475,8 +480,11 @@ class MUCClient(XMPPHandler):
             # not in the room yet
             return
         user = room.getUser(room_jid.resource)
-
-        delay = getattr(msg, 'delay', None)
+        delay = None
+        # need to check for delay and x stanzas for delay namespace for backwards compatability
+        for e in msg.elements():
+            if e.uri == NS_DELAY or e.uri == NS_JABBER_DELAY:
+                delay = e
         body  = unicode(msg.body)
         # grab room
         if delay is None:

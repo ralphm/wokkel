@@ -126,7 +126,7 @@ class MucClientTest(unittest.TestCase):
         response = toResponse(iq, 'result')
         response.addElement('query', disco.NS_INFO)
         # need to add information to response
-        response.query.addChild(disco.DiscoFeature(muc.NS))
+        response.query.addChild(disco.DiscoFeature(muc.NS_MUC))
         response.query.addChild(disco.DiscoIdentity(category='conference',
                                                     name='Macbeth Chat Service',
                                                     type='text'))
@@ -342,10 +342,11 @@ class MucClientTest(unittest.TestCase):
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
-        
+        print iq.toXml()
         self.failUnless(xpath.matches("/iq/query[@xmlns='%s']" % (muc.NS_REQUEST), iq), 'Invalid iq register request')
         
         response = toResponse(iq, 'result')
+        
         self.stub.send(response)
         return d
 
@@ -356,7 +357,7 @@ class MucClientTest(unittest.TestCase):
 
         m = self.stub.output[-1]
         
-        self.failUnless(xpath.matches("/message/x[@type='submit']/field/value[text()='%s']" % (muc.NS_REQUEST,), m), 'Invalid voice message stanza')
+        self.failUnless(xpath.matches("/message/x[@type='submit']/field/value[text()='%s']" % (muc.NS_MUC_REQUEST,), m), 'Invalid voice message stanza')
 
 
     def test_roomConfigure(self):
@@ -377,7 +378,7 @@ class MucClientTest(unittest.TestCase):
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
-        self.failUnless(xpath.matches("/iq/query[@xmlns='%s']/x"% (muc.NS_OWNER,), iq), 'Bad configure request')
+        self.failUnless(xpath.matches("/iq/query[@xmlns='%s']/x"% (muc.NS_MUC_OWNER,), iq), 'Bad configure request')
         
         response = toResponse(iq, 'result')
         self.stub.send(response)
