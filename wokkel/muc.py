@@ -279,11 +279,16 @@ class Room(object):
         self.nick   = nick
         self.status = 0
 
-        self.entity_id = jid.internJID(name+'@'+server+'/'+nick)
+        self.entity_id = self.entityId()
                
         self.roster = {}
 
-        
+    def entityId(self):
+        """
+        """
+        self.entity_id = jid.internJID(self.name+'@'+self.server+'/'+self.nick)
+
+        return self.entity_id 
 
     def addUser(self, user):
         """
@@ -607,6 +612,10 @@ class MUCClient(XMPPHandler):
 
     def configure(self, room_jid, fields=[]):
         """Configure a room
+
+        @param room_jid: The room jabber/xmpp entity id for the requested configuration form.
+        @type  room_jid: L{jid.JID}
+
         """
         request = ConfigureRequest(self.xmlstream, method='set', fields=fields)
         request['to'] = room_jid
@@ -614,13 +623,30 @@ class MUCClient(XMPPHandler):
         return request.send()
 
     def getConfigureForm(self, room_jid):
+        """Grab the configuration form from the room. This sends an iq request to the room.
+
+        @param room_jid: The room jabber/xmpp entity id for the requested configuration form.
+        @type  room_jid: L{jid.JID}
+
+        """
         request = ConfigureRequest(self.xmlstream)
         request['to'] = room_jid
         return request.send()
 
 
     def join(self, server, room, nick):
-        """
+        """ Join a MUC room by sending presence to it. Returns a defered that is called when
+        the entity is in the room or an error has occurred. 
+        
+        @param server: The server where the room is located.
+        @type  server: L{unicode}
+
+        @param room: The room name the entity is joining.
+        @type  room: L{unicode}
+
+        @param nick: The nick name for the entitity joining the room.
+        @type  nick: L{unicode}
+        
         """
         d = defer.Deferred()
         r = Room(room, server, nick, state='joining')
@@ -636,6 +662,44 @@ class MUCClient(XMPPHandler):
 
         return d
     
+    def _changedNick(self, d, room_jid, prs):
+        """Callback for changing the nick.
+        """
+
+        r = self._getRoom(room_jid)
+
+        d.callback(r)
+
+
+    def nick(self, room_jid, new_nick):
+        """ Change an entities nick name in a MUC room. 
+        
+        See: http://xmpp.org/extensions/xep-0045.html#changenick
+
+        @param room_jid: The room jabber/xmpp entity id for the requested configuration form.
+        @type  room_jid: L{jid.JID}
+
+        @param new_nick: The nick name for the entitity joining the room.
+        @type  new_nick: L{unicode}
+        
+        """
+
+        d = defer.Deferred()
+        r = self._getRoom(room_jid)
+        if r is None:
+            raise Exception, 'Room not found'
+        r.nick = new_nick # change the nick
+        # create presence 
+        # make sure we call the method to generate the new entity xmpp id
+        p = BasicPresence(to=r.entityId()) 
+        self.xmlstream.send(p)
+
+        # add observer for joining the room
+        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()), 
+                                          self._changedNick, 1, d, room_jid)
+
+        return d
+        
 
     
     def leave(self, room_jid):
