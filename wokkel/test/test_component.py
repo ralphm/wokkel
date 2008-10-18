@@ -14,6 +14,12 @@ from twisted.words.protocols.jabber import ijabber, xmlstream
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
 
+try:
+    from twisted.words.protocols.jabber.ijabber import IXMPPHandlerCollection
+    from twisted.words.protocols.jabber.xmlstream import XMPPHandler
+except ImportError:
+    from wokkel.subprotocols import IXMPPHandlerCollection, XMPPHandler
+
 from wokkel import component
 from wokkel.generic import XmlPipe
 
@@ -30,9 +36,9 @@ class InternalComponentTest(unittest.TestCase):
     def test_interface(self):
         """
         L{component.InternalComponent} implements
-        L{ijabber.IXMPPHandlerCollection}.
+        L{IXMPPHandlerCollection}.
         """
-        verifyObject(ijabber.IXMPPHandlerCollection, self.component)
+        verifyObject(IXMPPHandlerCollection, self.component)
 
 
     def test_startService(self):
@@ -42,7 +48,7 @@ class InternalComponentTest(unittest.TestCase):
 
         events = []
 
-        class TestHandler(xmlstream.XMPPHandler):
+        class TestHandler(XMPPHandler):
 
             def connectionInitialized(self):
                 fn = lambda obj: events.append(obj)
@@ -69,7 +75,7 @@ class InternalComponentTest(unittest.TestCase):
 
         events = []
 
-        class TestHandler(xmlstream.XMPPHandler):
+        class TestHandler(XMPPHandler):
 
             def connectionLost(self, reason):
                 events.append(reason)
@@ -90,7 +96,7 @@ class InternalComponentTest(unittest.TestCase):
         """
         events = []
 
-        class TestHandler(xmlstream.XMPPHandler):
+        class TestHandler(XMPPHandler):
 
             def connectionInitialized(self):
                 fn = lambda obj: events.append(obj)

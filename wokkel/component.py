@@ -14,6 +14,18 @@ from twisted.words.protocols.jabber.jid import internJID as JID
 from twisted.words.protocols.jabber import component, error, xmlstream
 from twisted.words.xish import domish
 
+try:
+    #from twisted.words.protocols.jabber.xmlstream import XMPPHandler
+    from twisted.words.protocols.jabber.xmlstream import XMPPHandlerCollection
+except ImportError:
+    #from wokkel.subprotocols import XMPPHandler
+    from wokkel.subprotocols import XMPPHandlerCollection
+
+try:
+    from twisted.words.protocols.jabber.xmlstream import XmlStreamServerFactory
+except ImportError:
+    from wokkel.compat import XmlStreamServerFactory
+
 from wokkel.generic import XmlPipe
 from wokkel.subprotocols import StreamManager
 
@@ -66,7 +78,7 @@ class Component(StreamManager, service.Service):
 
 
 
-class InternalComponent(xmlstream.XMPPHandlerCollection, service.Service):
+class InternalComponent(XMPPHandlerCollection, service.Service):
     """
     Component service that connects directly to a router.
 
@@ -76,7 +88,7 @@ class InternalComponent(xmlstream.XMPPHandlerCollection, service.Service):
     """
 
     def __init__(self, router, domain):
-        xmlstream.XMPPHandlerCollection.__init__(self)
+        XMPPHandlerCollection.__init__(self)
         self.router = router
         self.domain = domain
 
@@ -115,7 +127,7 @@ class InternalComponent(xmlstream.XMPPHandlerCollection, service.Service):
         """
         Add a new handler and connect it to the stream.
         """
-        xmlstream.XMPPHandlerCollection.addHandler(self, handler)
+        XMPPHandlerCollection.addHandler(self, handler)
 
         if self.xmlstream:
             handler.makeConnection(self.xmlstream)
@@ -168,7 +180,7 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
 
         xmlstream.ListenAuthenticator.streamStarted(self, rootElement)
 
-        # Compatibility fix
+        # Compatibility fix for pre-8.2 implementations of ListenAuthenticator
         if not self.xmlstream.sid:
             from twisted.python import randbytes
             self.xmlstream.sid = randbytes.secureRandom(8).encode('hex')
@@ -299,7 +311,7 @@ class Router(object):
 
 
 
-class XMPPComponentServerFactory(xmlstream.XmlStreamServerFactory):
+class XMPPComponentServerFactory(XmlStreamServerFactory):
     """
     XMPP Component Server factory.
 
@@ -317,7 +329,7 @@ class XMPPComponentServerFactory(xmlstream.XmlStreamServerFactory):
         def authenticatorFactory():
             return ListenComponentAuthenticator(self.secret)
 
-        xmlstream.XmlStreamServerFactory.__init__(self, authenticatorFactory)
+        XmlStreamServerFactory.__init__(self, authenticatorFactory)
         self.addBootstrap(xmlstream.STREAM_CONNECTED_EVENT,
                           self.makeConnection)
         self.addBootstrap(xmlstream.STREAM_AUTHD_EVENT,
