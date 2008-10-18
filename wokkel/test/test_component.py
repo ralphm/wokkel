@@ -23,7 +23,7 @@ class InternalComponentTest(unittest.TestCase):
     """
 
     def setUp(self):
-        self.router = component.RouterService()
+        self.router = component.Router()
         self.component = component.InternalComponent(self.router, 'component')
 
 
@@ -113,24 +113,24 @@ class InternalComponentTest(unittest.TestCase):
         fn = lambda obj: events.append(obj)
         message = domish.Element((None, 'message'))
 
+        self.router.route = fn
         self.component.startService()
-        self.router.routes['component'].addObserver('/message', fn)
         self.component.send(message)
 
         self.assertEquals([message], events)
 
 
 
-class RouterServiceTest(unittest.TestCase):
+class RouterTest(unittest.TestCase):
     """
-    Tests for L{component.RouterService}.
+    Tests for L{component.Router}.
     """
 
     def test_addRoute(self):
         """
         Test route registration and routing on incoming stanzas.
         """
-        router = component.RouterService()
+        router = component.Router()
         routed = []
         router.route = lambda element: routed.append(element)
 
@@ -150,17 +150,16 @@ class RouterServiceTest(unittest.TestCase):
         """
         component1 = XmlPipe()
         component2 = XmlPipe()
-        router = component.RouterService()
+        router = component.Router()
         router.addRoute('component1.example.org', component1.sink)
         router.addRoute('component2.example.org', component2.sink)
 
         outgoing = []
         component2.source.addObserver('/*',
                                       lambda element: outgoing.append(element))
-        stanza = domish.Element((None, 'route'))
+        stanza = domish.Element((None, 'presence'))
         stanza['from'] = 'component1.example.org'
         stanza['to'] = 'component2.example.org'
-        stanza.addElement('presence')
         component1.source.send(stanza)
         self.assertEquals([stanza], outgoing)
 
@@ -175,16 +174,15 @@ class RouterServiceTest(unittest.TestCase):
         """
         component1 = XmlPipe()
         s2s = XmlPipe()
-        router = component.RouterService()
+        router = component.Router()
         router.addRoute('component1.example.org', component1.sink)
         router.addRoute(None, s2s.sink)
 
         outgoing = []
         s2s.source.addObserver('/*', lambda element: outgoing.append(element))
-        stanza = domish.Element((None, 'route'))
+        stanza = domish.Element((None, 'presence'))
         stanza['from'] = 'component1.example.org'
         stanza['to'] = 'example.com'
-        stanza.addElement('presence')
         component1.source.send(stanza)
         self.assertEquals([stanza], outgoing)
 
@@ -210,6 +208,9 @@ class ListenComponentAuthenticatorTest(unittest.TestCase):
 
 
     def test_streamStarted(self):
+        """
+        The received stream header should set several attributes.
+        """
         observers = []
 
         def addOnetimeObserver(event, observerfn):
@@ -248,6 +249,9 @@ class ListenComponentAuthenticatorTest(unittest.TestCase):
 
 
     def test_streamStartedNoTo(self):
+        """
+        The received stream header should have a 'to' attribute.
+        """
         streamErrors = []
 
         xs = self.xmlstream
@@ -273,19 +277,49 @@ class ListenComponentAuthenticatorTest(unittest.TestCase):
         xs.authenticator.onElement(handshake)
         self.assertEqual('1234', handshakes[-1])
 
-    def test_onHandshake(self):
+    def test_onElementNotHandshake(self):
+        """
+        Reject elements that are not handshakes
+        """
+        handshakes = []
+        streamErrors = []
+
         xs = self.xmlstream
+        xs.authenticator.onHandshake = handshakes.append
+        xs.sendStreamError = streamErrors.append
+
+        element = domish.Element(('jabber:component:accept', 'message'))
+        xs.authenticator.onElement(element)
+        self.assertFalse(handshakes)
+        self.assertEquals('not-authorized', streamErrors[-1].condition)
+
+
+    def test_onHandshake(self):
+        """
+        Receiving a handshake matching the secret authenticates the stream.
+        """
+        authd = []
+
+        def authenticated(xs):
+            authd.append(xs)
+
+        xs = self.xmlstream
+        xs.addOnetimeObserver(xmlstream.STREAM_AUTHD_EVENT, authenticated)
         xs.sid = '1234'
         theHash = '32532c0f7dbf1253c095b18b18e36d38d94c1256'
         xs.authenticator.onHandshake(theHash)
         self.assertEqual('<handshake/>', self.output[-1])
+        self.assertEquals(1, len(authd))
 
 
     def test_onHandshakeWrongHash(self):
+        """
+        Receiving a bad handshake should yield a stream error.
+        """
         streamErrors = []
         authd = []
 
-        def authenticated(self, xs):
+        def authenticated(xs):
             authd.append(xs)
 
         xs = self.xmlstream
@@ -300,15 +334,16 @@ class ListenComponentAuthenticatorTest(unittest.TestCase):
 
 
 
-class ComponentServerTest(unittest.TestCase):
+class XMPPComponentServerFactoryTest(unittest.TestCase):
     """
-    Tests for L{component.ComponentServer}.
+    Tests for L{component.XMPPComponentServerFactory}.
     """
 
     def setUp(self):
-        self.router = component.RouterService()
-        self.server = component.ComponentServer(self.router)
-        self.xmlstream = self.server.factory.buildProtocol(None)
+        self.router = component.Router()
+        self.factory = component.XMPPComponentServerFactory(self.router,
+                                                            'secret')
+        self.xmlstream = self.factory.buildProtocol(None)
         self.xmlstream.thisEntity = JID('component.example.org')
 
 
@@ -319,7 +354,7 @@ class ComponentServerTest(unittest.TestCase):
         self.xmlstream.dispatch(self.xmlstream,
                                 xmlstream.STREAM_CONNECTED_EVENT)
         self.assertEqual(0, self.xmlstream.serial)
-        self.assertEqual(1, self.server.serial)
+        self.assertEqual(1, self.factory.serial)
         self.assertIdentical(None, self.xmlstream.rawDataInFn)
         self.assertIdentical(None, self.xmlstream.rawDataOutFn)
 
@@ -328,7 +363,7 @@ class ComponentServerTest(unittest.TestCase):
         """
         Setting logTraffic should set up raw data loggers.
         """
-        self.server.logTraffic = True
+        self.factory.logTraffic = True
         self.xmlstream.dispatch(self.xmlstream,
                                 xmlstream.STREAM_CONNECTED_EVENT)
         self.assertNotIdentical(None, self.xmlstream.rawDataInFn)
