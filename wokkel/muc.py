@@ -1031,7 +1031,7 @@ class MUCClient(XMPPHandler):
         return iq.send()        
 
 
-    def self._setAffiliationList(self, affiliation, room_jid, iq):
+    def _setAffiliationList(self, affiliation, room_jid, iq):
         r = self._getRoom(room_jid)
         if r is not None:
             affiliation_list = []
