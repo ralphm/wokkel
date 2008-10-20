@@ -157,14 +157,16 @@ class MucClientTest(unittest.TestCase):
         self.stub.send(response)
         return d
 
+    
 
     def test_joinRoomForbidden(self):
         """Client joining a room and getting a forbidden error.
         """
 
         def cb(error):
-            self.failUnless(isinstance(error.value,muc.PresenceError), 'Wrong type')
-            self.failUnless(error.value['type']=='error', 'Not an error returned')
+            
+            self.failUnless(error.value.mucCondition=='forbidden','Wrong muc condition')
+
             
             
         d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)

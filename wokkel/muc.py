@@ -88,15 +88,52 @@ STATUS_CODE_CREATED = 201
 
 DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
 
+class JidMalformed(Exception):
+    """
+    A jid malformed error from the server.
+
+    
+    """
+    condition    = 'modify'
+    mucCondition = 'jid-malformed'
+    
+class NotAuthorized(Exception):
+    """
+    """
+    condition    = 'auth'
+    mucCondition = 'not-authorized'
+
+class RegistrationRequired(Exception):
+    """
+    """
+    condition    = 'auth'
+    mucCondition = 'registration-required'
+
+
+class Forbidden(Exception):
+    """
+    """
+    condition    = 'auth'
+    mucCondition = 'forbidden'
+
+
+MUC_EXCEPTIONS = {
+    'jid-malformed': JidMalformed,
+    'forbidden': Forbidden,
+    'not-authorized': NotAuthorized,
+    'exception': Exception,
+    }
+
 class MUCError(error.StanzaError):
     """
     Exception with muc specific condition.
     """
-    def __init__(self, condition, mucCondition, feature=None, text=None):
+    def __init__(self, condition, mucCondition, type='error', feature=None, text=None):
         appCondition = domish.Element((NS_MUC, mucCondition))
         if feature:
             appCondition['feature'] = feature
         error.StanzaError.__init__(self, condition,
+                                         type=type,
                                          text=text,
                                          appCondition=appCondition)
 
@@ -420,8 +457,10 @@ class PresenceError(xmppim.Presence):
             self['from'] = frm
         # add muc elements
         x = self.addElement('x', NS_MUC)
+        
         # add error 
-        self.addChild(error)
+        e = error.getElement()
+        self.addChild(e)
         
 
 class MUCClient(XMPPHandler):
@@ -475,6 +514,16 @@ class MUCClient(XMPPHandler):
         room_jid = jid.internJID(prs.getAttribute('from', ''))
         # add an error hook here?
         self._userLeavesRoom(room_jid)
+        
+    def _getExceptionFromPresence(self, prs):
+        muc_condition = 'exception'
+
+        error = getattr(prs, 'error', None)
+        if error is not None:
+            for e in error.elements():
+                muc_condition = e.name
+
+        return MUC_EXCEPTIONS[muc_condition]
 
     def _userLeavesRoom(self, room_jid):
         room = self._getRoom(room_jid)
@@ -579,7 +628,7 @@ class MUCClient(XMPPHandler):
         
         # check for errors
         if prs.hasAttribute('type') and prs['type'] == 'error':            
-            d.errback(prs)
+            d.errback(self._getExceptionFromPresence(prs))
         else:    
             # change the state of the room
             r = self._getRoom(room_jid)
@@ -866,6 +915,17 @@ class MUCClient(XMPPHandler):
         iq['to'] = to
         return iq.send()
 
+
+    def _getAffiliationList(self, room_jid, affiliation):
+        iq = AffiliationRequest(self.xmlstream,
+                                method='get',
+                                affiliation=affiliation, 
+                                )
+        iq['to'] = room_jid.full()
+        return iq.send()        
+
+
+
     def getMemberList(self, room_jid):
         """ Get a member list from a room.
 
@@ -873,13 +933,36 @@ class MUCClient(XMPPHandler):
         @type  room_jid: L{jid.JID}
 
         """
-        iq = AffiliationRequest(self.xmlstream,
-                                method='get',
-                                affiliation='member', 
-                                )
-        iq['to'] = room_jid.full()
-        return iq.send()        
-        
+        return self._getAffiliationList(room_jid, 'member')
+
+
+    def getAdminList(self, room_jid):
+        """ Get an admin list from a room.
+
+        @param room_jid: The room jabber/xmpp entity id for the requested member list.
+        @type  room_jid: L{jid.JID}
+
+        """
+        return self._getAffiliationList(room_jid, 'admin')
+
+    def getBanList(self, room_jid):
+        """ Get an outcast list from a room.
+
+        @param room_jid: The room jabber/xmpp entity id for the requested member list.
+        @type  room_jid: L{jid.JID}
+
+        """
+        return self._getAffiliationList(room_jid, 'outcast')
+
+    def getOwnerList(self, room_jid):
+        """ Get an owner list from a room.
+
+        @param room_jid: The room jabber/xmpp entity id for the requested member list.
+        @type  room_jid: L{jid.JID}
+
+        """
+        return self._getAffiliationList(room_jid, 'owner')
+
 
     def getRegisterForm(self, room):
         """
@@ -891,6 +974,25 @@ class MUCClient(XMPPHandler):
         iq = RegisterRequest(self.xmlstream)
         iq['to'] = room.userhost()
         return iq.send()
+
+    def destroy(self, room_jid, reason=None):
+        """ Destroy a room. 
+        
+        @param room_jid: The room jabber/xmpp entity id.
+        @type  room_jid: L{jid.JID}
+        
+        """
+        def destroyed(iq):
+            self._removeRoom(room_jid)
+            return True
+
+        iq = OwnerRequest(self.xmlstream, method='set')
+        d  = iq.query.addElement('destroy')
+        d['jid'] = room_jid.userhost()
+        if reason is not None:
+            d.addElement('reason', None, reason)
+
+        return iq.send().addCallback(destroyed)
 
     def subject(self, to, subject):
         """
