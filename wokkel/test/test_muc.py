@@ -478,7 +478,7 @@ class MucClientTest(unittest.TestCase):
         """Test granting voice to a user.
 
         """
-        give_voice = JID('ban@jabber.org/TroubleMakger')
+        give_voice = JID('voice@jabber.org/TroubleMakger')
         def cb(give_voice):
             self.failUnless(give_voice, 'Did not give voice user')
 
@@ -496,4 +496,33 @@ class MucClientTest(unittest.TestCase):
 
         return d
 
-        
+
+    def test_changeStatus(self):
+        """Change status
+        """
+        self._createRoom()
+        r = self.protocol._getRoom(self.room_jid)
+        u = muc.User(self.room_jid.resource)
+        r.addUser(u)
+
+        def cb(room):
+            self.assertEquals(self.test_room, room.name)
+            u = room.getUser(self.room_jid.resource)
+            self.failUnless(u is not None, 'User not found')
+            self.failUnless(u.status == 'testing MUC', 'Wrong status')
+            self.failUnless(u.show == 'xa', 'Wrong show')
+            
+        d = self.protocol.status(self.room_jid, 'xa', 'testing MUC')
+        d.addCallback(cb)
+
+        prs = self.stub.output[-1]
+
+        self.failUnless(prs.name=='presence', "Need to be presence")
+        self.failUnless(getattr(prs, 'x', None), 'No muc x element')
+
+        # send back user presence, they joined        
+        response = muc.UserPresence(frm=self.room_jid.full())
+        response.addElement('show', None, 'xa')
+        response.addElement('status', None, 'testing MUC')
+        self.stub.send(response)
+        return d        

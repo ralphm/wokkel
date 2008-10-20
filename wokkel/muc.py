@@ -638,13 +638,8 @@ class MUCClient(XMPPHandler):
         if room is None:
             # not in the room yet
             return
+        user = self._changeUserStatus(room, room_jid, status, show)
 
-        # check if user is in roster
-        user = room.getUser(room_jid.resource)
-        if user is None: # create a user that does not exist
-            user = User(room_jid.resource)
-            
-        
         if room.inRoster(user):
             # we changed status or nick 
             muc_status = getattr(prs.x, 'status', None)
@@ -929,11 +924,29 @@ class MUCClient(XMPPHandler):
 
         return d
     
+    def _changeUserStatus(self, r, room_jid, status, show):
+        # check if user is in roster
+        user = r.getUser(room_jid.resource)
+        if user is None: # create a user that does not exist
+            user = User(room_jid.resource)
+
+        if status is not None:
+            user.status = str(status)
+        if show is not None:
+            user.show   = str(show)
+
+        return user
+
     def _changed(self, d, room_jid, prs):
         """Callback for changing the nick and status.
         """
 
+        status = getattr(prs, 'status', None)
+        show   = getattr(prs, 'show', None)
+
         r = self._getRoom(room_jid)
+
+        user = self._changeUserStatus(r, room_jid, status, show)
 
         d.callback(r)
 
