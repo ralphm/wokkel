@@ -278,7 +278,18 @@ class AffiliationRequest(AdminRequest):
             i.addElement('reason', None, reason)
 
             
-        
+class RoleRequest(AdminRequest):
+    def __init__(self, xs, method='get', role='none', a_jid=None, reason=None):
+        AdminRequest.__init__(self, xs, method)
+
+        i = self.query.addElement('item')
+
+        i['role'] = role
+        if a_jid:
+            i['jid'] = a_jid.full()
+            
+        if reason:
+            i.addElement('reason', None, reason)
 
 class GroupChat(domish.Element):
     """
@@ -367,7 +378,10 @@ class HistoryOptions(object):
         for key in self.attributes:
             a = getattr(self, key, a)
             if a is not None:
-                h[key] = str(a)
+                if key == 'since':
+                    h[key] = a.strftime('%Y%m%dT%H:%M:%S')
+                else:
+                    h[key] = str(a)
         
         return h
 
@@ -1068,6 +1082,7 @@ class MUCClient(XMPPHandler):
         self.xmlstream.send(msg)
 
 
+
     def history(self, to, message_list):
         """
         """
@@ -1084,24 +1099,34 @@ class MUCClient(XMPPHandler):
 
             self.xmlstream.send(m)
 
+    def _setAffiliation(self, frm, room_jid, affiliation, reason=None, a_jid=None):
+        iq = AffiliationRequest(self.xmlstream,
+                                method='set',
+                                affiliation=affiliation,
+                                a_jid=a_jid, 
+                                reason=reason)
+        iq['to'] = room_jid.userhost() # this is a room jid, only send to room
+        iq['from'] = frm.full()
+        return iq.send()
+
+    def _setRole(self, frm, room_jid, a_jid=None, reason=None, role='none'):
+        iq = RoleRequest(self.xmlstream,
+                         method='set',
+                         a_jid=a_jid,
+                         role=role,
+                         reason=reason)
+        iq['to'] = room_jid.userhost() # this is a room jid, only send to room
+        iq['from'] = frm.full()
+        return iq.send()
+
+    def grantVoice(self, frm, room_jid, reason=None):
+        return self._setAffiliation(frm, room_jid, 'participant', reason=reason)
+
+
     def ban(self, to, ban_jid, frm, reason=None):
-        
-        iq = AffiliationRequest(self.xmlstream,
-                                method='set',
-                                affiliation='outcast', 
-                                a_jid=ban_jid, 
-                                reason=reason)
-        iq['to'] = to.userhost() # this is a room jid, only send to room
-        iq['from'] = frm.full()
-        return iq.send()
+        return self._setAffiliation(frm, to, 'outcast', a_jid=ban_jid, reason=reason)
 
 
-    def kick(self, to, kick_jid, frm, reason=None):
+    def kick(self, to, kick_jid, frm, reason=None):        
+        return self._setAffiliation(frm, to, 'none', a_jid=kick_jid, reason=reason)
         
-        iq = AffiliationRequest(self.xmlstream,
-                                method='set',
-                                a_jid=kick_jid, 
-                                reason=reason)
-        iq['to'] = to.userhost() # this is a room jid, only send to room
-        iq['from'] = frm.full()
-        return iq.send()
