@@ -281,7 +281,6 @@ class AffiliationRequest(AdminRequest):
 class RoleRequest(AdminRequest):
     def __init__(self, xs, method='get', role='none', a_jid=None, reason=None):
         AdminRequest.__init__(self, xs, method)
-
         i = self.query.addElement('item')
 
         i['role'] = role
@@ -290,7 +289,7 @@ class RoleRequest(AdminRequest):
             
         if reason:
             i.addElement('reason', None, reason)
-
+        
 class GroupChat(domish.Element):
     """
     """
@@ -659,7 +658,9 @@ class MUCClient(XMPPHandler):
             
 
     def _onGroupChat(self, msg):
-        """
+        """ A group chat message has been received from a MUC room. 
+        
+        There are a few event methods that may get called here. receviedGroupChat and receivedHistory
         """
         if not msg.hasAttribute('from'):
             # need to return an error here
@@ -685,7 +686,7 @@ class MUCClient(XMPPHandler):
 
 
     def _onSubject(self, msg):
-        """
+        """A subject has been sent from a MUC room.
         """
         if not msg.hasAttribute('from'):
             return
@@ -701,6 +702,7 @@ class MUCClient(XMPPHandler):
 
 
     def _makeTimeStamp(self, stamp=None):
+        # create a timestamp
         if stamp is None:
             stamp = datetime.datetime.now()
             
@@ -753,30 +755,59 @@ class MUCClient(XMPPHandler):
         pass
 
     def userJoinedRoom(self, room, user):
-        """User has joined a room
+        """User has joined a MUC room. 
+
+        This method will need to be modified inorder for clients to
+        do something when this event occurs.
+
+        @param room: The room the user has joined.
+        @type  room: L{Room}
+
+        @param user: The user that joined the MUC room.
+        @type  user: L{User}
+
         """
         pass
 
     def userLeftRoom(self, room, user):
-        """User has left a room
+        """User has left a room.
+        
+        This method will need to be modified inorder for clients to
+        do something when this event occurs.
+
+        @param room: The room the user has joined.
+        @type  room: L{Room}
+
+        @param user: The user that joined the MUC room.
+        @type  user: L{User}
+
         """
         pass
 
 
     def userUpdatedStatus(self, room, user, show, status):
         """User Presence has been received
+        
+        This method will need to be modified inorder for clients to
+        do something when this event occurs.
+        
         """
         pass
         
 
     def receivedSubject(self, room, subject):
         """
+        This method will need to be modified inorder for clients to
+        do something when this event occurs.
+
         """
         pass
 
 
     def receivedHistory(self, room, user, message, history, frm=None):
         """
+        This method will need to be modified inorder for clients to
+        do something when this event occurs.
         """
         pass
 
@@ -789,6 +820,14 @@ class MUCClient(XMPPHandler):
 
     def sendDeferred(self,  obj, timeout):
         """ Send data or a domish element, adding a deferred with a timeout.
+        
+        @param obj: The object to send over the wire.
+        @type  obj: L{domish.Element} or L{unicode}
+
+        @param timeout: The number of seconds to wait before the deferred is timed out.
+        @type  timeout: L{int}
+
+        The deferred object L{defer.Deferred} is returned.
         """
         d = defer.Deferred()
         self._deferreds.append(d)
@@ -816,7 +855,14 @@ class MUCClient(XMPPHandler):
         return d
 
     def disco(self, entity, type='info'):
-        """Send disco queries to a XMPP entity
+        """Send disco queries to a XMPP entity.
+
+        @param entity: The server or entity where we want discovery information from.
+        @type  entity: L{jid.JID}
+
+        @param type: The optional disco type.
+        @type  type: L{unicode}
+
         """
 
         iq = disco.DiscoRequest(self.xmlstream, disco.NS_INFO, 'get')
@@ -830,6 +876,9 @@ class MUCClient(XMPPHandler):
 
         @param room_jid: The room jabber/xmpp entity id for the requested configuration form.
         @type  room_jid: L{jid.JID}
+
+        @param fields: The fields we want to modify.
+        @type  fields: A L{list} or L{dataform.Field}
 
         """
         request = ConfigureRequest(self.xmlstream, method='set', fields=fields)
@@ -976,7 +1025,7 @@ class MUCClient(XMPPHandler):
         return d
 
     def _sendMessage(self, msg, children=None):
-
+        # send a message
         if children:
             for c in children:
                 msg.addChild(c)
@@ -990,24 +1039,58 @@ class MUCClient(XMPPHandler):
         
         self._sendMessage(msg, children=children)
 
-    def chat(self, to, message, children=None):
-        msg = PrivateChat(to, body=message)
+    def chat(self, room_jid, message, children=None):
+        """Send a private chat message to a user in a MUC room.
+        
+        See: http://xmpp.org/extensions/xep-0045.html#privatemessage
+
+        @param room_jid: The room entity id.
+        @type  room_jid: L{jid.JID}
+
+        """
+
+        msg = PrivateChat(room_jid, body=message)
 
         self._sendMessage(msg, children=children)
         
-    def invite(self, to, reason=None, full_jid=None):
+    def invite(self, room_jid, reason=None, full_jid=None):
+        """Invite a xmpp entity to a MUC room.
+
+        See: http://xmpp.org/extensions/xep-0045.html#invite
+
+        @param room_jid: The room entity id.
+        @type  room_jid: L{jid.JID}
+        
+        @param reason: The reason for the invite.
+        @type  reason: L{unicode}
+
+        @param full_jid: The xmpp user's entity id.
+        @type  full_jid: L{jid.JID}
+
         """
-        """
-        msg = InviteMessage(to, reason=reason, full_jid=full_jid)
+        msg = InviteMessage(room_jid, reason=reason, full_jid=full_jid)
         self._sendMessage(msg)
 
 
-    def password(self, to, password):
-        p = PasswordPresence(to, password)
+    def password(self, room_jid, password):
+        """Send a password to a room so the entity can join.
+        
+        See: http://xmpp.org/extensions/xep-0045.html#enter-pw
+
+        @param room_jid: The room entity id.
+        @type  room_jid: L{jid.JID}
+        
+        @param password: The MUC room password.
+        @type  password: L{unicode}
+        
+        """
+        p = PasswordPresence(room_jid, password)
 
         self.xmlstream.send(p)
     
     def register(self, to, fields=[]):
+        """
+        """
         iq = RegisterRequest(self.xmlstream, method='set', fields=fields)
         iq['to'] = to
         return iq.send()
@@ -1023,6 +1106,7 @@ class MUCClient(XMPPHandler):
 
 
     def _getRoleList(self, room_jid, role):
+        # send a role request
         iq = RoleRequest(self.xmlstream,
                                 method='get',
                                 role=role,
@@ -1032,6 +1116,7 @@ class MUCClient(XMPPHandler):
 
 
     def _setAffiliationList(self, affiliation, room_jid, iq):
+        # set a rooms affiliation list
         r = self._getRoom(room_jid)
         if r is not None:
             affiliation_list = []
@@ -1174,6 +1259,7 @@ class MUCClient(XMPPHandler):
                          a_jid=a_jid,
                          role=role,
                          reason=reason)
+        
         iq['to'] = room_jid.userhost() # this is a room jid, only send to room
         iq['from'] = frm.full()
         return iq.send()
@@ -1185,8 +1271,8 @@ class MUCClient(XMPPHandler):
 
         return r
 
-    def grantVoice(self, frm, room_jid, reason=None):
-        return self._setRole(frm, room_jid, role='participant', reason=reason)
+    def grantVoice(self, frm, room_jid, voice_jid=None, reason=None):
+        return self._setRole(frm, room_jid, role='participant', a_jid=voice_jid, reason=reason)
 
     def grantVisitor(self, frm, room_jid, reason=None):
         return self._setRole(frm, room_jid, role='visitor', reason=reason)

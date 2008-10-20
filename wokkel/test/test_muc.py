@@ -73,6 +73,11 @@ class MucClientTest(unittest.TestCase):
 
     def test_userJoinedRoom(self):
         """The client receives presence from an entity joining the room.
+
+        This tests the class L{muc.UserPresence} and the userJoinedRoom event method.
+
+        The test sends the user presence and tests if the event method is called.
+
         """
         p = muc.UserPresence()
 	p['to'] = self.user_jid.full()
@@ -183,6 +188,34 @@ class MucClientTest(unittest.TestCase):
                                      frm=self.room_jid.full())
         self.stub.send(response)
         return d        
+
+
+    def test_joinRoomBadJid(self):
+        """Client joining a room and getting a forbidden error.
+        """
+
+        def cb(error):
+            
+            self.failUnless(error.value.mucCondition=='jid-malformed','Wrong muc condition')
+
+            
+            
+        d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
+        d.addBoth(cb)
+
+        prs = self.stub.output[-1]
+        self.failUnless(prs.name=='presence', "Need to be presence")
+        self.failUnless(getattr(prs, 'x', None), 'No muc x element')
+        # send back user presence, they joined
+        
+        response = muc.PresenceError(error=muc.MUCError('modify',
+                                                        'jid-malformed'
+                                                        ),
+                                     frm=self.room_jid.full())
+        self.stub.send(response)
+        return d        
+
+
 
     def test_partRoom(self):
         """Client leaves a room
@@ -439,6 +472,28 @@ class MucClientTest(unittest.TestCase):
         response = muc.UserPresence(frm=self.test_room+'@'+self.test_srv+'/'+test_nick)
         
         self.stub.send(response)
+        return d
+
+    def test_grantVoice(self):
+        """Test granting voice to a user.
+
+        """
+        give_voice = JID('ban@jabber.org/TroubleMakger')
+        def cb(give_voice):
+            self.failUnless(give_voice, 'Did not give voice user')
+
+            
+        d = self.protocol.grantVoice(self.user_jid, self.room_jid, give_voice)
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        
+        self.failUnless(xpath.matches("/iq[@type='set' and @to='%s']/query/item[@role='participant']" % (self.room_jid.userhost(),), iq), 'Wrong voice stanza')
+
+        response = toResponse(iq, 'result')
+
+        self.stub.send(response)
+
         return d
 
         
