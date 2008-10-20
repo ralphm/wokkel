@@ -116,12 +116,34 @@ class Forbidden(Exception):
     condition    = 'auth'
     mucCondition = 'forbidden'
 
+class Conflict(Exception):
+    """
+    """
+    condition    = 'cancel'
+    mucCondition = 'conflict'
+
+class NotFound(Exception):
+    """
+    """
+    condition    = 'cancel'
+    mucCondition = 'not-found'
+
+class ServiceUnavailable(Exception):
+    """
+    """
+    condition    = 'wait'
+    mucCondition = 'service-unavailable'
+
+
 
 MUC_EXCEPTIONS = {
     'jid-malformed': JidMalformed,
     'forbidden': Forbidden,
     'not-authorized': NotAuthorized,
     'exception': Exception,
+    'conflict': Conflict,
+    'service-unavailable': ServiceUnavailable,
+    'not-found': NotFound,
     }
 
 class MUCError(error.StanzaError):
@@ -314,6 +336,40 @@ class HistoryMessage(GroupChat):
         d['stamp'] = stamp
         if h_frm:
             d['from'] = h_frm
+
+class HistoryOptions(object):
+    """A history configuration object.
+
+    @ivar maxchars: Limit the total number of characters in the history to "X" 
+                    (where the character count is the characters of the complete XML stanzas, not only their XML character data).
+    @itype maxchars: L{int}
+                
+    @ivar  maxstanzas: 	Limit the total number of messages in the history to "X".
+    @itype mazstanzas: L{int}
+
+    @ivar  seconds: Send only the messages received in the last "X" seconds.
+    @itype seconds: L{int}
+
+    @ivar  since: Send only the messages received since the datetime specified (which MUST conform to the DateTime profile specified in XMPP Date and Time Profiles [14]).
+    @itype since: L{datetime.datetime}
+
+    """
+    attributes = ['maxchars', 'maxstanzas', 'seconds', 'since']
+
+    def __init__(self, maxchars=None, maxstanzas=None, seconds=None, since=None):
+        self.maxchars   = maxchars
+        self.maxstanzas = maxstanzas
+        self.seconds    = seconds
+        self.since      = since
+
+    def toElement(self):
+        h = domish.Element((None, 'history'))
+        for key in self.attributes:
+            a = getattr(self, key, a)
+            if a is not None:
+                h[key] = str(a)
+        
+        return h
 
 class User(object):
     """
@@ -515,10 +571,10 @@ class MUCClient(XMPPHandler):
         # add an error hook here?
         self._userLeavesRoom(room_jid)
         
-    def _getExceptionFromPresence(self, prs):
+    def _getExceptionFromElement(self, stanza):
         muc_condition = 'exception'
 
-        error = getattr(prs, 'error', None)
+        error = getattr(stanza, 'error', None)
         if error is not None:
             for e in error.elements():
                 muc_condition = e.name
@@ -628,12 +684,12 @@ class MUCClient(XMPPHandler):
         
         # check for errors
         if prs.hasAttribute('type') and prs['type'] == 'error':            
-            d.errback(self._getExceptionFromPresence(prs))
+            d.errback(self._getExceptionFromElement(prs))
         else:    
             # change the state of the room
             r = self._getRoom(room_jid)
             if r is None:
-                raise Exception, 'Room Not Found' 
+                raise NotFound
             r.state = 'joined'
             
             # grab status
@@ -651,12 +707,12 @@ class MUCClient(XMPPHandler):
         
         # check for errors
         if prs.hasAttribute('type') and prs['type'] == 'error':            
-            d.errback(prs)
+            d.errback(self._getExceptionFromElement(prs))
         else:    
             # change the state of the room
             r = self._getRoom(room_jid)
             if r is None:
-                raise Exception, 'Room Not Found' 
+                raise NotFound
             self._removeRoom(room_jid)
             
             d.callback(True)
@@ -763,7 +819,7 @@ class MUCClient(XMPPHandler):
         return request.send()
 
 
-    def join(self, server, room, nick):
+    def join(self, server, room, nick, history = None):
         """ Join a MUC room by sending presence to it. Returns a defered that is called when
         the entity is in the room or an error has occurred. 
         
@@ -776,11 +832,16 @@ class MUCClient(XMPPHandler):
         @param nick: The nick name for the entitity joining the room.
         @type  nick: L{unicode}
         
+        @param history: The maximum number of history stanzas you would like.
+
         """
         r = Room(room, server, nick, state='joining')
         self._setRoom(r)
  
         p = BasicPresence(to=r.entity_id)
+        if history is not None:
+            p.x.addChild(history.toElement())
+
         d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
 
         # add observer for joining the room
@@ -814,7 +875,7 @@ class MUCClient(XMPPHandler):
         
         r = self._getRoom(room_jid)
         if r is None:
-            raise Exception, 'Room not found'
+            raise NotFound
         r.nick = new_nick # change the nick
         # create presence 
         # make sure we call the method to generate the new entity xmpp id
@@ -861,7 +922,7 @@ class MUCClient(XMPPHandler):
         """
         r = self._getRoom(room_jid)
         if r is None:
-            raise Exception, 'Room not found'
+            raise NotFound
 
         p = BasicPresence(to=r.entityId()) 
         if status is not None:
