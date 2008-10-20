@@ -165,7 +165,36 @@ class RegisterRequest(xmlstream.IQ):
                 form.addField(f)
 
 
-class AffiliationRequest(xmlstream.IQ):
+class AdminRequest(xmlstream.IQ):
+    """
+    A basic admin iq request 
+
+    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
+    @type method: C{str}
+
+    """
+
+    def __init__(self, xs, method='get'):
+        xmlstream.IQ.__init__(self, xs, method)
+        q = self.addElement((NS_MUC_ADMIN, 'query'))
+
+
+class OwnerRequest(xmlstream.IQ):
+    """
+    A basic owner iq request 
+
+    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
+    @type method: C{str}
+
+    """
+
+    def __init__(self, xs, method='get'):
+        xmlstream.IQ.__init__(self, xs, method)
+        q = self.addElement((NS_MUC_OWNER, 'query'))
+
+    
+
+class AffiliationRequest(AdminRequest):
     """
     Register room request.
 
@@ -178,10 +207,9 @@ class AffiliationRequest(xmlstream.IQ):
     """
 
     def __init__(self, xs, method='get', affiliation='none', a_jid=None, reason=None):
-        xmlstream.IQ.__init__(self, xs, method)
-        
-        q = self.addElement((NS_MUC_ADMIN, 'query'))
-        i = q.addElement('item')
+        AdminRequest.__init__(self, xs, method)
+
+        i = self.query.addElement('item')
 
         i['affiliation'] = affiliation
         if a_jid:
@@ -712,8 +740,8 @@ class MUCClient(XMPPHandler):
 
         return d
     
-    def _changedNick(self, d, room_jid, prs):
-        """Callback for changing the nick.
+    def _changed(self, d, room_jid, prs):
+        """Callback for changing the nick and status.
         """
 
         r = self._getRoom(room_jid)
@@ -746,7 +774,7 @@ class MUCClient(XMPPHandler):
 
         # add observer for joining the room
         self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()), 
-                                          self._changedNick, 1, d, room_jid)
+                                          self._changed, 1, d, room_jid)
 
         return d
         
@@ -767,7 +795,39 @@ class MUCClient(XMPPHandler):
         return d
     
 
-    
+    def status(self, room_jid, show=None, status=None):
+        """Change user status.
+
+        See: http://xmpp.org/extensions/xep-0045.html#changepres
+
+        @param room_jid: The room jabber/xmpp entity id for the requested configuration form.
+        @type  room_jid: L{jid.JID}
+
+        @param show: The availability of the entity. Common values are xa, available, etc
+        @type  show: L{unicode}
+
+        @param show: The current status of the entity. 
+        @type  show: L{unicode}
+
+        """
+        r = self._getRoom(room_jid)
+        if r is None:
+            raise Exception, 'Room not found'
+
+        p = BasicPresence(to=r.entityId()) 
+        if status is not None:
+            p.addElement('status', None, status)
+            
+        if show is not None:
+            p.addElement('show', None, show)
+            
+        d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
+
+        # add observer for joining the room
+        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()), 
+                                          self._changed, 1, d, room_jid)
+
+        return d
 
     def _sendMessage(self, msg, children=None):
 
@@ -806,8 +866,27 @@ class MUCClient(XMPPHandler):
         iq['to'] = to
         return iq.send()
 
+    def getMemberList(self, room_jid):
+        """ Get a member list from a room.
+
+        @param room_jid: The room jabber/xmpp entity id for the requested member list.
+        @type  room_jid: L{jid.JID}
+
+        """
+        iq = AffiliationRequest(self.xmlstream,
+                                method='get',
+                                affiliation='member', 
+                                )
+        iq['to'] = room_jid.full()
+        return iq.send()        
+        
+
     def getRegisterForm(self, room):
         """
+
+        @param room: The room jabber/xmpp entity id for the requested registration form.
+        @type  room: L{jid.JID}
+
         """
         iq = RegisterRequest(self.xmlstream)
         iq['to'] = room.userhost()
