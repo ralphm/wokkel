@@ -353,16 +353,16 @@ class HistoryOptions(object):
 
     @ivar maxchars: Limit the total number of characters in the history to "X" 
                     (where the character count is the characters of the complete XML stanzas, not only their XML character data).
-    @itype maxchars: L{int}
+    @type maxchars: L{int}
                 
     @ivar  maxstanzas: 	Limit the total number of messages in the history to "X".
-    @itype mazstanzas: L{int}
+    @type mazstanzas: L{int}
 
     @ivar  seconds: Send only the messages received in the last "X" seconds.
-    @itype seconds: L{int}
+    @type seconds: L{int}
 
     @ivar  since: Send only the messages received since the datetime specified (which MUST conform to the DateTime profile specified in XMPP Date and Time Profiles [14]).
-    @itype since: L{datetime.datetime}
+    @type since: L{datetime.datetime}
 
     """
     attributes = ['maxchars', 'maxstanzas', 'seconds', 'since']
@@ -535,7 +535,8 @@ class PresenceError(xmppim.Presence):
 
 class MUCClient(XMPPHandler):
     """
-    Multi-User chat client protocol.
+    Multi-User chat client protocol. This is a subclass of L{XMPPHandler} and implements L{IMUCCLient}.
+
     """
 
     implements(IMUCClient)
@@ -547,6 +548,10 @@ class MUCClient(XMPPHandler):
     _deferreds = []
 
     def connectionInitialized(self):
+        """ This method is called when the client has successfully authenticated. 
+        It initializes several xpath events to handle MUC stanzas that come in.
+        After those are initialized then the method initialized is called to signal that we have finished. 
+        """
         self.xmlstream.addObserver(PRESENCE+"[not(@type) or @type='available']/x", self._onXPresence)
         self.xmlstream.addObserver(PRESENCE+"[@type='unavailable']", self._onUnavailablePresence)
         self.xmlstream.addObserver(PRESENCE+"[@type='error']", self._onPresenceError)
@@ -557,18 +562,26 @@ class MUCClient(XMPPHandler):
         self.initialized()
 
     def _setRoom(self, room):
+        """Add a room to the room collection.
+        """
         self.rooms[room.entity_id.userhost().lower()] = room
 
     def _getRoom(self, room_jid):
+        """Grab a room from the room collection.
+        """
         return self.rooms.get(room_jid.userhost().lower())
 
     def _removeRoom(self, room_jid):
+        """Delete a room from the room collection.
+        """
         if self.rooms.has_key(room_jid.userhost().lower()):
             del self.rooms[room_jid.userhost().lower()]
 
 
     def _onUnavailablePresence(self, prs):
-        """
+        """ This method is called when the stanza matches the xpath observer. 
+        The client has received a presence stanza with the 'type' attribute of unavailable. 
+        It means a user has exited a MUC room.
         """
 
         if not prs.hasAttribute('from'):
@@ -577,7 +590,8 @@ class MUCClient(XMPPHandler):
         self._userLeavesRoom(room_jid)
 
     def _onPresenceError(self, prs):
-        """
+        """This method is called when a presence stanza with the 'type' attribute of error.
+        There are various reasons for receiving a presence error and it means that the user has left the room.
         """
         if not prs.hasAttribute('from'):
             return
@@ -586,6 +600,7 @@ class MUCClient(XMPPHandler):
         self._userLeavesRoom(room_jid)
         
     def _getExceptionFromElement(self, stanza):
+        # find an exception based on the error stanza
         muc_condition = 'exception'
 
         error = getattr(stanza, 'error', None)
@@ -596,6 +611,7 @@ class MUCClient(XMPPHandler):
         return MUC_EXCEPTIONS[muc_condition]
 
     def _userLeavesRoom(self, room_jid):
+        # when a user leaves a room we need to update it
         room = self._getRoom(room_jid)
         if room is None:
             # not in the room yet
@@ -609,7 +625,7 @@ class MUCClient(XMPPHandler):
             self.userLeftRoom(room, user)
         
     def _onXPresence(self, prs):
-        """
+        """ A muc presence has been received.
         """
         if not prs.hasAttribute('from'):
             return
@@ -905,7 +921,13 @@ class MUCClient(XMPPHandler):
 
     
     def leave(self, room_jid):
-        """
+        """Leave a MUC room.
+
+        See: http://xmpp.org/extensions/xep-0045.html#exit
+
+        @param room_jid: The room entity id you want to exit.
+        @type  room_jid: L{jid.JID}
+
         """
         r = self._getRoom(room_jid)
  
@@ -1000,6 +1022,37 @@ class MUCClient(XMPPHandler):
         return iq.send()        
 
 
+    def _getRoleList(self, room_jid, role):
+        iq = RoleRequest(self.xmlstream,
+                                method='get',
+                                role=role,
+                                )
+        iq['to'] = room_jid.full()
+        return iq.send()        
+
+
+    def self._setAffiliationList(self, affiliation, room_jid, iq):
+        r = self._getRoom(room_jid)
+        if r is not None:
+            affiliation_list = []
+            setattr(r, affiliation, [])
+            
+            for item in iq.query.elements():
+                nick   = item.getAttribute('nick', None)
+                entity = item.getAttribute('jid', None)
+                u      = None
+                if nick is None and entity is None:
+                    raise Exception, 'bad attributes in item list'
+                if nick is not None:
+                    u = room.getUser(nick)
+                if u is None:
+                    u = User(nick, user_jid=jid.internJID(entity))
+                    u.affiliation = 'member'
+                    
+                affiliation_list.append(u)
+
+            setattr(r, affiliation, affiliation_list)
+        return r
 
     def getMemberList(self, room_jid):
         """ Get a member list from a room.
@@ -1008,8 +1061,9 @@ class MUCClient(XMPPHandler):
         @type  room_jid: L{jid.JID}
 
         """
-        return self._getAffiliationList(room_jid, 'member')
-
+        d = self._getAffiliationList(room_jid, 'member')
+        d.addCallback(self._setAffiliationList, 'members', room_jid)
+        return d
 
     def getAdminList(self, room_jid):
         """ Get an admin list from a room.
@@ -1018,7 +1072,9 @@ class MUCClient(XMPPHandler):
         @type  room_jid: L{jid.JID}
 
         """
-        return self._getAffiliationList(room_jid, 'admin')
+        d = self._getAffiliationList(room_jid, 'admin')
+        d.addCallback(self._setAffiliationList, 'members', room_jid)
+        return d
 
     def getBanList(self, room_jid):
         """ Get an outcast list from a room.
@@ -1027,7 +1083,9 @@ class MUCClient(XMPPHandler):
         @type  room_jid: L{jid.JID}
 
         """
-        return self._getAffiliationList(room_jid, 'outcast')
+        d = self._getAffiliationList(room_jid, 'outcast')
+        d.addCallback(self._setAffiliationList, 'members', room_jid)
+        return d
 
     def getOwnerList(self, room_jid):
         """ Get an owner list from a room.
@@ -1036,8 +1094,9 @@ class MUCClient(XMPPHandler):
         @type  room_jid: L{jid.JID}
 
         """
-        return self._getAffiliationList(room_jid, 'owner')
-
+        d = self._getAffiliationList(room_jid, 'owner')
+        d.addCallback(self._setAffiliationList, 'members', room_jid)
+        return d
 
     def getRegisterForm(self, room):
         """
@@ -1119,13 +1178,24 @@ class MUCClient(XMPPHandler):
         iq['from'] = frm.full()
         return iq.send()
 
-    def grantVoice(self, frm, room_jid, reason=None):
-        return self._setAffiliation(frm, room_jid, 'participant', reason=reason)
+    def _cbRequest(self, room_jid, iq):
+        r = self._getRoom(room_jid)
+        if r is None:
+            raise NotFound
 
+        return r
+
+    def grantVoice(self, frm, room_jid, reason=None):
+        return self._setRole(frm, room_jid, role='participant', reason=reason)
+
+    def grantVisitor(self, frm, room_jid, reason=None):
+        return self._setRole(frm, room_jid, role='visitor', reason=reason)
+
+    def grantModerator(self, frm, room_jid, reason=None):
+        return self._setRole(frm, room_jid, role='moderator', reason=reason)
 
     def ban(self, to, ban_jid, frm, reason=None):
         return self._setAffiliation(frm, to, 'outcast', a_jid=ban_jid, reason=reason)
-
 
     def kick(self, to, kick_jid, frm, reason=None):        
         return self._setAffiliation(frm, to, 'none', a_jid=kick_jid, reason=reason)
