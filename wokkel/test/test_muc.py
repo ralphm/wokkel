@@ -204,6 +204,31 @@ class MucClientTest(unittest.TestCase):
         return d
         
 
+    def test_userPartsRoom(self):
+        """An entity leaves the room, a presence of type unavailable is received by the client.
+        """
+
+        p = muc.UnavailableUserPresence()
+	p['to'] = self.user_jid.full()
+        p['from'] = self.room_jid.full()
+
+        # create a room
+        self._createRoom()
+        # add user to room
+        u = muc.User(self.room_jid.resource)
+
+        room = self.protocol._getRoom(self.room_jid)
+        room.addUser(u)
+
+        def userPresence(room, user):
+            self.failUnless(room.name==self.test_room, 'Wrong room name')
+            self.failUnless(room.inRoster(user)==False, 'User in roster')
+            	           
+        d, self.protocol.userLeftRoom = calledAsync(userPresence)
+        self.stub.send(p)
+        return d
+        
+
     def test_ban(self):
         """Ban an entity in a room.
         """

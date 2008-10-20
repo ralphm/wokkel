@@ -13,7 +13,7 @@ import datetime
 
 from zope.interface import implements
 
-from twisted.internet import defer
+from twisted.internet import defer, reactor
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
@@ -86,6 +86,7 @@ STATUS_CODES = { # see http://www.xmpp.org/extensions/xep-0045.html#registrar-st
 
 STATUS_CODE_CREATED = 201
 
+DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
 
 class MUCError(error.StanzaError):
     """
@@ -340,6 +341,23 @@ class UserPresence(xmppim.Presence):
         if role:
             x['role'] = role
 
+class UnavailableUserPresence(xmppim.UnavailablePresence):
+    """
+    This behaves like an object providing L{domish.IElement}.
+
+    """
+
+    def __init__(self, to=None, type=None, frm=None, affiliation=None, role=None):
+        xmppim.UnavailablePresence.__init__(self, to, type)
+        if frm:
+            self['from'] = frm
+        # add muc elements
+        x = self.addElement('x', NS_MUC_USER)
+        if affiliation:
+            x['affiliation'] = affiliation
+        if role:
+            x['role'] = role
+
 
 class PasswordPresence(BasicPresence):
     """
@@ -387,6 +405,10 @@ class MUCClient(XMPPHandler):
 
     rooms = {}
 
+    timeout = None
+
+    _deferreds = []
+
     def connectionInitialized(self):
         self.xmlstream.addObserver(PRESENCE+"[not(@type) or @type='available']/x", self._onXPresence)
         self.xmlstream.addObserver(PRESENCE+"[@type='unavailable']", self._onUnavailablePresence)
@@ -411,6 +433,7 @@ class MUCClient(XMPPHandler):
     def _onUnavailablePresence(self, prs):
         """
         """
+
         if not prs.hasAttribute('from'):
             return
         room_jid = jid.internJID(prs.getAttribute('from', ''))
@@ -600,6 +623,35 @@ class MUCClient(XMPPHandler):
         
         return getattr(iq,'query', None)
         
+
+    def sendDeferred(self,  obj, timeout):
+        """ Send data or a domish element, adding a deferred with a timeout.
+        """
+        d = defer.Deferred()
+        self._deferreds.append(d)
+
+
+        def onTimeout():
+            i = 0
+            for xd in self._deferreds:
+                if d == xd:
+                    self._deferreds.pop(i)
+                    d.errback(xmlstream.TimeoutError("Timeout waiting for response."))
+                i += 1
+
+        call = reactor.callLater(timeout, onTimeout)
+        
+        def cancelTimeout(result):
+            if call.active():
+                call.cancel()
+
+            return result
+
+        d.addBoth(cancelTimeout)
+
+        self.xmlstream.send(obj)
+        return d
+
     def disco(self, entity, type='info'):
         """Send disco queries to a XMPP entity
         """
@@ -648,13 +700,11 @@ class MUCClient(XMPPHandler):
         @type  nick: L{unicode}
         
         """
-        d = defer.Deferred()
         r = Room(room, server, nick, state='joining')
         self._setRoom(r)
  
         p = BasicPresence(to=r.entity_id)
-        # p['from'] = self.jid.full()
-        self.xmlstream.send(p)
+        d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
 
         # add observer for joining the room
         self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()), 
@@ -684,7 +734,7 @@ class MUCClient(XMPPHandler):
         
         """
 
-        d = defer.Deferred()
+        
         r = self._getRoom(room_jid)
         if r is None:
             raise Exception, 'Room not found'
@@ -692,7 +742,7 @@ class MUCClient(XMPPHandler):
         # create presence 
         # make sure we call the method to generate the new entity xmpp id
         p = BasicPresence(to=r.entityId()) 
-        self.xmlstream.send(p)
+        d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
 
         # add observer for joining the room
         self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()), 
@@ -705,14 +755,11 @@ class MUCClient(XMPPHandler):
     def leave(self, room_jid):
         """
         """
-        d = defer.Deferred()
-
         r = self._getRoom(room_jid)
  
         p = xmppim.UnavailablePresence(to=r.entity_id)
-        # p['from'] = self.jid.full()
-        self.xmlstream.send(p)
 
+        d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
         # add observer for joining the room
         self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s' and @type='unavailable']" % (r.entity_id.full()), 
                                           self._leftRoom, 1, d)
