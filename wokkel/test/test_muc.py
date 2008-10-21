@@ -360,7 +360,7 @@ class MucClientTest(unittest.TestCase):
 
         archive.append(msg)
 
-        self.protocol.history(self.room_jid.userhost(), archive)
+        self.protocol.history(self.room_jid, archive)
 
 
         while len(self.stub.output)>0:
@@ -404,7 +404,7 @@ class MucClientTest(unittest.TestCase):
             # check for a result
             self.failUnless(iq['type']=='result', 'We did not get a result')
         
-        d = self.protocol.register(self.room_jid.userhost())
+        d = self.protocol.register(self.room_jid)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
@@ -444,6 +444,24 @@ class MucClientTest(unittest.TestCase):
 
         iq = self.stub.output[-1]
         self.failUnless(xpath.matches("/iq/query[@xmlns='%s']/x"% (muc.NS_MUC_OWNER,), iq), 'Bad configure request')
+        
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_roomDestroy(self):
+        """ Destroy a room.
+        """
+
+        def cb(destroyed):
+            self.failUnless(destroyed==True, 'Room not destroyed.')
+                   
+        d = self.protocol.destroy(self.room_jid)
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.failUnless(xpath.matches("/iq/query[@xmlns='%s']/destroy"% (muc.NS_MUC_OWNER,), iq), 'Bad configure request')
         
         response = toResponse(iq, 'result')
         self.stub.send(response)
