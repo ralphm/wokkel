@@ -181,7 +181,7 @@ class DeferredClientFactory(BootstrapMixin, protocol.ClientFactory):
 
 
 def clientCreator(factory):
-    domain = factory.authenticator.jid.host
+    domain = factory.jid.host
     c = SRVConnector(reactor, 'xmpp-client', domain, factory)
     c.connect()
     return factory.deferred
