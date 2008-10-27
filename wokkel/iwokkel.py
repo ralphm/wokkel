@@ -269,7 +269,8 @@ class IPubSubService(Interface):
                              C{list} of L{domish.Element})
         """
 
-    def notifyDelete(service, nodeIdentifier, subscriptions):
+    def notifyDelete(service, nodeIdentifier, subscribers,
+                     redirectURI=None):
         """
         Send out node deletion notifications.
 
@@ -277,9 +278,12 @@ class IPubSubService(Interface):
         @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node that was deleted.
         @type nodeIdentifier: C{unicode}
-        @param subscriptions: The subscriptions for which a notification should
-                              be sent out.
-        @type subscriptions: C{list} of L{jid.JID}
+        @param subscribers: The subscribers for which a notification should
+                            be sent out.
+        @type subscribers: C{list} of L{jid.JID}
+        @param redirectURI: Optional XMPP URI of another node that subscribers
+                            are redirected to.
+        @type redirectURI: C{str}
         """
 
     def publish(requestor, service, nodeIdentifier, items):
@@ -413,7 +417,7 @@ class IPubSubService(Interface):
         @rtype: C{dict}.
         """
 
-    def getDefaultConfiguration(requestor, service):
+    def getDefaultConfiguration(requestor, service, nodeType):
         """
         Called when a default node configuration request has been received.
 
@@ -421,6 +425,9 @@ class IPubSubService(Interface):
         @type requestor: L{jid.JID}
         @param service: The entity the request was addressed to.
         @type service: L{jid.JID}
+        @param nodeType: The type of node for which the configuration is
+                         retrieved, C{'leaf'} or C{'collection'}.
+        @type nodeType: C{str}
         @return: A deferred that fires with a C{dict} representing the default
                  node configuration. Keys are C{str}s that represent the
                  field name. Values can be of types C{unicode}, C{int} or

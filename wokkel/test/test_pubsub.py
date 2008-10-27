@@ -115,7 +115,7 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
-    def test_event_delete(self):
+    def test_eventDelete(self):
         """
         Test receiving a delete event resulting in a call to deleteReceived.
         """
@@ -123,13 +123,37 @@ class PubSubClientTest(unittest.TestCase):
         message['from'] = 'pubsub.example.org'
         message['to'] = 'user@example.org/home'
         event = message.addElement((NS_PUBSUB_EVENT, 'event'))
-        items = event.addElement('delete')
-        items['node'] = 'test'
+        delete = event.addElement('delete')
+        delete['node'] = 'test'
 
         def deleteReceived(event):
             self.assertEquals(JID('user@example.org/home'), event.recipient)
             self.assertEquals(JID('pubsub.example.org'), event.sender)
             self.assertEquals('test', event.nodeIdentifier)
+
+        d, self.protocol.deleteReceived = calledAsync(deleteReceived)
+        self.stub.send(message)
+        return d
+
+
+    def test_eventDeleteRedirect(self):
+        """
+        Test receiving a delete event with a redirect URI.
+        """
+        message = domish.Element((None, 'message'))
+        message['from'] = 'pubsub.example.org'
+        message['to'] = 'user@example.org/home'
+        event = message.addElement((NS_PUBSUB_EVENT, 'event'))
+        delete = event.addElement('delete')
+        delete['node'] = 'test'
+        uri = 'xmpp:pubsub.example.org?;node=test2'
+        delete.addElement('redirect')['uri'] = uri
+
+        def deleteReceived(event):
+            self.assertEquals(JID('user@example.org/home'), event.recipient)
+            self.assertEquals(JID('pubsub.example.org'), event.sender)
+            self.assertEquals('test', event.nodeIdentifier)
+            self.assertEquals(uri, event.redirectURI)
 
         d, self.protocol.deleteReceived = calledAsync(deleteReceived)
         self.stub.send(message)
@@ -473,7 +497,9 @@ class PubSubServiceTest(unittest.TestCase):
     """
 
     def setUp(self):
+        self.stub = XmlStreamStub()
         self.service = pubsub.PubSubService()
+        self.service.send = self.stub.xmlstream.send
 
     def handleRequest(self, xml):
         """
@@ -656,6 +682,7 @@ class PubSubServiceTest(unittest.TestCase):
 
         self.service.getConfigurationOptions = getConfigurationOptions
         self.service.getDefaultConfiguration = getDefaultConfiguration
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
@@ -947,3 +974,50 @@ class PubSubServiceTest(unittest.TestCase):
 
         self.service.delete = delete
         return self.handleRequest(xml)
+
+
+    def test_notifyDelete(self):
+        """
+        Subscribers should be sent a delete notification.
+        """
+        subscriptions = [JID('user@example.org')]
+        self.service.notifyDelete(JID('pubsub.example.org'), 'test',
+                                  subscriptions)
+        message = self.stub.output[-1]
+
+        self.assertEquals('message', message.name)
+        self.assertIdentical(None, message.uri)
+        self.assertEquals('user@example.org', message['to'])
+        self.assertEquals('pubsub.example.org', message['from'])
+        self.assertTrue(message.event)
+        self.assertEqual(NS_PUBSUB_EVENT, message.event.uri)
+        self.assertTrue(message.event.delete)
+        self.assertEqual(NS_PUBSUB_EVENT, message.event.delete.uri)
+        self.assertTrue(message.event.delete.hasAttribute('node'))
+        self.assertEqual('test', message.event.delete['node'])
+
+
+    def test_notifyDeleteRedirect(self):
+        """
+        Subscribers should be sent a delete notification with redirect.
+        """
+        redirectURI = 'xmpp:pubsub.example.org?;node=test2'
+        subscriptions = [JID('user@example.org')]
+        self.service.notifyDelete(JID('pubsub.example.org'), 'test',
+                                  subscriptions, redirectURI)
+        message = self.stub.output[-1]
+
+        self.assertEquals('message', message.name)
+        self.assertIdentical(None, message.uri)
+        self.assertEquals('user@example.org', message['to'])
+        self.assertEquals('pubsub.example.org', message['from'])
+        self.assertTrue(message.event)
+        self.assertEqual(NS_PUBSUB_EVENT, message.event.uri)
+        self.assertTrue(message.event.delete)
+        self.assertEqual(NS_PUBSUB_EVENT, message.event.delete.uri)
+        self.assertTrue(message.event.delete.hasAttribute('node'))
+        self.assertEqual('test', message.event.delete['node'])
+        self.assertTrue(message.event.delete.redirect)
+        self.assertEqual(NS_PUBSUB_EVENT, message.event.delete.redirect.uri)
+        self.assertTrue(message.event.delete.redirect.hasAttribute('uri'))
+        self.assertEqual(redirectURI, message.event.delete.redirect['uri'])

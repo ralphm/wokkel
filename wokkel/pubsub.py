@@ -245,6 +245,8 @@ class DeleteEvent(PubSubEvent):
     A publish-subscribe event that signifies the deletion of a node.
     """
 
+    redirectURI = None
+
 
 
 class PurgeEvent(PubSubEvent):
@@ -302,6 +304,8 @@ class PubSubClient(XMPPHandler):
     def _onEvent_delete(self, sender, recipient, action, headers):
         nodeIdentifier = action["node"]
         event = DeleteEvent(sender, recipient, nodeIdentifier, headers)
+        if action.redirect:
+            event.redirectURI = action.redirect.getAttribute('uri')
         self.deleteReceived(event)
 
 
@@ -965,11 +969,15 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             self.send(message)
 
 
-    def notifyDelete(self, service, nodeIdentifier, subscriptions):
-        for subscription in subscriptions:
+    def notifyDelete(self, service, nodeIdentifier, subscribers,
+                           redirectURI=None):
+        for subscriber in subscribers:
             message = self._createNotification('delete', service,
                                                nodeIdentifier,
-                                               subscription.subscriber)
+                                               subscriber)
+            if redirectURI:
+                redirect = message.event.delete.addElement('redirect')
+                redirect['uri'] = redirectURI
             self.send(message)
 
 
@@ -1009,7 +1017,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return {}
 
 
-    def getDefaultConfiguration(self, requestor, service):
+    def getDefaultConfiguration(self, requestor, service, nodeType):
         raise Unsupported('retrieve-default')
 
 
