@@ -55,6 +55,7 @@ class BootstrapMixin(object):
     C{event} and C{fn} parameters correspond with the C{event} and
     C{observerfn} arguments to L{utility.EventDispatcher.addObserver}.
 
+    @since: 8.2.
     @ivar bootstraps: The list of registered bootstrap event observers.
     @type bootstrap: C{list}
     """
@@ -77,6 +78,10 @@ class BootstrapMixin(object):
     def addBootstrap(self, event, fn):
         """
         Add a bootstrap event handler.
+
+        @param event: The event to register an observer for.
+        @type event: C{str} or L{xpath.XPathQuery}
+        @param fn: The observer callable to be registered.
         """
         self.bootstraps.append((event, fn))
 
@@ -84,6 +89,10 @@ class BootstrapMixin(object):
     def removeBootstrap(self, event, fn):
         """
         Remove a bootstrap event handler.
+
+        @param event: The event the observer is registered for.
+        @type event: C{str} or L{xpath.XPathQuery}
+        @param fn: The registered observer callable.
         """
         self.bootstraps.remove((event, fn))
 

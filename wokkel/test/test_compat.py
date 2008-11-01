@@ -46,26 +46,37 @@ class BootstrapMixinTest(unittest.TestCase):
         """
         Dispatching an event should fire registered bootstrap observers.
         """
-        d = defer.Deferred()
+        called = []
+
+        def cb(data):
+            called.append(data)
+
         dispatcher = DummyProtocol()
-        self.factory.addBootstrap('//event/myevent', d.callback)
+        self.factory.addBootstrap('//event/myevent', cb)
         self.factory.installBootstraps(dispatcher)
+
         dispatcher.dispatch(None, '//event/myevent')
-        return d
+        self.assertEquals(1, len(called))
 
 
     def test_addAndRemoveBootstrap(self):
         """
         Test addition and removal of a bootstrap event handler.
         """
-        def cb(self):
-            pass
+
+        called = []
+
+        def cb(data):
+            called.append(data)
 
         self.factory.addBootstrap('//event/myevent', cb)
-        self.assertIn(('//event/myevent', cb), self.factory.bootstraps)
-
         self.factory.removeBootstrap('//event/myevent', cb)
-        self.assertNotIn(('//event/myevent', cb), self.factory.bootstraps)
+
+        dispatcher = DummyProtocol()
+        self.factory.installBootstraps(dispatcher)
+
+        dispatcher.dispatch(None, '//event/myevent')
+        self.assertFalse(called)
 
 
 
@@ -147,8 +158,15 @@ class XmlStreamServerFactoryTest(BootstrapMixinTest):
         """
         Set up a server factory with a authenticator factory function.
         """
+        class TestAuthenticator(object):
+            def __init__(self):
+                self.xmlstreams = []
+
+            def associateWithStream(self, xs):
+                self.xmlstreams.append(xs)
+
         def authenticatorFactory():
-            return xmlstream.Authenticator()
+            return TestAuthenticator()
 
         self.factory = XmlStreamServerFactory(authenticatorFactory)
 
@@ -160,17 +178,26 @@ class XmlStreamServerFactoryTest(BootstrapMixinTest):
         verifyObject(IProtocolFactory, self.factory)
 
 
-    def test_buildProtocol(self):
+    def test_buildProtocolAuthenticatorInstantiation(self):
         """
-        The authenticator factory should be passed to its protocol and it
-        should instantiate the authenticator and save it.
-        L{xmlstream.XmlStream}s do that, but we also want to ensure it really
-        is one.
+        The authenticator factory should be used to instantiate the
+        authenticator and pass it to the protocol.
+
+        The default protocol, L{XmlStream} stores the authenticator it is
+        passed, and calls its C{associateWithStream} method. so we use that to
+        check whether our authenticator factory is used and the protocol
+        instance gets an authenticator.
         """
         xs = self.factory.buildProtocol(None)
-        self.assertIdentical(self.factory, xs.factory)
+        self.assertEquals([xs], xs.authenticator.xmlstreams)
+
+
+    def test_buildProtocolXmlStream(self):
+        """
+        The protocol factory creates Jabber XML Stream protocols by default.
+        """
+        xs = self.factory.buildProtocol(None)
         self.assertIsInstance(xs, xmlstream.XmlStream)
-        self.assertIsInstance(xs.authenticator, xmlstream.Authenticator)
 
 
     def test_buildProtocolTwice(self):
@@ -182,3 +209,28 @@ class XmlStreamServerFactoryTest(BootstrapMixinTest):
         xs2 = self.factory.buildProtocol(None)
         self.assertNotIdentical(xs1, xs2)
         self.assertNotIdentical(xs1.authenticator, xs2.authenticator)
+
+
+    def test_buildProtocolInstallsBootstraps(self):
+        """
+        The protocol factory installs bootstrap event handlers on the protocol.
+        """
+        called = []
+
+        def cb(data):
+            called.append(data)
+
+        self.factory.addBootstrap('//event/myevent', cb)
+
+        xs = self.factory.buildProtocol(None)
+        xs.dispatch(None, '//event/myevent')
+
+        self.assertEquals(1, len(called))
+
+
+    def test_buildProtocolStoresFactory(self):
+        """
+        The protocol factory is saved in the protocol.
+        """
+        xs = self.factory.buildProtocol(None)
+        self.assertIdentical(self.factory, xs.factory)
