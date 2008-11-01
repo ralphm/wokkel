@@ -23,28 +23,61 @@ except ImportError:
 from wokkel.iwokkel import IXMPPHandler, IXMPPHandlerCollection
 
 class XMPPHandler(object):
+    """
+    XMPP protocol handler.
+
+    Classes derived from this class implement (part of) one or more XMPP
+    extension protocols, and are referred to as a subprotocol implementation.
+    """
+
     implements(IXMPPHandler)
+
+    def __init__(self):
+        self.parent = None
+        self.xmlstream = None
+
 
     def setHandlerParent(self, parent):
         self.parent = parent
         self.parent.addHandler(self)
 
+
     def disownHandlerParent(self, parent):
         self.parent.removeHandler(self)
         self.parent = None
+
 
     def makeConnection(self, xs):
         self.xmlstream = xs
         self.connectionMade()
 
+
     def connectionMade(self):
-        pass
+        """
+        Called after a connection has been established.
+
+        Can be overridden to perform work before stream initialization.
+        """
+
 
     def connectionInitialized(self):
-        pass
+        """
+        The XML stream has been initialized.
+
+        Can be overridden to perform work after stream initialization, e.g. to
+        set up observers and start exchanging XML stanzas.
+        """
+
 
     def connectionLost(self, reason):
+        """
+        The XML stream has been closed.
+
+        This method can be extended to inspect the C{reason} argument and
+        act on it.
+        """
         self.xmlstream = None
+
 
     def send(self, obj):
         """
@@ -64,6 +97,7 @@ class XMPPHandler(object):
         self.parent.send(obj)
 
 
+
 class XMPPHandlerCollection(object):
     """
     Collection of XMPP subprotocol handlers.
@@ -71,8 +105,6 @@ class XMPPHandlerCollection(object):
     This allows for grouping of subprotocol handlers, but is not an
     L{XMPPHandler} itself, so this is not recursive.
 
-    @ivar xmlstream: Currently managed XML stream.
-    @type xmlstream: L{XmlStream}
     @ivar handlers: List of protocol handlers.
     @type handlers: L{list} of objects providing
                       L{IXMPPHandler}
@@ -82,8 +114,7 @@ class XMPPHandlerCollection(object):
 
     def __init__(self):
         self.handlers = []
-        self.xmlstream = None
-        self._initialized = False
+
 
     def __iter__(self):
         """
@@ -91,30 +122,23 @@ class XMPPHandlerCollection(object):
         """
         return iter(self.handlers)
 
+
     def addHandler(self, handler):
         """
         Add protocol handler.
 
         Protocol handlers are expected to provide L{IXMPPHandler}.
-
-        When an XML stream has already been established, the handler's
-        C{connectionInitialized} will be called to get it up to speed.
         """
-
         self.handlers.append(handler)
 
-        # get protocol handler up to speed when a connection has already
-        # been established
-        if self.xmlstream and self._initialized:
-            handler.makeConnection(self.xmlstream)
-            handler.connectionInitialized()
 
     def removeHandler(self, handler):
         """
         Remove protocol handler.
         """
-
         self.handlers.remove(handler)
+
+
 
 class StreamManager(XMPPHandlerCollection):
     """
@@ -125,8 +149,14 @@ class StreamManager(XMPPHandlerCollection):
     L{IXMPPHandler} (like subclasses of L{XMPPHandler}), and added
     using L{addHandler}.
 
+    @ivar xmlstream: currently managed XML stream
+    @type xmlstream: L{XmlStream}
     @ivar logTraffic: if true, log all traffic.
     @type logTraffic: L{bool}
+    @ivar _initialized: Whether the stream represented by L{xmlstream} has
+                        been initialized. This is used when caching outgoing
+                        stanzas.
+    @type _initialized: C{bool}
     @ivar _packetQueue: internal buffer of unsent data. See L{send} for details.
     @type _packetQueue: L{list}
     """
@@ -134,7 +164,7 @@ class StreamManager(XMPPHandlerCollection):
     logTraffic = False
 
     def __init__(self, factory):
-        self.handlers = []
+        XMPPHandlerCollection.__init__(self)
         self.xmlstream = None
         self._packetQueue = []
         self._initialized = False
@@ -146,7 +176,31 @@ class StreamManager(XMPPHandlerCollection):
         factory.addBootstrap(xmlstream.STREAM_END_EVENT, self._disconnected)
         self.factory = factory
 
+
+    def addHandler(self, handler):
+        """
+        Add protocol handler.
+
+        When an XML stream has already been established, the handler's
+        C{connectionInitialized} will be called to get it up to speed.
+        """
+        XMPPHandlerCollection.addHandler(self, handler)
+
+        # get protocol handler up to speed when a connection has already
+        # been established
+        if self.xmlstream and self._initialized:
+            handler.makeConnection(self.xmlstream)
+            handler.connectionInitialized()
+
+
     def _connected(self, xs):
+        """
+        Called when the transport connection has been established.
+
+        Here we optionally set up traffic logging (depending on L{logTraffic})
+        and call each handler's C{makeConnection} method with the L{XmlStream}
+        instance.
+        """
         def logDataIn(buf):
             log.msg("RECV: %r" % buf)
 
@@ -162,7 +216,14 @@ class StreamManager(XMPPHandlerCollection):
         for e in self:
             e.makeConnection(xs)
 
+
     def _authd(self, xs):
+        """
+        Called when the stream has been initialized.
+
+        Send out cached stanzas and call each handler's
+        C{connectionInitialized} method.
+        """
         # Flush all pending packets
         for p in self._packetQueue:
             xs.send(p)
@@ -173,6 +234,7 @@ class StreamManager(XMPPHandlerCollection):
         # the IService interface
         for e in self:
             e.connectionInitialized()
+
 
     def initializationFailed(self, reason):
         """
@@ -187,15 +249,23 @@ class StreamManager(XMPPHandlerCollection):
         @type reason: L{failure.Failure}
         """
 
+
     def _disconnected(self, _):
+        """
+        Called when the stream has been closed.
+
+        From this point on, the manager doesn't interact with the
+        L{XmlStream} anymore and notifies each handler that the connection
+        was lost by calling its C{connectionLost} method.
+        """
         self.xmlstream = None
         self._initialized = False
 
         # Notify all child services which implement
         # the IService interface
         for e in self:
-            e.xmlstream = None
             e.connectionLost(None)
+
 
     def send(self, obj):
         """
@@ -207,11 +277,11 @@ class StreamManager(XMPPHandlerCollection):
         @param obj: data to be sent over the XML stream. See
                     L{xmlstream.XmlStream.send} for details.
         """
-
         if self._initialized:
             self.xmlstream.send(obj)
         else:
             self._packetQueue.append(obj)
+
 
 
 class IQHandlerMixin(object):

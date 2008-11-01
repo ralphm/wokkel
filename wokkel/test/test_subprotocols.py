@@ -5,48 +5,72 @@
 Tests for L{wokkel.subprotocols}
 """
 
+from zope.interface.verify import verifyObject
+
 from twisted.trial import unittest
 from twisted.test import proto_helpers
 from twisted.internet import defer
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import error, xmlstream
 
-from wokkel import subprotocols
+from wokkel import iwokkel, subprotocols
 
 class DummyFactory(object):
+    """
+    Dummy XmlStream factory that only registers bootstrap observers.
+    """
     def __init__(self):
         self.callbacks = {}
+
 
     def addBootstrap(self, event, callback):
         self.callbacks[event] = callback
 
 
+
 class DummyXMPPHandler(subprotocols.XMPPHandler):
+    """
+    Dummy XMPP subprotocol handler to count the methods are called on it.
+    """
     def __init__(self):
         self.doneMade = 0
         self.doneInitialized = 0
         self.doneLost = 0
 
+
     def makeConnection(self, xs):
         self.connectionMade()
+
 
     def connectionMade(self):
         self.doneMade += 1
 
+
     def connectionInitialized(self):
         self.doneInitialized += 1
+
 
     def connectionLost(self, reason):
         self.doneLost += 1
 
 
+
 class XMPPHandlerTest(unittest.TestCase):
+    """
+    Tests for L{subprotocols.XMPPHandler}.
+    """
+
+    def test_interface(self):
+        """
+        L{xmlstream.XMPPHandler} implements L{iwokkel.IXMPPHandler}.
+        """
+        verifyObject(iwokkel.IXMPPHandler, subprotocols.XMPPHandler())
+
 
     def test_send(self):
         """
         Test that data is passed on for sending by the stream manager.
         """
-
         class DummyStreamManager(object):
             def __init__(self):
                 self.outlist = []
@@ -60,7 +84,75 @@ class XMPPHandlerTest(unittest.TestCase):
         self.assertEquals(['<presence/>'], handler.parent.outlist)
 
 
+    def test_makeConnection(self):
+        """
+        Test that makeConnection saves the XML stream and calls connectionMade.
+        """
+        class TestXMPPHandler(subprotocols.XMPPHandler):
+            def connectionMade(self):
+                self.doneMade = True
+
+        handler = TestXMPPHandler()
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        handler.makeConnection(xs)
+        self.assertTrue(handler.doneMade)
+        self.assertIdentical(xs, handler.xmlstream)
+
+
+    def test_connectionLost(self):
+        """
+        Test that connectionLost forgets the XML stream.
+        """
+        handler = subprotocols.XMPPHandler()
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        handler.makeConnection(xs)
+        handler.connectionLost(Exception())
+        self.assertIdentical(None, handler.xmlstream)
+
+
+
+class XMPPHandlerCollectionTest(unittest.TestCase):
+    """
+    Tests for L{subprotocols.XMPPHandlerCollection}.
+    """
+
+    def setUp(self):
+        self.collection = subprotocols.XMPPHandlerCollection()
+
+
+    def test_interface(self):
+        """
+        L{subprotocols.StreamManager} implements L{iwokkel.IXMPPHandlerCollection}.
+        """
+        verifyObject(iwokkel.IXMPPHandlerCollection, self.collection)
+
+
+    def test_addHandler(self):
+        """
+        Test the addition of a protocol handler.
+        """
+        handler = DummyXMPPHandler()
+        handler.setHandlerParent(self.collection)
+        self.assertIn(handler, self.collection)
+        self.assertIdentical(self.collection, handler.parent)
+
+
+    def test_removeHandler(self):
+        """
+        Test removal of a protocol handler.
+        """
+        handler = DummyXMPPHandler()
+        handler.setHandlerParent(self.collection)
+        handler.disownHandlerParent(self.collection)
+        self.assertNotIn(handler, self.collection)
+        self.assertIdentical(None, handler.parent)
+
+
+
 class StreamManagerTest(unittest.TestCase):
+    """
+    Tests for L{subprotocols.StreamManager}.
+    """
 
     def setUp(self):
         factory = DummyFactory()
@@ -82,7 +174,8 @@ class StreamManagerTest(unittest.TestCase):
         self.assertEquals(sm.initializationFailed,
                           sm.factory.callbacks['//event/xmpp/initfailed'])
 
-    def test__connected(self):
+
+    def test_connected(self):
         """
         Test that protocol handlers have their connectionMade method called
         when the XML stream is connected.
@@ -96,7 +189,35 @@ class StreamManagerTest(unittest.TestCase):
         self.assertEquals(0, handler.doneInitialized)
         self.assertEquals(0, handler.doneLost)
 
-    def test__authd(self):
+
+    def test_connectedLogTrafficFalse(self):
+        """
+        Test raw data functions unset when logTraffic is set to False.
+        """
+        sm = self.streamManager
+        handler = DummyXMPPHandler()
+        handler.setHandlerParent(sm)
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        sm._connected(xs)
+        self.assertIdentical(None, xs.rawDataInFn)
+        self.assertIdentical(None, xs.rawDataOutFn)
+
+
+    def test_connectedLogTrafficTrue(self):
+        """
+        Test raw data functions set when logTraffic is set to True.
+        """
+        sm = self.streamManager
+        sm.logTraffic = True
+        handler = DummyXMPPHandler()
+        handler.setHandlerParent(sm)
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        sm._connected(xs)
+        self.assertNotIdentical(None, xs.rawDataInFn)
+        self.assertNotIdentical(None, xs.rawDataOutFn)
+
+
+    def test_authd(self):
         """
         Test that protocol handlers have their connectionInitialized method
         called when the XML stream is initialized.
@@ -110,7 +231,8 @@ class StreamManagerTest(unittest.TestCase):
         self.assertEquals(1, handler.doneInitialized)
         self.assertEquals(0, handler.doneLost)
 
-    def test__disconnected(self):
+
+    def test_disconnected(self):
         """
         Test that protocol handlers have their connectionLost method
         called when the XML stream is disconnected.
@@ -124,6 +246,7 @@ class StreamManagerTest(unittest.TestCase):
         self.assertEquals(0, handler.doneInitialized)
         self.assertEquals(1, handler.doneLost)
 
+
     def test_addHandler(self):
         """
         Test the addition of a protocol handler while not connected.
@@ -131,12 +254,11 @@ class StreamManagerTest(unittest.TestCase):
         sm = self.streamManager
         handler = DummyXMPPHandler()
         handler.setHandlerParent(sm)
-        self.assertIn(handler, sm)
-        self.assertIdentical(sm, handler.parent)
 
         self.assertEquals(0, handler.doneMade)
         self.assertEquals(0, handler.doneInitialized)
         self.assertEquals(0, handler.doneLost)
+
 
     def test_addHandlerInitialized(self):
         """
@@ -187,6 +309,7 @@ class StreamManagerTest(unittest.TestCase):
         sm.send("<presence/>")
         self.assertEquals("<presence/>", xs.transport.value())
 
+
     def test_sendNotConnected(self):
         """
         Test send when there is no established XML stream.
@@ -215,7 +338,8 @@ class StreamManagerTest(unittest.TestCase):
         xs.dispatch(xs, "//event/stream/authd")
 
         self.assertEquals("<presence/>", xs.transport.value())
-        self.failIf(sm._packetQueue)
+        self.assertFalse(sm._packetQueue)
+
 
     def test_sendNotInitialized(self):
         """
@@ -234,6 +358,7 @@ class StreamManagerTest(unittest.TestCase):
         sm.send("<presence/>")
         self.assertEquals("", xs.transport.value())
         self.assertEquals("<presence/>", sm._packetQueue[0])
+
 
     def test_sendDisconnected(self):
         """
@@ -255,6 +380,7 @@ class StreamManagerTest(unittest.TestCase):
         sm.send("<presence/>")
         self.assertEquals("", xs.transport.value())
         self.assertEquals("<presence/>", sm._packetQueue[0])
+
 
 
 class DummyIQHandler(subprotocols.IQHandlerMixin):

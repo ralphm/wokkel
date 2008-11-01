@@ -15,7 +15,7 @@ class IXMPPHandler(Interface):
     handle of (part of) an XMPP extension protocol.
     """
 
-    manager = Attribute("""XML stream manager""")
+    parent = Attribute("""XML stream manager for this handler""")
     xmlstream = Attribute("""The managed XML stream""")
 
     def setHandlerParent(parent):
@@ -25,12 +25,14 @@ class IXMPPHandler(Interface):
         @type parent: L{IXMPPHandlerCollection}
         """
 
+
     def disownHandlerParent(parent):
         """
         Remove the parent of the handler.
 
         @type parent: L{IXMPPHandlerCollection}
         """
+
 
     def makeConnection(xs):
         """
@@ -45,6 +47,7 @@ class IXMPPHandler(Interface):
         @type xs: L{XmlStream<twisted.words.protocols.jabber.XmlStream>}
         """
 
+
     def connectionMade():
         """
         Called after a connection has been established.
@@ -53,6 +56,7 @@ class IXMPPHandler(Interface):
         authenticator or the stream manager prior to stream initialization
         (including authentication).
         """
+
 
     def connectionInitialized():
         """
@@ -63,6 +67,7 @@ class IXMPPHandler(Interface):
         used to setup observers for incoming stanzas.
         """
 
+
     def connectionLost(reason):
         """
         The XML stream has been closed.
@@ -72,6 +77,7 @@ class IXMPPHandler(Interface):
 
         @type reason: L{twisted.python.failure.Failure}
         """
+
 
 
 class IXMPPHandlerCollection(Interface):
@@ -86,6 +92,7 @@ class IXMPPHandlerCollection(Interface):
         Get an iterator over all child handlers.
         """
 
+
     def addHandler(handler):
         """
         Add a child handler.
@@ -93,12 +100,14 @@ class IXMPPHandlerCollection(Interface):
         @type handler: L{IXMPPHandler}
         """
 
+
     def removeHandler(handler):
         """
         Remove a child handler.
 
         @type handler: L{IXMPPHandler}
         """
+
 
 
 class IDisco(Interface):
