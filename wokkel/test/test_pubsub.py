@@ -9,13 +9,12 @@ from zope.interface import verify
 
 from twisted.trial import unittest
 from twisted.internet import defer
-from twisted.words.xish import domish, xpath
+from twisted.words.xish import domish
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 
 from wokkel import data_form, iwokkel, pubsub, shim
-from wokkel.generic import parseXml
-from wokkel.test.helpers import XmlStreamStub
+from wokkel.test.helpers import TestableRequestHandlerMixin, XmlStreamStub
 
 try:
     from twisted.words.protocols.jabber.xmlstream import toResponse
@@ -491,7 +490,7 @@ class PubSubClientTest(unittest.TestCase):
 
 
 
-class PubSubServiceTest(unittest.TestCase):
+class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
     """
     Tests for L{pubsub.PubSubService}.
     """
@@ -500,24 +499,6 @@ class PubSubServiceTest(unittest.TestCase):
         self.stub = XmlStreamStub()
         self.service = pubsub.PubSubService()
         self.service.send = self.stub.xmlstream.send
-
-    def handleRequest(self, xml):
-        """
-        Find a handler and call it directly
-        """
-        handler = None
-        iq = parseXml(xml)
-        for queryString, method in self.service.iqHandlers.iteritems():
-            if xpath.internQuery(queryString).matches(iq):
-                handler = getattr(self.service, method)
-
-        if handler:
-            d = defer.maybeDeferred(handler, iq)
-        else:
-            d = defer.fail(NotImplementedError())
-
-        return d
-
 
     def test_interface(self):
         """

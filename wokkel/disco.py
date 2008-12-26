@@ -17,13 +17,13 @@ from twisted.words.xish import domish
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 
-NS = 'http://jabber.org/protocol/disco'
-NS_INFO = NS + '#info'
-NS_ITEMS = NS + '#items'
+NS_DISCO = 'http://jabber.org/protocol/disco'
+NS_DISCO_INFO = NS_DISCO + '#info'
+NS_DISCO_ITEMS = NS_DISCO + '#items'
 
 IQ_GET = '/iq[@type="get"]'
-DISCO_INFO = IQ_GET + '/query[@xmlns="' + NS_INFO + '"]'
-DISCO_ITEMS = IQ_GET + '/query[@xmlns="' + NS_ITEMS + '"]'
+DISCO_INFO = IQ_GET + '/query[@xmlns="' + NS_DISCO_INFO + '"]'
+DISCO_ITEMS = IQ_GET + '/query[@xmlns="' + NS_DISCO_ITEMS + '"]'
 
 class DiscoFeature(domish.Element):
     """
@@ -31,7 +31,7 @@ class DiscoFeature(domish.Element):
     """
 
     def __init__(self, feature):
-        domish.Element.__init__(self, (NS_INFO, 'feature'),
+        domish.Element.__init__(self, (NS_DISCO_INFO, 'feature'),
                                 attribs={'var': feature})
 
 
@@ -41,7 +41,7 @@ class DiscoIdentity(domish.Element):
     """
 
     def __init__(self, category, type, name = None):
-        domish.Element.__init__(self, (NS_INFO, 'identity'),
+        domish.Element.__init__(self, (NS_DISCO_INFO, 'identity'),
                                 attribs={'category': category,
                                          'type': type})
         if name:
@@ -54,13 +54,14 @@ class DiscoItem(domish.Element):
     """
 
     def __init__(self, jid, node='', name=None):
-        domish.Element.__init__(self, (NS_ITEMS, 'item'),
+        domish.Element.__init__(self, (NS_DISCO_ITEMS, 'item'),
                                 attribs={'jid': jid.full()})
         if node:
             self['node'] = node
 
         if name:
             self['name'] = name
+
 
 
 class DiscoHandler(XMPPHandler, IQHandlerMixin):
@@ -79,63 +80,132 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         self.xmlstream.addObserver(DISCO_INFO, self.handleRequest)
         self.xmlstream.addObserver(DISCO_ITEMS, self.handleRequest)
 
-    def _error(self, failure):
-        failure.trap(defer.FirstError)
-        return failure.value.subFailure
 
     def _onDiscoInfo(self, iq):
+        """
+        Called for incoming disco info requests.
+
+        @param iq: The request iq element.
+        @type iq: L{Element<twisted.words.xish.domish.Element>}
+        """
         requestor = jid.internJID(iq["from"])
         target = jid.internJID(iq["to"])
         nodeIdentifier = iq.query.getAttribute("node", '')
 
-        def toResponse(results):
-            info = []
-            for i in results:
-                info.extend(i[1])
-
+        def toResponse(info):
             if nodeIdentifier and not info:
                 raise error.StanzaError('item-not-found')
             else:
-                response = domish.Element((NS_INFO, 'query'))
+                response = domish.Element((NS_DISCO_INFO, 'query'))
+                if nodeIdentifier:
+                    response['node'] = nodeIdentifier
 
                 for item in info:
                     response.addChild(item)
 
             return response
 
-        dl = []
-        for handler in self.parent:
-            if IDisco.providedBy(handler):
-                dl.append(handler.getDiscoInfo(requestor, target,
-                                               nodeIdentifier))
-
-        d = defer.DeferredList(dl, fireOnOneErrback=1, consumeErrors=1)
-        d.addCallbacks(toResponse, self._error)
+        d = self.info(requestor, target, nodeIdentifier)
+        d.addCallback(toResponse)
         return d
 
+
     def _onDiscoItems(self, iq):
+        """
+        Called for incoming disco items requests.
+
+        @param iq: The request iq element.
+        @type iq: L{Element<twisted.words.xish.domish.Element>}
+        """
         requestor = jid.internJID(iq["from"])
         target = jid.internJID(iq["to"])
         nodeIdentifier = iq.query.getAttribute("node", '')
 
-        def toResponse(results):
-            items = []
-            for i in results:
-                items.extend(i[1])
-
-            response = domish.Element((NS_ITEMS, 'query'))
+        def toResponse(items):
+            response = domish.Element((NS_DISCO_ITEMS, 'query'))
+            if nodeIdentifier:
+                response['node'] = nodeIdentifier
 
             for item in items:
                 response.addChild(item)
 
             return response
 
-        dl = []
-        for handler in self.parent:
-            if IDisco.providedBy(handler):
-                dl.append(handler.getDiscoItems(requestor, target,
-                                                nodeIdentifier))
-
-        d = defer.DeferredList(dl, fireOnOneErrback=1, consumeErrors=1)
-        d.addCallbacks(toResponse, self._error)
+        d = self.items(requestor, target, nodeIdentifier)
+        d.addCallback(toResponse)
         return d
+
+
+    def _gatherResults(self, deferredList):
+        """
+        Gather results from a list of deferreds.
+
+        Similar to L{defer.gatherResults}, but flattens the returned results,
+        consumes errors after the first one and fires the errback of the
+        returned deferred with the failure of the first deferred that fires its
+        errback.
+
+        @param deferredList: List of deferreds for which the results should be
+                             gathered.
+        @type deferredList: C{list}
+        @return: Deferred that fires with a list of gathered results.
+        @rtype: L{defer.Deferred}
+        """
+        def cb(resultList):
+            results = []
+            for success, value in resultList:
+                results.extend(value)
+            return results
+
+        def eb(failure):
+            failure.trap(defer.FirstError)
+            return failure.value.subFailure
+
+        d = defer.DeferredList(deferredList, fireOnOneErrback=1,
+                                             consumeErrors=1)
+        d.addCallbacks(cb, eb)
+        return d
+
+
+    def info(self, requestor, target, nodeIdentifier):
+        """
+        Inspect all sibling protocol handlers for disco info.
+
+        Calls the L{getDiscoInfo<IDisco.getDiscoInfo>} method on all child
+        handlers of the parent, that provide L{IDisco}.
+
+        @param requestor: The entity that sent the request.
+        @type requestor: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @param target: The entity the request was sent to.
+        @type target: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @param nodeIdentifier: The optional node being queried, or C{''}.
+        @type nodeIdentifier: C{unicode}
+        @return: Deferred with the gathered results from sibling handlers.
+        @rtype: L{defer.Deferred}
+        """
+        dl = [handler.getDiscoInfo(requestor, target, nodeIdentifier)
+              for handler in self.parent
+              if IDisco.providedBy(handler)]
+        return self._gatherResults(dl)
+
+
+    def items(self, requestor, target, nodeIdentifier):
+        """
+        Inspect all sibling protocol handlers for disco items.
+
+        Calls the L{getDiscoItems<IDisco.getDiscoItems>} method on all child
+        handlers of the parent, that provide L{IDisco}.
+
+        @param requestor: The entity that sent the request.
+        @type requestor: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @param target: The entity the request was sent to.
+        @type target: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @param nodeIdentifier: The optional node being queried, or C{''}.
+        @type nodeIdentifier: C{unicode}
+        @return: Deferred with the gathered results from sibling handlers.
+        @rtype: L{defer.Deferred}
+        """
+        dl = [handler.getDiscoItems(requestor, target, nodeIdentifier)
+              for handler in self.parent
+              if IDisco.providedBy(handler)]
+        return self._gatherResults(dl)
