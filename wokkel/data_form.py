@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_data_form -*-
 #
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -228,7 +228,7 @@ class Field(object):
 
             self.values = newValues
 
-    def toElement(self):
+    def toElement(self, asForm=False):
         """
         Return the DOM representation of this Field.
 
@@ -238,7 +238,9 @@ class Field(object):
         self.typeCheck()
 
         field = domish.Element((NS_X_DATA, 'field'))
-        field['type'] = self.fieldType
+
+        if asForm or self.fieldType != 'text-single':
+            field['type'] = self.fieldType
 
         if self.var is not None:
             field['var'] = self.var
@@ -248,18 +250,19 @@ class Field(object):
                 value = unicode(value).lower()
             field.addElement('value', content=value)
 
-        if self.fieldType in ('list-single', 'list-multi'):
-            for option in self.options:
-                field.addChild(option.toElement())
+        if asForm:
+            if self.fieldType in ('list-single', 'list-multi'):
+                for option in self.options:
+                    field.addChild(option.toElement())
 
-        if self.label is not None:
-            field['label'] = self.label
+            if self.label is not None:
+                field['label'] = self.label
 
-        if self.desc is not None:
-            field.addElement('desc', content=self.desc)
+            if self.desc is not None:
+                field.addElement('desc', content=self.desc)
 
-        if self.required:
-            field.addElement('required')
+            if self.required:
+                field.addElement('required')
 
         return field
 
@@ -424,7 +427,7 @@ class Form(object):
             form.addChild(field.toElement())
 
         for field in self.fieldList:
-            form.addChild(field.toElement())
+            form.addChild(field.toElement(self.formType=='form'))
 
         return form
 

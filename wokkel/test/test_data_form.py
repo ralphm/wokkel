@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -37,23 +37,101 @@ class FieldTest(unittest.TestCase):
     """
 
     def test_basic(self):
+        """
+        Test basic field initialization.
+        """
         field = Field(var='test')
         self.assertEqual('text-single', field.fieldType)
         self.assertEqual('test', field.var)
-
-        element = field.toElement()
-
-        self.assertTrue(domish.IElement.providedBy(element))
-        self.assertEquals('field', element.name)
-        self.assertEquals(NS_X_DATA, element.uri)
-        self.assertEquals('text-single', element['type'])
-        self.assertEquals('test', element['var'])
-        self.assertEquals([], element.children)
 
 
     def test_noFieldName(self):
         field = Field()
         self.assertRaises(FieldNameRequiredError, field.toElement)
+
+
+    def test_toElement(self):
+        """
+        Test rendering to a DOM.
+        """
+        field = Field(var='test')
+        element = field.toElement()
+
+        self.assertTrue(domish.IElement.providedBy(element))
+        self.assertEquals('field', element.name)
+        self.assertEquals(NS_X_DATA, element.uri)
+        self.assertEquals('text-single',
+                          element.getAttribute('type', 'text-single'))
+        self.assertEquals('test', element['var'])
+        self.assertEquals([], element.children)
+
+
+    def test_toElementTypeNotListSingle(self):
+        """
+        Always render the field type, if different from list-single.
+        """
+        field = Field('hidden', var='test')
+        element = field.toElement()
+
+        self.assertEquals('hidden', element.getAttribute('type'))
+
+
+    def test_toElementAsForm(self):
+        """
+        Always render the field type, if asForm is True.
+        """
+        field = Field(var='test')
+        element = field.toElement(True)
+
+        self.assertEquals('text-single', element.getAttribute('type'))
+
+
+    def test_toElementOptions(self):
+        """
+        Test rendering to a DOM with options.
+        """
+        field = Field('list-single', var='test')
+        field.options = [Option(u'option1'), Option(u'option2')]
+        element = field.toElement(True)
+
+        self.assertEqual(2, len(element.children))
+
+
+    def test_toElementLabel(self):
+        """
+        Test rendering to a DOM with a label.
+        """
+        field = Field(var='test', label=u'my label')
+        element = field.toElement(True)
+
+        self.assertEqual(u'my label', element.getAttribute('label'))
+
+
+    def test_toElementDescription(self):
+        """
+        Test rendering to a DOM with options.
+        """
+        field = Field(var='test', desc=u'My desc')
+        element = field.toElement(True)
+
+        self.assertEqual(1, len(element.children))
+        child = element.children[0]
+        self.assertEqual('desc', child.name)
+        self.assertEqual(NS_X_DATA, child.uri)
+        self.assertEqual(u'My desc', unicode(child))
+
+
+    def test_toElementRequired(self):
+        """
+        Test rendering to a DOM with options.
+        """
+        field = Field(var='test', required=True)
+        element = field.toElement(True)
+
+        self.assertEqual(1, len(element.children))
+        child = element.children[0]
+        self.assertEqual('required', child.name)
+        self.assertEqual(NS_X_DATA, child.uri)
 
 
     def test_fromElementType(self):
