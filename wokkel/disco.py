@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_disco -*-
 #
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -11,9 +11,10 @@ U{XEP-0030<http://www.xmpp.org/extensions/xep-0030.html>}.
 """
 
 from twisted.internet import defer
-from twisted.words.protocols.jabber import error, jid
+from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.xish import domish
 
+from wokkel import data_form
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 
@@ -25,42 +26,385 @@ IQ_GET = '/iq[@type="get"]'
 DISCO_INFO = IQ_GET + '/query[@xmlns="' + NS_DISCO_INFO + '"]'
 DISCO_ITEMS = IQ_GET + '/query[@xmlns="' + NS_DISCO_ITEMS + '"]'
 
-class DiscoFeature(domish.Element):
+class DiscoFeature(unicode):
     """
-    Element representing an XMPP service discovery feature.
-    """
+    XMPP service discovery feature.
 
-    def __init__(self, feature):
-        domish.Element.__init__(self, (NS_DISCO_INFO, 'feature'),
-                                attribs={'var': feature})
-
-
-class DiscoIdentity(domish.Element):
-    """
-    Element representing an XMPP service discovery identity.
+    This extends C{unicode} to convert to and from L{domish.Element}, but
+    further behaves identically.
     """
 
-    def __init__(self, category, type, name = None):
-        domish.Element.__init__(self, (NS_DISCO_INFO, 'identity'),
-                                attribs={'category': category,
-                                         'type': type})
-        if name:
-            self['name'] = name
+    def toElement(self):
+        """
+        Render to a DOM representation.
+
+        @rtype: L{domish.Element}.
+        """
+        element = domish.Element((NS_DISCO_INFO, 'feature'))
+        element['var'] = unicode(self)
+        return element
 
 
-class DiscoItem(domish.Element):
+    @staticmethod
+    def fromElement(element):
+        """
+        Parse a DOM representation into a L{DiscoFeature} instance.
+
+        @param element: Element that represents the disco feature.
+        @type element: L{domish.Element}.
+        @rtype L{DiscoFeature}.
+        """
+        featureURI = element.getAttribute('var', u'')
+        feature = DiscoFeature(featureURI)
+        return feature
+
+
+
+class DiscoIdentity(object):
     """
-    Element representing an XMPP service discovery item.
+    XMPP service discovery identity.
+
+    @ivar category: The identity category.
+    @type category: C{unicode}
+    @ivar type: The identity type.
+    @type type: C{unicode}
+    @ivar name: The optional natural language name for this entity.
+    @type name: C{unicode}
     """
 
-    def __init__(self, jid, node='', name=None):
-        domish.Element.__init__(self, (NS_DISCO_ITEMS, 'item'),
-                                attribs={'jid': jid.full()})
-        if node:
-            self['node'] = node
+    def __init__(self, category, idType, name=None):
+        self.category = category
+        self.type = idType
+        self.name = name
 
-        if name:
-            self['name'] = name
+
+    def toElement(self):
+        """
+        Generate a DOM representation.
+
+        @rtype: L{domish.Element}.
+        """
+        element = domish.Element((NS_DISCO_INFO, 'identity'))
+        if self.category:
+            element['category'] = self.category
+        if self.type:
+            element['type'] = self.type
+        if self.name:
+            element['name'] = self.name
+        return element
+
+
+    @staticmethod
+    def fromElement(element):
+        """
+        Parse a DOM representation into a L{DiscoIdentity} instance.
+
+        @param element: Element that represents the disco identity.
+        @type element: L{domish.Element}.
+        @rtype L{DiscoIdentity}.
+        """
+        category = element.getAttribute('category')
+        idType = element.getAttribute('type')
+        name = element.getAttribute('name')
+        feature = DiscoIdentity(category, idType, name)
+        return feature
+
+
+
+class DiscoInfo(object):
+    """
+    XMPP service discovery info.
+
+    @ivar nodeIdentifier: The optional node this info applies to.
+    @type nodeIdentifier: C{unicode}
+    @ivar features: Features as L{DiscoFeature}.
+    @type features: C{set)
+    @ivar identities: Identities as a mapping from (category, type) to name,
+                      all C{unicode}.
+    @type identities: C{dict}
+    @ivar extensions: Service discovery extensions as a mapping from the
+                      extension form's C{FORM_TYPE} (C{unicode}) to
+                      L{data_form.Form}. Forms with no C{FORM_TYPE} field
+                      are mapped as C{None}. Note that multiple forms
+                      with the same C{FORM_TYPE} have the last in sequence
+                      prevail.
+    @type extensions: C{dict}
+    @ivar _items: Sequence of added items.
+    @type _items: C{list}
+    """
+
+    def __init__(self):
+        self.nodeIdentifier = ''
+        self.features = set()
+        self.identities = {}
+        self.extensions = {}
+        self._items = []
+
+
+    def __iter__(self):
+        """
+        Iterator over sequence of items in the order added.
+        """
+        return iter(self._items)
+
+
+    def append(self, item):
+        """
+        Add a piece of service discovery info.
+
+        @param item: A feature, identity or extension form.
+        @type item: L{DiscoFeature}, L{DiscoIdentity} or L{data_form.Form}
+        """
+        self._items.append(item)
+
+        if isinstance(item, DiscoFeature):
+            self.features.add(item)
+        elif isinstance(item, DiscoIdentity):
+            self.identities[(item.category, item.type)] = item.name
+        elif isinstance(item, data_form.Form):
+            self.extensions[item.formNamespace] = item
+
+
+    def toElement(self):
+        """
+        Generate a DOM representation.
+
+        This takes the items added with C{append} to create a DOM
+        representation of service discovery information.
+
+        @rtype: L{domish.Element}.
+        """
+        element = domish.Element((NS_DISCO_INFO, 'query'))
+
+        if self.nodeIdentifier:
+            element['node'] = self.nodeIdentifier
+
+        for item in self:
+            element.addChild(item.toElement())
+
+        return element
+
+
+    @staticmethod
+    def fromElement(element):
+        """
+        Parse a DOM representation into a L{DiscoInfo} instance.
+
+        @param element: Element that represents the disco info.
+        @type element: L{domish.Element}.
+        @rtype L{DiscoInfo}.
+        """
+
+        info = DiscoInfo()
+
+        info.nodeIdentifier = element.getAttribute('node', '')
+
+        for child in element.elements():
+            item = None
+
+            if (child.uri, child.name) == (NS_DISCO_INFO, 'feature'):
+                item = DiscoFeature.fromElement(child)
+            elif (child.uri, child.name) == (NS_DISCO_INFO, 'identity'):
+                item = DiscoIdentity.fromElement(child)
+            elif (child.uri, child.name) == (data_form.NS_X_DATA, 'x'):
+                item = data_form.Form.fromElement(child)
+
+            if item:
+                info.append(item)
+
+        return info
+
+
+
+class DiscoItem(object):
+    """
+    XMPP service discovery item.
+
+    @ivar entity: The entity holding the item.
+    @type entity: L{jid.JID}
+    @ivar nodeIdentifier: The optional node identifier for the item.
+    @type nodeIdentifier: C{unicode}
+    @ivar name: The optional natural language name for this entity.
+    @type name: C{unicode}
+    """
+
+    def __init__(self, entity, nodeIdentifier='', name=None):
+        self.entity = entity
+        self.nodeIdentifier = nodeIdentifier
+        self.name = name
+
+
+    def toElement(self):
+        """
+        Generate a DOM representation.
+
+        @rtype: L{domish.Element}.
+        """
+        element = domish.Element((NS_DISCO_ITEMS, 'item'))
+        if self.entity:
+            element['jid'] = self.entity.full()
+        if self.nodeIdentifier:
+            element['node'] = self.nodeIdentifier
+        if self.name:
+            element['name'] = self.name
+        return element
+
+
+    @staticmethod
+    def fromElement(element):
+        """
+        Parse a DOM representation into a L{DiscoItem} instance.
+
+        @param element: Element that represents the disco iitem.
+        @type element: L{domish.Element}.
+        @rtype L{DiscoItem}.
+        """
+        try:
+            entity = jid.JID(element.getAttribute('jid', ' '))
+        except jid.InvalidFormat:
+            entity = None
+        nodeIdentifier = element.getAttribute('node', '')
+        name = element.getAttribute('name')
+        feature = DiscoItem(entity, nodeIdentifier, name)
+        return feature
+
+
+
+class DiscoItems(object):
+    """
+    XMPP service discovery items.
+
+    @ivar nodeIdentifier: The optional node this info applies to.
+    @type nodeIdentifier: C{unicode}
+    @ivar _items: Sequence of added items.
+    @type _items: C{list}
+    """
+
+    def __init__(self):
+        self.nodeIdentifier = ''
+        self._items = []
+
+
+    def __iter__(self):
+        """
+        Iterator over sequence of items in the order added.
+        """
+        return iter(self._items)
+
+
+    def append(self, item):
+        """
+        Append item to the sequence of items.
+
+        @param item: Item to be added.
+        @type item: L{DiscoItem}
+        """
+        self._items.append(item)
+
+
+    def toElement(self):
+        """
+        Generate a DOM representation.
+
+        This takes the items added with C{append} to create a DOM
+        representation of service discovery items.
+
+        @rtype: L{domish.Element}.
+        """
+        element = domish.Element((NS_DISCO_ITEMS, 'query'))
+
+        if self.nodeIdentifier:
+            element['node'] = self.nodeIdentifier
+
+        for item in self:
+            element.addChild(item.toElement())
+
+        return element
+
+
+    @staticmethod
+    def fromElement(element):
+        """
+        Parse a DOM representation into a L{DiscoItems} instance.
+
+        @param element: Element that represents the disco items.
+        @type element: L{domish.Element}.
+        @rtype L{DiscoItems}.
+        """
+
+        info = DiscoItems()
+
+        info.nodeIdentifier = element.getAttribute('node', '')
+
+        for child in element.elements():
+            if (child.uri, child.name) == (NS_DISCO_ITEMS, 'item'):
+                item = DiscoItem.fromElement(child)
+                info.append(item)
+
+        return info
+
+
+
+class _DiscoRequest(xmlstream.IQ):
+    """
+    Element representing an XMPP service discovery request.
+    """
+
+    def __init__(self, xs, namespace, nodeIdentifier=''):
+        """
+        Initialize the request.
+
+        @param xs: XML Stream the request should go out on.
+        @type xs: L{xmlstream.XmlStream}
+        @param namespace: Request namespace.
+        @type namespace: C{str}
+        @param nodeIdentifier: Node to request info from.
+        @type nodeIdentifier: C{unicode}
+        """
+        xmlstream.IQ.__init__(self, xs, "get")
+        query = self.addElement((namespace, 'query'))
+        if nodeIdentifier:
+            query['node'] = nodeIdentifier
+
+
+
+class DiscoClientProtocol(XMPPHandler):
+    """
+    XMPP Service Discovery client protocol.
+    """
+
+    def requestInfo(self, entity, nodeIdentifier=''):
+        """
+        Request information discovery from a node.
+
+        @param entity: Entity to send the request to.
+        @type entity: L{jid.JID}
+        @param nodeIdentifier: Optional node to request info from.
+        @type nodeIdentifier: C{unicode}
+        """
+
+        request = _DiscoRequest(self.xmlstream, NS_DISCO_INFO, nodeIdentifier)
+
+        d = request.send(entity.full())
+        d.addCallback(lambda iq: DiscoInfo.fromElement(iq.query))
+        return d
+
+
+    def requestItems(self, entity, nodeIdentifier=''):
+        """
+        Request items discovery from a node.
+
+        @param entity: Entity to send the request to.
+        @type entity: L{jid.JID}
+        @param nodeIdentifier: Optional node to request info from.
+        @type nodeIdentifier: C{unicode}
+        """
+
+        request = _DiscoRequest(self.xmlstream, NS_DISCO_ITEMS, nodeIdentifier)
+
+        d = request.send(entity.full())
+        d.addCallback(lambda iq: DiscoItems.fromElement(iq.query))
+        return d
 
 
 
@@ -96,14 +440,13 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
             if nodeIdentifier and not info:
                 raise error.StanzaError('item-not-found')
             else:
-                response = domish.Element((NS_DISCO_INFO, 'query'))
-                if nodeIdentifier:
-                    response['node'] = nodeIdentifier
+                response = DiscoInfo()
+                response.nodeIdentifier = nodeIdentifier
 
                 for item in info:
-                    response.addChild(item)
+                    response.append(item)
 
-            return response
+            return response.toElement()
 
         d = self.info(requestor, target, nodeIdentifier)
         d.addCallback(toResponse)
@@ -122,14 +465,13 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         nodeIdentifier = iq.query.getAttribute("node", '')
 
         def toResponse(items):
-            response = domish.Element((NS_DISCO_ITEMS, 'query'))
-            if nodeIdentifier:
-                response['node'] = nodeIdentifier
+            response = DiscoItems()
+            response.nodeIdentifier = nodeIdentifier
 
             for item in items:
-                response.addChild(item)
+                response.append(item)
 
-            return response
+            return response.toElement()
 
         d = self.items(requestor, target, nodeIdentifier)
         d.addCallback(toResponse)
