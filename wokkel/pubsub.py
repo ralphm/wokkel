@@ -542,7 +542,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         if not nodeIdentifier:
             info.append(disco.DiscoIdentity(**self.discoIdentity))
 
-            info.append(disco.DiscoFeature(disco.NS_ITEMS))
+            info.append(disco.DiscoFeature(disco.NS_DISCO_ITEMS))
             info.extend([disco.DiscoFeature("%s#%s" % (NS_PUBSUB, feature))
                          for feature in self.pubSubFeatures])
 

@@ -507,6 +507,23 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         verify.verifyObject(iwokkel.IPubSubService, self.service)
 
 
+    def test_getDiscoInfo(self):
+        """
+        Test getDiscoInfo calls getNodeInfo and returns some minimal info.
+        """
+        def cb(info):
+            self.assertEqual(2, len(info))
+
+        def getNodeInfo(requestor, target, nodeIdentifier):
+            return defer.succeed(None)
+
+        self.service.getNodeInfo = getNodeInfo
+        d = self.service.getDiscoInfo(JID('user@example.org/home'),
+                                      JID('pubsub.example.org'), '')
+        d.addCallback(cb)
+        return d
+
+
     def test_onPublishNoNode(self):
         """
         The root node is always a collection, publishing is a bad request.
