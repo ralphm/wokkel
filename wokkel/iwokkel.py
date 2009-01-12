@@ -399,11 +399,11 @@ class IPubSubService(Interface):
         by option name. The value of each entry represents the specifics for
         that option in a dictionary:
 
-        - C{'type'} (C{str}): The option's type (see
-          L{Field<wokkel.data_form.Field>}'s doc string for possible values).
-        - C{'label'} (C{unicode}): A human readable label for this option.
-        - C{'options'} (C{dict}): Optional list of possible values for this
-          option.
+         - C{'type'} (C{str}): The option's type (see
+           L{Field<wokkel.data_form.Field>}'s doc string for possible values).
+         - C{'label'} (C{unicode}): A human readable label for this option.
+         - C{'options'} (C{dict}): Optional list of possible values for this
+           option.
 
         Example::
 

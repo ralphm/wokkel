@@ -68,7 +68,7 @@ class Option(object):
         """
         Return the DOM representation of this option.
 
-        @rtype L{domish.Element}.
+        @rtype: L{domish.Element}.
         """
         option = domish.Element((NS_X_DATA, 'option'))
         option.addElement('value', content=self.value)
@@ -232,7 +232,7 @@ class Field(object):
         """
         Return the DOM representation of this Field.
 
-        @rtype L{domish.Element}.
+        @rtype: L{domish.Element}.
         """
 
         self.typeCheck()
