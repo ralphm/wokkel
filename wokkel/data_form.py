@@ -219,10 +219,15 @@ class Field(object):
             newValues = []
             for value in self.values:
                 if self.fieldType == 'boolean':
-                    # We send out the textual representation of boolean values
-                    value = bool(int(value))
+                    if isinstance(value, (str, unicode)):
+                        checkValue = value.lower()
+                        if not checkValue in ('0', '1', 'false', 'true'):
+                            raise ValueError("Not a boolean")
+                        value = checkValue in ('1', 'true')
+                    value = bool(value)
                 elif self.fieldType in ('jid-single', 'jid-multi'):
-                    value = value.full()
+                    if not hasattr(value, 'full'):
+                        value = JID(value)
 
                 newValues.append(value)
 
@@ -248,6 +253,9 @@ class Field(object):
         for value in self.values:
             if self.fieldType == 'boolean':
                 value = unicode(value).lower()
+            elif self.fieldType in ('jid-single', 'jid-multi'):
+                value = value.full()
+
             field.addElement('value', content=value)
 
         if asForm:
