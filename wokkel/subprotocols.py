@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_subprotocols -*-
 #
-# Copyright (c) 2001-2007 Twisted Matrix Laboratories.
+# Copyright (c) 2001-2009 Twisted Matrix Laboratories.
 # See LICENSE for details.
 
 """
@@ -12,13 +12,9 @@ from zope.interface import implements
 from twisted.internet import defer
 from twisted.python import log
 from twisted.words.protocols.jabber import error, xmlstream
+from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import xpath
 from twisted.words.xish.domish import IElement
-
-try:
-    from twisted.words.protocols.jabber.xmlstream import toResponse
-except ImportError:
-    from wokkel.compat import toResponse
 
 from wokkel.iwokkel import IXMPPHandler, IXMPPHandlerCollection
 

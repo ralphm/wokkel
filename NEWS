@@ -1,3 +1,38 @@
+0.5.0 (2009-04-07)
+==================
+
+This release drops support for Twisted versions older than 8.0, including
+Twisted 2.5 / Twisted Words 0.5.
+ 
+Features
+--------
+
+ - Support for sending and receiving Publish-Subscribe node delete
+   notifications with redirect.
+ - Service Discovery client support, including an overhaul of disco data
+   classes (#28).
+ - Initial support for building XMPP servers has been added:
+   - XmlStreamServerFactory has been backported from Twisted Words (#29).
+   - An XMPP router has been added (#30).
+   - A server-side component authenticator has been added (#30).
+   - A new server-side component service, that connects to a router within the
+     same process, was added (#31).
+
+
+Fixes
+-----
+
+ - Publish-Subscribe subscriptions requests work again (#22).
+ - Publish-Subscribe delete node requests now have the correct namespace (#27).
+ - NodeIDs in Service Discovery requests are now returned in responses (#7).
+ - The presence of stanzaType in toResponse is now checked correctly (#34).
+ - Data Form fields are now rendered depending on form type (#40).
+ - Data Form type checking issues were addressed (#41).
+ - Some compatibility fixes for Twisted 8.0 and 8.1.
+ - Various other fixes (#37, #42) and tracking changes to code already in
+   Twisted.
+
+
 0.4.0 (2008-08-05)
 ==================
 

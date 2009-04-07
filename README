@@ -1,30 +1,53 @@
-Wokkel 0.4.0
+Wokkel 0.5.0
 
 What is this?
 =============
 
-Wokkel is a Python module for experimenting with future enhancements
-to Twisted Words. Everything is aimed to be included in the Twisted
-main development tree eventually.
+Wokkel is a Python module for experimenting with future enhancements to Twisted
+Words, that should eventually be included in the main Twisted main development
+tree. Some of the code in Wokkel has already made that transition, but is still
+included to be used with older Twisted releases.
 
-Dependencies
+
+Requirements
 ============
 
-This module depends on Twisted Words 0.5 or later.
+ - Python 2.4 or later.
+ - Twisted 8.0.0 or later.
 
-Copyright
+
+Resources
 =========
 
-The code in this distribution is Copyright (c) 2003-2008 Ralph Meijer, unless
+Wokkel's home is <http://wokkel.ik.nu/>. 
+
+Besides the general Twisted resources, help is available on the Twisted-Jabber
+mailing list::
+
+  <https://mailman.ik.nu/mailman/listinfo/twisted-jabber>
+
+
+Copyright and Warranty
+======================
+
+The code in this distribution is Copyright (c) 2003-2009 Ralph Meijer, unless
 excplicitely specified otherwise.
 
 Wokkel is made available under the MIT License. The included LICENSE file
 describes this in detail.
 
-Contact
-=======
 
-Questions, comments or suggestions are welcome!
+Contributors
+============
+
+ - Christopher Zorn
+ - Jack Moffitt
+ - Mike Malone
+ - Pablo Martin
+
+
+Author
+======
 
 Ralph Meijer
 <xmpp:ralphm@ik.nu>

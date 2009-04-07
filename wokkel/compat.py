@@ -7,40 +7,6 @@ from twisted.internet import protocol
 from twisted.words.protocols.jabber import xmlstream
 from twisted.words.xish import domish
 
-def toResponse(stanza, stanzaType=None):
-    """
-    Create a response stanza from another stanza.
-
-    This takes the addressing and id attributes from a stanza to create a (new,
-    empty) response stanza. The addressing attributes are swapped and the id
-    copied. Optionally, the stanza type of the response can be specified.
-
-    @param stanza: the original stanza
-    @type stanza: L{domish.Element}
-    @param stanzaType: optional response stanza type
-    @type stanzaType: C{str}
-    @return: the response stanza.
-    @rtype: L{domish.Element}
-    """
-
-    toAddr = stanza.getAttribute('from')
-    fromAddr = stanza.getAttribute('to')
-    stanzaID = stanza.getAttribute('id')
-
-    response = domish.Element((None, stanza.name))
-    if toAddr:
-        response['to'] = toAddr
-    if fromAddr:
-        response['from'] = fromAddr
-    if stanzaID:
-        response['id'] = stanzaID
-    if stanzaType:
-        response['type'] = stanzaType
-
-    return response
-
-
-
 class BootstrapMixin(object):
     """
     XmlStream factory mixin to install bootstrap event observers.

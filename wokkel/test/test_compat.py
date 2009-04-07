@@ -1,5 +1,5 @@
-# Copyright (c) 2001-2007 Twisted Matrix Laboratories.
-# Copyright (c) 2008 Ralph Meijer
+# Copyright (c) 2001-2008 Twisted Matrix Laboratories.
+# Copyright (c) 2008-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -12,7 +12,7 @@ from twisted.internet.interfaces import IProtocolFactory
 from twisted.trial import unittest
 from twisted.words.xish import domish, utility
 from twisted.words.protocols.jabber import xmlstream
-from wokkel.compat import toResponse, BootstrapMixin, XmlStreamServerFactory
+from wokkel.compat import BootstrapMixin, XmlStreamServerFactory
 
 class DummyProtocol(protocol.Protocol, utility.EventDispatcher):
     """
@@ -77,75 +77,6 @@ class BootstrapMixinTest(unittest.TestCase):
 
         dispatcher.dispatch(None, '//event/myevent')
         self.assertFalse(called)
-
-
-
-class ToResponseTest(unittest.TestCase):
-
-    def test_toResponse(self):
-        """
-        Test that a response stanza is generated with addressing swapped.
-        """
-        stanza = domish.Element(('jabber:client', 'iq'))
-        stanza['type'] = 'get'
-        stanza['to'] = 'user1@example.com'
-        stanza['from'] = 'user2@example.com/resource'
-        stanza['id'] = 'stanza1'
-        response = toResponse(stanza, 'result')
-        self.assertNotIdentical(stanza, response)
-        self.assertEqual(response['from'], 'user1@example.com')
-        self.assertEqual(response['to'], 'user2@example.com/resource')
-        self.assertEqual(response['type'], 'result')
-        self.assertEqual(response['id'], 'stanza1')
-
-    def test_toResponseNoFrom(self):
-        """
-        Test that a response is generated from a stanza without a from address.
-        """
-        stanza = domish.Element(('jabber:client', 'iq'))
-        stanza['type'] = 'get'
-        stanza['to'] = 'user1@example.com'
-        response = toResponse(stanza)
-        self.assertEqual(response['from'], 'user1@example.com')
-        self.failIf(response.hasAttribute('to'))
-
-    def test_toResponseNoTo(self):
-        """
-        Test that a response is generated from a stanza without a to address.
-        """
-        stanza = domish.Element(('jabber:client', 'iq'))
-        stanza['type'] = 'get'
-        stanza['from'] = 'user2@example.com/resource'
-        response = toResponse(stanza)
-        self.failIf(response.hasAttribute('from'))
-        self.assertEqual(response['to'], 'user2@example.com/resource')
-
-    def test_toResponseNoAddressing(self):
-        """
-        Test that a response is generated from a stanza without any addressing.
-        """
-        stanza = domish.Element(('jabber:client', 'message'))
-        stanza['type'] = 'chat'
-        response = toResponse(stanza)
-        self.failIf(response.hasAttribute('to'))
-        self.failIf(response.hasAttribute('from'))
-
-    def test_noID(self):
-        """
-        Test that a proper response is generated without id attribute.
-        """
-        stanza = domish.Element(('jabber:client', 'message'))
-        response = toResponse(stanza)
-        self.failIf(response.hasAttribute('id'))
-
-
-    def test_noType(self):
-        """
-        Test that a proper response is generated without type attribute.
-        """
-        stanza = domish.Element(('jabber:client', 'message'))
-        response = toResponse(stanza)
-        self.failIf(response.hasAttribute('type'))
 
 
 

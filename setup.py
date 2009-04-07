@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 from setuptools import setup
 
 setup(name='wokkel',
-      version='0.4.0',
+      version='0.5.0',
       description='Twisted Jabber support library',
       author='Ralph Meijer',
       author_email='ralphm@ik.nu',

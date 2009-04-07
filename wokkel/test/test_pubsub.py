@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -12,14 +12,10 @@ from twisted.internet import defer
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
+from twisted.words.protocols.jabber.xmlstream import toResponse
 
 from wokkel import data_form, disco, iwokkel, pubsub, shim
 from wokkel.test.helpers import TestableRequestHandlerMixin, XmlStreamStub
-
-try:
-    from twisted.words.protocols.jabber.xmlstream import toResponse
-except ImportError:
-    from wokkel.compat import toResponse
 
 NS_PUBSUB = 'http://jabber.org/protocol/pubsub'
 NS_PUBSUB_CONFIG = 'http://jabber.org/protocol/pubsub#node_config'

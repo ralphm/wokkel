@@ -10,17 +10,13 @@ from zope.interface import implements
 from twisted.internet import defer
 from twisted.trial import unittest
 from twisted.words.protocols.jabber.jid import JID
+from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import domish
 
 from wokkel import data_form, disco
 from wokkel.generic import parseXml
 from wokkel.subprotocols import XMPPHandler
 from wokkel.test.helpers import TestableRequestHandlerMixin, XmlStreamStub
-
-try:
-    from twisted.words.protocols.jabber.xmlstream import toResponse
-except ImportError:
-    from wokkel.compat import toResponse
 
 NS_DISCO_INFO = 'http://jabber.org/protocol/disco#info'
 NS_DISCO_ITEMS = 'http://jabber.org/protocol/disco#items'
