@@ -13,7 +13,7 @@ from twisted.words.xish import domish
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 
-from wokkel import data_form, iwokkel, pubsub, shim
+from wokkel import data_form, disco, iwokkel, pubsub, shim
 from wokkel.test.helpers import TestableRequestHandlerMixin, XmlStreamStub
 
 try:
@@ -26,6 +26,7 @@ NS_PUBSUB_CONFIG = 'http://jabber.org/protocol/pubsub#node_config'
 NS_PUBSUB_ERRORS = 'http://jabber.org/protocol/pubsub#errors'
 NS_PUBSUB_EVENT = 'http://jabber.org/protocol/pubsub#event'
 NS_PUBSUB_OWNER = 'http://jabber.org/protocol/pubsub#owner'
+NS_PUBSUB_META_DATA = 'http://jabber.org/protocol/pubsub#meta-data'
 
 def calledAsync(fn):
     """
@@ -516,6 +517,54 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         def getNodeInfo(requestor, target, nodeIdentifier):
             return defer.succeed(None)
+
+        self.service.getNodeInfo = getNodeInfo
+        d = self.service.getDiscoInfo(JID('user@example.org/home'),
+                                      JID('pubsub.example.org'), '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_getDiscoInfoNodeType(self):
+        """
+        Test getDiscoInfo with node type.
+        """
+        def cb(info):
+            discoInfo = disco.DiscoInfo()
+            for item in info:
+                discoInfo.append(item)
+            self.assertIn(('pubsub', 'collection'), discoInfo.identities)
+
+        def getNodeInfo(requestor, target, nodeIdentifier):
+            return defer.succeed({'type': 'collection',
+                                  'meta-data': {}})
+
+        self.service.getNodeInfo = getNodeInfo
+        d = self.service.getDiscoInfo(JID('user@example.org/home'),
+                                      JID('pubsub.example.org'), '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_getDiscoInfoMetaData(self):
+        """
+        Test getDiscoInfo with returned meta data.
+        """
+        def cb(info):
+            discoInfo = disco.DiscoInfo()
+            for item in info:
+                discoInfo.append(item)
+
+            self.assertIn(('pubsub', 'leaf'), discoInfo.identities)
+            self.assertIn(NS_PUBSUB_META_DATA, discoInfo.extensions)
+            form = discoInfo.extensions[NS_PUBSUB_META_DATA]
+            self.assertIn('pubsub#node_type', form.fields)
+
+        def getNodeInfo(requestor, target, nodeIdentifier):
+            metaData = [{'var': 'pubsub#persist_items',
+                         'label': 'Persist items to storage',
+                         'value': True}]
+            return defer.succeed({'type': 'leaf', 'meta-data': metaData})
 
         self.service.getNodeInfo = getNodeInfo
         d = self.service.getDiscoInfo(JID('user@example.org/home'),

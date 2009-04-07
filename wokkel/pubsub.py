@@ -567,7 +567,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 for metaDatum in metaData:
                     form.addField(data_form.Field.fromDict(metaDatum))
 
-                info.append(form.toElement())
+                info.append(form)
 
         d = self.getNodeInfo(requestor, target, nodeIdentifier or '')
         d.addCallback(toInfo)
