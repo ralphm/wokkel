@@ -278,6 +278,7 @@ class IPubSubService(Interface):
                              C{list} of L{domish.Element})
         """
 
+
     def notifyDelete(service, nodeIdentifier, subscribers,
                      redirectURI=None):
         """
@@ -525,4 +526,244 @@ class IPubSubService(Interface):
         @type service: L{jid.JID}
         @param nodeIdentifier: The identifier of the node to be delete.
         @type nodeIdentifier: C{unicode}
+        """
+
+
+
+class IPubSubResource(Interface):
+
+    def locateResource(request):
+        """
+        Locate a resource that will handle the request.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        """
+
+
+    def getInfo(requestor, service, nodeIdentifier):
+        """
+        Get node type and meta data.
+
+        @param requestor: The entity the request originated from.
+        @type requestor: L{jid.JID}
+        @param service: The publish-subscribe service entity.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node to request the info for.
+        @type nodeIdentifier: L{unicode}
+        @return: A deferred that fires with a dictionary. If not empty,
+                 it must have the keys C{'type'} and C{'meta-data'} to keep
+                 respectively the node type and a dictionary with the meta
+                 data for that node.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def getNodes(requestor, service, nodeIdentifier):
+        """
+        Get all nodes contained by this node.
+
+        @param requestor: The entity the request originated from.
+        @type requestor: L{jid.JID}
+        @param service: The publish-subscribe service entity.
+        @type service: L{jid.JID}
+        @param nodeIdentifier: Identifier of the node to request the childs for.
+        @type nodeIdentifier: L{unicode}
+        @return: A deferred that fires with a list of child node identifiers.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def getConfigurationOptions():
+        """
+        Retrieve all known node configuration options.
+
+        The returned dictionary holds the possible node configuration options
+        by option name. The value of each entry represents the specifics for
+        that option in a dictionary:
+
+         - C{'type'} (C{str}): The option's type (see
+           L{Field<wokkel.data_form.Field>}'s doc string for possible values).
+         - C{'label'} (C{unicode}): A human readable label for this option.
+         - C{'options'} (C{dict}): Optional list of possible values for this
+           option.
+
+        Example::
+
+            {
+            "pubsub#persist_items":
+                {"type": "boolean",
+                 "label": "Persist items to storage"},
+            "pubsub#deliver_payloads":
+                {"type": "boolean",
+                 "label": "Deliver payloads with event notifications"},
+            "pubsub#send_last_published_item":
+                {"type": "list-single",
+                 "label": "When to send the last published item",
+                 "options": {
+                     "never": "Never",
+                     "on_sub": "When a new subscription is processed"}
+                }
+            }
+
+        @rtype: C{dict}.
+        """
+
+
+    def publish(request):
+        """
+        Called when a publish request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: deferred that fires on success.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def subscribe(request):
+        """
+        Called when a subscribe request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with a
+                 L{Subscription<wokkel.pubsub.Subscription>}.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def unsubscribe(request):
+        """
+        Called when a subscribe request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with C{None} when unsubscription has
+                 succeeded.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def subscriptions(request):
+        """
+        Called when a subscriptions retrieval request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with a C{list} of subscriptions as
+                 L{Subscription<wokkel.pubsub.Subscription>}.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def affiliations(request):
+        """
+        Called when a affiliations retrieval request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with a C{list} of affiliations as
+                 C{tuple}s of (node identifier as C{unicode}, affiliation state
+                 as C{str}). The affiliation can be C{'owner'}, C{'publisher'},
+                 or C{'outcast'}.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def create(request):
+        """
+        Called when a node creation request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with a C{unicode} that represents
+                 the identifier of the new node.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def default(request):
+        """
+        Called when a default node configuration request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with a C{dict} representing the default
+                 node configuration. Keys are C{str}s that represent the
+                 field name. Values can be of types C{unicode}, C{int} or
+                 C{bool}.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def configureGet(request):
+        """
+        Called when a node configuration retrieval request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with a C{dict} representing the node
+                 configuration. Keys are C{str}s that represent the field name.
+                 Values can be of types C{unicode}, C{int} or C{bool}.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def configureSet(request):
+        """
+        Called when a node configuration change request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with C{None} when the node's
+                 configuration has been changed.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def items(request):
+        """
+        Called when a items retrieval request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with a C{list} of L{pubsub.Item}.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def retract(request):
+        """
+        Called when a item retraction request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with C{None} when the given items have
+                 been retracted.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def purge(request):
+        """
+        Called when a node purge request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with C{None} when the node has been
+                 purged.
+        @rtype: L{defer.Deferred}
+        """
+
+
+    def delete(request):
+        """
+        Called when a node deletion request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with C{None} when the node has been
+                 deleted.
+        @rtype: L{defer.Deferred}
         """

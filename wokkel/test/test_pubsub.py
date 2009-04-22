@@ -1222,7 +1222,8 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
     def setUp(self):
         self.stub = XmlStreamStub()
-        self.service = pubsub.PubSubService()
+        self.resource = pubsub.PubSubResource()
+        self.service = pubsub.PubSubService(self.resource)
         self.service.send = self.stub.xmlstream.send
 
     def test_interface(self):
@@ -1260,12 +1261,12 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         Test getDiscoInfo calls getNodeInfo and returns some minimal info.
         """
         def cb(info):
-            self.assertEqual(2, len(info))
+            discoInfo = disco.DiscoInfo()
+            for item in info:
+                discoInfo.append(item)
+            self.assertIn(('pubsub', 'service'), discoInfo.identities)
+            self.assertIn(disco.NS_DISCO_ITEMS, discoInfo.features)
 
-        def getNodeInfo(requestor, target, nodeIdentifier):
-            return defer.succeed(None)
-
-        self.service.getNodeInfo = getNodeInfo
         d = self.service.getDiscoInfo(JID('user@example.org/home'),
                                       JID('pubsub.example.org'), '')
         d.addCallback(cb)
@@ -1282,11 +1283,11 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                 discoInfo.append(item)
             self.assertIn(('pubsub', 'collection'), discoInfo.identities)
 
-        def getNodeInfo(requestor, target, nodeIdentifier):
+        def getInfo(requestor, target, nodeIdentifier):
             return defer.succeed({'type': 'collection',
                                   'meta-data': {}})
 
-        self.service.getNodeInfo = getNodeInfo
+        self.resource.getInfo = getInfo
         d = self.service.getDiscoInfo(JID('user@example.org/home'),
                                       JID('pubsub.example.org'), '')
         d.addCallback(cb)
@@ -1307,20 +1308,100 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             form = discoInfo.extensions[NS_PUBSUB_META_DATA]
             self.assertIn('pubsub#node_type', form.fields)
 
-        def getNodeInfo(requestor, target, nodeIdentifier):
+        def getInfo(requestor, target, nodeIdentifier):
             metaData = [{'var': 'pubsub#persist_items',
                          'label': 'Persist items to storage',
                          'value': True}]
             return defer.succeed({'type': 'leaf', 'meta-data': metaData})
 
-        self.service.getNodeInfo = getNodeInfo
+        self.resource.getInfo = getInfo
         d = self.service.getDiscoInfo(JID('user@example.org/home'),
                                       JID('pubsub.example.org'), '')
         d.addCallback(cb)
         return d
 
 
-    def test_onPublish(self):
+    def test_getDiscoInfoResourceFeatures(self):
+        """
+        Test getDiscoInfo with the resource features.
+        """
+        def cb(info):
+            discoInfo = disco.DiscoInfo()
+            for item in info:
+                discoInfo.append(item)
+            self.assertIn('http://jabber.org/protocol/pubsub#publish',
+                          discoInfo.features)
+
+        self.resource.features = ['publish']
+        d = self.service.getDiscoInfo(JID('user@example.org/home'),
+                                      JID('pubsub.example.org'), '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_getDiscoItemsRoot(self):
+        """
+        Test getDiscoItems on the root node.
+        """
+        def getNodes(requestor, service, nodeIdentifier):
+            return defer.succeed(['node1', 'node2'])
+
+        def cb(items):
+            self.assertEqual(2, len(items))
+            item1, item2 = items
+
+            self.assertEqual(JID('pubsub.example.org'), item1.entity)
+            self.assertEqual('node1', item1.nodeIdentifier)
+
+            self.assertEqual(JID('pubsub.example.org'), item2.entity)
+            self.assertEqual('node2', item2.nodeIdentifier)
+
+        self.resource.getNodes = getNodes
+        d = self.service.getDiscoItems(JID('user@example.org/home'),
+                                       JID('pubsub.example.org'),
+                                       '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_getDiscoItemsRootHideNodes(self):
+        """
+        Test getDiscoItems on the root node.
+        """
+        def getNodes(requestor, service, nodeIdentifier):
+            raise Exception("Unexpected call to getNodes")
+
+        def cb(items):
+            self.assertEqual([], items)
+
+        self.service.hideNodes = True
+        self.resource.getNodes = getNodes
+        d = self.service.getDiscoItems(JID('user@example.org/home'),
+                                       JID('pubsub.example.org'),
+                                       '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_getDiscoItemsNonRoot(self):
+        """
+        Test getDiscoItems on a non-root node.
+        """
+        def getNodes(requestor, service, nodeIdentifier):
+            return defer.succeed(['node1', 'node2'])
+
+        def cb(items):
+            self.assertEqual(2, len(items))
+
+        self.resource.getNodes = getNodes
+        d = self.service.getDiscoItems(JID('user@example.org/home'),
+                                       JID('pubsub.example.org'),
+                                       'test')
+        d.addCallback(cb)
+        return d
+
+
+    def test_on_publish(self):
         """
         A publish request should result in L{PubSubService.publish} being
         called.
@@ -1335,15 +1416,15 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def publish(requestor, service, nodeIdentifier, items):
+        def publish(request):
             return defer.succeed(None)
 
-        self.service.publish = publish
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.publish = publish
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
 
 
-    def test_onSubscribe(self):
+    def test_on_subscribe(self):
         """
         A successful subscription should return the current subscription.
         """
@@ -1357,9 +1438,9 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def subscribe(requestor, service, nodeIdentifier, subscriber):
-            return defer.succeed(pubsub.Subscription(nodeIdentifier,
-                                                     subscriber,
+        def subscribe(request):
+            return defer.succeed(pubsub.Subscription(request.nodeIdentifier,
+                                                     request.subscriber,
                                                      'subscribed'))
 
         def cb(element):
@@ -1371,14 +1452,14 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual('user@example.org/Home', subscription['jid'])
             self.assertEqual('subscribed', subscription['subscription'])
 
-        self.service.subscribe = subscribe
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.subscribe = subscribe
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onSubscribeEmptyNode(self):
+    def test_on_subscribeEmptyNode(self):
         """
         A successful subscription on root node should return no node attribute.
         """
@@ -1392,22 +1473,22 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def subscribe(requestor, service, nodeIdentifier, subscriber):
-            return defer.succeed(pubsub.Subscription(nodeIdentifier,
-                                                     subscriber,
+        def subscribe(request):
+            return defer.succeed(pubsub.Subscription(request.nodeIdentifier,
+                                                     request.subscriber,
                                                      'subscribed'))
 
         def cb(element):
             self.assertFalse(element.subscription.hasAttribute('node'))
 
-        self.service.subscribe = subscribe
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.subscribe = subscribe
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onUnsubscribe(self):
+    def test_on_unsubscribe(self):
         """
         A successful unsubscription should return an empty response.
         """
@@ -1421,20 +1502,20 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def unsubscribe(requestor, service, nodeIdentifier, subscriber):
+        def unsubscribe(request):
             return defer.succeed(None)
 
         def cb(element):
             self.assertIdentical(None, element)
 
-        self.service.unsubscribe = unsubscribe
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.unsubscribe = unsubscribe
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onOptionsGet(self):
+    def test_on_optionsGet(self):
         """
         Getting subscription options is not supported.
         """
@@ -1459,7 +1540,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_onOptionsSet(self):
+    def test_on_optionsSet(self):
         """
         Setting subscription options is not supported.
         """
@@ -1491,7 +1572,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_onSubscriptions(self):
+    def test_on_subscriptions(self):
         """
         A subscriptions request should result in
         L{PubSubService.subscriptions} being called and the result prepared
@@ -1507,6 +1588,11 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
+        def subscriptions(request):
+            subscription = pubsub.Subscription('test', JID('user@example.org'),
+                                               'subscribed')
+            return defer.succeed([subscription])
+
         def cb(element):
             self.assertEqual('pubsub', element.name)
             self.assertEqual(NS_PUBSUB, element.uri)
@@ -1520,20 +1606,14 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual('test', subscription['node'])
             self.assertEqual('subscribed', subscription['subscription'])
 
-
-        def subscriptions(requestor, service):
-            subscription = pubsub.Subscription('test', JID('user@example.org'),
-                                               'subscribed')
-            return defer.succeed([subscription])
-
-        self.service.subscriptions = subscriptions
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.subscriptions = subscriptions
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onAffiliations(self):
+    def test_on_affiliations(self):
         """
         A subscriptions request should result in
         L{PubSubService.affiliations} being called and the result prepared
@@ -1549,6 +1629,10 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
+        def affiliations(request):
+            affiliation = ('test', 'owner')
+            return defer.succeed([affiliation])
+
         def cb(element):
             self.assertEqual('pubsub', element.name)
             self.assertEqual(NS_PUBSUB, element.uri)
@@ -1561,19 +1645,14 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual('test', affiliation['node'])
             self.assertEqual('owner', affiliation['affiliation'])
 
-
-        def affiliations(requestor, service):
-            affiliation = ('test', 'owner')
-            return defer.succeed([affiliation])
-
-        self.service.affiliations = affiliations
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.affiliations = affiliations
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onCreate(self):
+    def test_on_create(self):
         """
         Replies to create node requests don't return the created node.
         """
@@ -1587,20 +1666,20 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def create(requestor, service, nodeIdentifier):
-            return defer.succeed(nodeIdentifier)
+        def create(request):
+            return defer.succeed(request.nodeIdentifier)
 
         def cb(element):
             self.assertIdentical(None, element)
 
-        self.service.create = create
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.create = create
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onCreateChanged(self):
+    def test_on_createChanged(self):
         """
         Replies to create node requests return the created node if changed.
         """
@@ -1614,7 +1693,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def create(requestor, service, nodeIdentifier):
+        def create(request):
             return defer.succeed(u'myrenamednode')
 
         def cb(element):
@@ -1624,14 +1703,14 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual(u'myrenamednode',
                              element.create.getAttribute('node'))
 
-        self.service.create = create
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.create = create
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onCreateInstant(self):
+    def test_on_createInstant(self):
         """
         Replies to create instant node requests return the created node.
         """
@@ -1645,7 +1724,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def create(requestor, service, nodeIdentifier):
+        def create(request):
             return defer.succeed(u'random')
 
         def cb(element):
@@ -1654,14 +1733,14 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual(NS_PUBSUB, element.create.uri)
             self.assertEqual(u'random', element.create.getAttribute('node'))
 
-        self.service.create = create
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.create = create
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onDefault(self):
+    def test_on_default(self):
         """
         A default request should result in
         L{PubSubService.getDefaultConfiguration} being called.
@@ -1686,7 +1765,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                      "label": "Deliver payloads with event notifications"}
                 }
 
-        def getDefaultConfiguration(requestor, service, nodeType):
+        def default(request):
             return defer.succeed({})
 
         def cb(element):
@@ -1696,15 +1775,15 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             form = data_form.Form.fromElement(element.default.x)
             self.assertEqual(NS_PUBSUB_CONFIG, form.formNamespace)
 
-        self.service.getConfigurationOptions = getConfigurationOptions
-        self.service.getDefaultConfiguration = getDefaultConfiguration
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.getConfigurationOptions = getConfigurationOptions
+        self.resource.default = default
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onDefaultCollection(self):
+    def test_on_defaultCollection(self):
         """
         Responses to default requests should depend on passed node type.
         """
@@ -1735,19 +1814,19 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                      "label": "Deliver payloads with event notifications"}
                 }
 
-        def getDefaultConfiguration(requestor, service, nodeType):
+        def default(request):
             return defer.succeed({})
 
-        self.service.getConfigurationOptions = getConfigurationOptions
-        self.service.getDefaultConfiguration = getDefaultConfiguration
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.getConfigurationOptions = getConfigurationOptions
+        self.resource.default = default
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
 
 
-    def test_onDefaultUnknownNodeType(self):
+    def test_on_defaultUnknownNodeType(self):
         """
         A default request should result in
-        L{PubSubService.getDefaultConfiguration} being called.
+        L{PubSubResource.default} being called.
         """
 
         xml = """
@@ -1769,24 +1848,25 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def getDefaultConfiguration(requestor, service, nodeType):
+        def default(request):
             self.fail("Unexpected call to getConfiguration")
 
         def cb(result):
             self.assertEquals('not-acceptable', result.condition)
 
-        self.service.getDefaultConfiguration = getDefaultConfiguration
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.default = default
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         self.assertFailure(d, error.StanzaError)
         d.addCallback(cb)
         return d
 
 
-    def test_onConfigureGet(self):
+    def test_on_configureGet(self):
         """
-        On a node configuration get request L{PubSubService.getConfiguration}
-        is called and results in a data form with the configuration.
+        On a node configuration get
+        requestL{PubSubResource.configureGet} is called and results in a
+        data form with the configuration.
         """
 
         xml = """
@@ -1811,7 +1891,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                      "label": "Owner of the node"}
                 }
 
-        def getConfiguration(requestor, service, nodeIdentifier):
+        def configureGet(request):
             return defer.succeed({'pubsub#deliver_payloads': '0',
                                   'pubsub#persist_items': '1',
                                   'pubsub#owner': JID('user@example.org'),
@@ -1845,19 +1925,18 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
             self.assertNotIn('x-myfield', fields)
 
-
-        self.service.getConfigurationOptions = getConfigurationOptions
-        self.service.getConfiguration = getConfiguration
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.getConfigurationOptions = getConfigurationOptions
+        self.resource.configureGet = configureGet
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onConfigureSet(self):
+    def test_on_configureSet(self):
         """
         On a node configuration set request the Data Form is parsed and
-        L{PubSubService.setConfiguration} is called with the passed options.
+        L{PubSubResource.configureSet} is called with the passed options.
         """
 
         xml = """
@@ -1887,21 +1966,21 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                      "label": "Deliver payloads with event notifications"}
                 }
 
-        def setConfiguration(requestor, service, nodeIdentifier, options):
+        def configureSet(request):
             self.assertEqual({'pubsub#deliver_payloads': False,
-                              'pubsub#persist_items': True}, options)
+                              'pubsub#persist_items': True}, request.options)
             return defer.succeed(None)
 
-        self.service.getConfigurationOptions = getConfigurationOptions
-        self.service.setConfiguration = setConfiguration
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.getConfigurationOptions = getConfigurationOptions
+        self.resource.configureSet = configureSet
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
 
 
-    def test_onConfigureSetCancel(self):
+    def test_on_configureSetCancel(self):
         """
-        The node configuration is cancelled, L{PubSubService.setConfiguration}
-        not called.
+        The node configuration is cancelled,
+        L{PubSubResource.configureSet} not called.
         """
 
         xml = """
@@ -1919,15 +1998,15 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def setConfiguration(requestor, service, nodeIdentifier, options):
+        def configureSet(request):
             self.fail("Unexpected call to setConfiguration")
 
-        self.service.setConfiguration = setConfiguration
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.configureSet = configureSet
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
 
 
-    def test_onConfigureSetIgnoreUnknown(self):
+    def test_on_configureSetIgnoreUnknown(self):
         """
         On a node configuration set request unknown fields should be ignored.
         """
@@ -1959,16 +2038,17 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                      "label": "Deliver payloads with event notifications"}
                 }
 
-        def setConfiguration(requestor, service, nodeIdentifier, options):
-            self.assertEquals(['pubsub#deliver_payloads'], options.keys())
+        def configureSet(request):
+            self.assertEquals(['pubsub#deliver_payloads'],
+                              request.options.keys())
 
-        self.service.getConfigurationOptions = getConfigurationOptions
-        self.service.setConfiguration = setConfiguration
-        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        self.resource.getConfigurationOptions = getConfigurationOptions
+        self.resource.configureSet = configureSet
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
 
 
-    def test_onConfigureSetBadFormType(self):
+    def test_on_configureSetBadFormType(self):
         """
         On a node configuration set request unknown fields should be ignored.
         """
@@ -1999,7 +2079,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_onItems(self):
+    def test_on_items(self):
         """
         On a items request, return all items for the given node.
         """
@@ -2012,8 +2092,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def items(requestor, service, nodeIdentifier, maxItems,
-                  itemIdentifiers):
+        def items(request):
             return defer.succeed([pubsub.Item('current')])
 
         def cb(element):
@@ -2026,16 +2105,17 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual(NS_PUBSUB, item.uri)
             self.assertEqual('current', item['id'])
 
-        self.service.items = items
+        self.resource.items = items
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
 
 
-    def test_onRetract(self):
+    def test_on_retract(self):
         """
-        A retract request should result in L{PubSubService.retract} being
-        called.
+        A retract request should result in L{PubSubResource.retract}
+        being called.
         """
 
         xml = """
@@ -2050,16 +2130,17 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def retract(requestor, service, nodeIdentifier, itemIdentifiers):
+        def retract(request):
             return defer.succeed(None)
 
-        self.service.retract = retract
+        self.resource.retract = retract
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
 
 
-    def test_onPurge(self):
+    def test_on_purge(self):
         """
-        A purge request should result in L{PubSubService.purge} being
+        A purge request should result in L{PubSubResource.purge} being
         called.
         """
 
@@ -2072,16 +2153,17 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def purge(requestor, service, nodeIdentifier):
+        def purge(request):
             return defer.succeed(None)
 
-        self.service.purge = purge
+        self.resource.purge = purge
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
 
 
-    def test_onDelete(self):
+    def test_on_delete(self):
         """
-        A delete request should result in L{PubSubService.delete} being
+        A delete request should result in L{PubSubResource.delete} being
         called.
         """
 
@@ -2094,10 +2176,11 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def delete(requestor, service, nodeIdentifier):
+        def delete(request):
             return defer.succeed(None)
 
-        self.service.delete = delete
+        self.resource.delete = delete
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
 
 
@@ -2148,7 +2231,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.assertEqual(redirectURI, message.event.delete.redirect['uri'])
 
 
-    def test_onSubscriptionsGet(self):
+    def test_on_subscriptionsGet(self):
         """
         Getting subscription options is not supported.
         """
@@ -2175,7 +2258,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_onSubscriptionsSet(self):
+    def test_on_subscriptionsSet(self):
         """
         Setting subscription options is not supported.
         """
@@ -2202,7 +2285,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_onAffiliationsGet(self):
+    def test_on_affiliationsGet(self):
         """
         Getting subscription options is not supported.
         """
@@ -2229,7 +2312,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_onAffiliationsSet(self):
+    def test_on_affiliationsSet(self):
         """
         Setting subscription options is not supported.
         """
@@ -2254,6 +2337,15 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.assertFailure(d, error.StanzaError)
         d.addCallback(cb)
         return d
+
+
+
+class PubSubServiceWithoutResourceTest(unittest.TestCase, TestableRequestHandlerMixin):
+
+    def setUp(self):
+        self.stub = XmlStreamStub()
+        self.service = pubsub.PubSubService()
+        self.service.send = self.stub.xmlstream.send
 
 
     def test_publish(self):
@@ -2601,6 +2693,260 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEquals('delete-nodes', result.appCondition['feature'])
 
         d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+
+class PubSubResourceTest(unittest.TestCase):
+
+    def setUp(self):
+        self.resource = pubsub.PubSubResource()
+
+
+    def test_interface(self):
+        """
+        Do instances of L{pubsub.PubSubResource} provide L{iwokkel.IPubSubResource}?
+        """
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
+
+
+    def test_getNodes(self):
+        """
+        Default getNodes returns an empty list.
+        """
+        def cb(nodes):
+            self.assertEquals([], nodes)
+
+        d = self.resource.getNodes(JID('user@example.org/home'),
+                                   JID('pubsub.example.org'),
+                                   '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_publish(self):
+        """
+        Non-overridden L{PubSubResource.publish} yields unsupported
+        error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('publish', result.appCondition['feature'])
+
+        d = self.resource.publish(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_subscribe(self):
+        """
+        Non-overridden subscriptions yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('subscribe', result.appCondition['feature'])
+
+        d = self.resource.subscribe(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_unsubscribe(self):
+        """
+        Non-overridden unsubscribe yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('subscribe', result.appCondition['feature'])
+
+        d = self.resource.unsubscribe(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_subscriptions(self):
+        """
+        Non-overridden subscriptions yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retrieve-subscriptions',
+                              result.appCondition['feature'])
+
+        d = self.resource.subscriptions(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_affiliations(self):
+        """
+        Non-overridden affiliations yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retrieve-affiliations',
+                              result.appCondition['feature'])
+
+        d = self.resource.affiliations(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_create(self):
+        """
+        Non-overridden create yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('create-nodes', result.appCondition['feature'])
+
+        d = self.resource.create(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_default(self):
+        """
+        Non-overridden default yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retrieve-default',
+                              result.appCondition['feature'])
+
+        d = self.resource.default(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_configureGet(self):
+        """
+        Non-overridden configureGet yields unsupported
+        error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('config-node', result.appCondition['feature'])
+
+        d = self.resource.configureGet(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_configureSet(self):
+        """
+        Non-overridden configureSet yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('config-node', result.appCondition['feature'])
+
+        d = self.resource.configureSet(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_items(self):
+        """
+        Non-overridden items yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retrieve-items', result.appCondition['feature'])
+
+        d = self.resource.items(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_retract(self):
+        """
+        Non-overridden retract yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retract-items', result.appCondition['feature'])
+
+        d = self.resource.retract(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_purge(self):
+        """
+        Non-overridden purge yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('purge-nodes', result.appCondition['feature'])
+
+        d = self.resource.purge(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_delete(self):
+        """
+        Non-overridden delete yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('delete-nodes', result.appCondition['feature'])
+
+        d = self.resource.delete(pubsub.PubSubRequest())
         self.assertFailure(d, error.StanzaError)
         d.addCallback(cb)
         return d

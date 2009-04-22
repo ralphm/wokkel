@@ -13,12 +13,13 @@ U{XEP-0060<http://www.xmpp.org/extensions/xep-0060.html>}.
 from zope.interface import implements
 
 from twisted.internet import defer
+from twisted.python import log
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
 from wokkel import disco, data_form, generic, shim
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
-from wokkel.iwokkel import IPubSubClient, IPubSubService
+from wokkel.iwokkel import IPubSubClient, IPubSubService, IPubSubResource
 
 # Iq get and set XPath queries
 IQ_GET = '/iq[@type="get"]'
@@ -84,11 +85,16 @@ class BadRequest(error.StanzaError):
 
 class Unsupported(PubSubError):
     def __init__(self, feature, text=None):
+        self.feature = feature
         PubSubError.__init__(self, 'feature-not-implemented',
                                    'unsupported',
                                    feature,
                                    text)
 
+    def __str__(self):
+        message = PubSubError.__str__(self)
+        message += ', feature %r' % self.feature
+        return message
 
 
 class Subscription(object):
@@ -235,9 +241,9 @@ class PubSubRequest(generic.Stanza):
         'retract': ['node', 'itemIdentifiers'],
         'purge': ['node'],
         'delete': ['node'],
-        'affiliationsGet': [],
+        'affiliationsGet': ['nodeOrEmpty'],
         'affiliationsSet': [],
-        'subscriptionsGet': [],
+        'subscriptionsGet': ['nodeOrEmpty'],
         'subscriptionsSet': [],
     }
 
@@ -806,8 +812,35 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             '/*': '_onPubSubRequest',
             }
 
+    _legacyHandlers = {
+        'publish': ('publish', ['sender', 'recipient',
+                                'nodeIdentifier', 'items']),
+        'subscribe': ('subscribe', ['sender', 'recipient',
+                                    'nodeIdentifier', 'subscriber']),
+        'unsubscribe': ('unsubscribe', ['sender', 'recipient',
+                                        'nodeIdentifier', 'subscriber']),
+        'subscriptions': ('subscriptions', ['sender', 'recipient']),
+        'affiliations': ('affiliations', ['sender', 'recipient']),
+        'create': ('create', ['sender', 'recipient', 'nodeIdentifier']),
+        'getConfigurationOptions': ('getConfigurationOptions', []),
+        'default': ('getDefaultConfiguration',
+                    ['sender', 'recipient', 'nodeType']),
+        'configureGet': ('getConfiguration', ['sender', 'recipient',
+                                              'nodeIdentifier']),
+        'configureSet': ('setConfiguration', ['sender', 'recipient',
+                                              'nodeIdentifier', 'options']),
+        'items': ('items', ['sender', 'recipient', 'nodeIdentifier',
+                            'maxItems', 'itemIdentifiers']),
+        'retract': ('retract', ['sender', 'recipient', 'nodeIdentifier',
+                                'itemIdentifiers']),
+        'purge': ('purge', ['sender', 'recipient', 'nodeIdentifier']),
+        'delete': ('delete', ['sender', 'recipient', 'nodeIdentifier']),
+    }
 
-    def __init__(self):
+    hideNodes = False
+
+    def __init__(self, resource=None):
+        self.resource = resource
         self.discoIdentity = {'category': 'pubsub',
                               'type': 'generic',
                               'name': 'Generic Publish-Subscribe Service'}
@@ -820,19 +853,9 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def getDiscoInfo(self, requestor, target, nodeIdentifier):
-        info = []
-
-        if not nodeIdentifier:
-            category, idType, name = self.discoIdentity
-            info.append(disco.DiscoIdentity(category, idType, name))
-
-            info.append(disco.DiscoFeature(disco.NS_DISCO_ITEMS))
-            info.extend([disco.DiscoFeature("%s#%s" % (NS_PUBSUB, feature))
-                         for feature in self.pubSubFeatures])
-
-        def toInfo(nodeInfo):
+        def toInfo(nodeInfo, info):
             if not nodeInfo:
-                return
+                return info
 
             (nodeType, metaData) = nodeInfo['type'], nodeInfo['meta-data']
             info.append(disco.DiscoIdentity('pubsub', nodeType))
@@ -852,17 +875,49 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
                 info.append(form)
 
-        d = self.getNodeInfo(requestor, target, nodeIdentifier or '')
-        d.addCallback(toInfo)
-        d.addBoth(lambda result: info)
+            return info
+
+        info = []
+
+        request = PubSubRequest('discoInfo')
+
+        if self.resource is not None:
+            resource = self.resource.locateResource(request)
+            identity = resource.discoIdentity
+            features = resource.features
+            getInfo = resource.getInfo
+        else:
+            category, idType, name = self.discoIdentity
+            identity = disco.DiscoIdentity(category, idType, name)
+            features = self.pubSubFeatures
+            getInfo = self.getNodeInfo
+
+        if not nodeIdentifier:
+            info.append(identity)
+            info.append(disco.DiscoFeature(disco.NS_DISCO_ITEMS))
+            info.extend([disco.DiscoFeature("%s#%s" % (NS_PUBSUB, feature))
+                         for feature in features])
+
+        d = getInfo(requestor, target, nodeIdentifier or '')
+        d.addCallback(toInfo, info)
+        d.addErrback(log.err)
         return d
 
 
     def getDiscoItems(self, requestor, target, nodeIdentifier):
-        if nodeIdentifier or self.hideNodes:
-            return defer.succeed([])
+        if self.hideNodes:
+            d = defer.succeed([])
+        elif self.resource is not None:
+            request = PubSubRequest('discoInfo')
+            resource = self.resource.locateResource(request)
+            d = resource.getNodes(requestor, target, nodeIdentifier)
+        elif nodeIdentifier:
+            d = self.getNodes(requestor, target)
+        else:
+            d = defer.succeed([])
+            
 
-        d = self.getNodes(requestor, target)
+
         d.addCallback(lambda nodes: [disco.DiscoItem(target, node)
                                      for node in nodes])
         return d
@@ -870,95 +925,90 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     def _onPubSubRequest(self, iq):
         request = PubSubRequest.fromElement(iq)
-        handler = getattr(self, '_on_%s' % request.verb)
-        return handler(request)
 
+        if self.resource is not None:
+            resource = self.resource.locateResource(request)
+        else:
+            resource = self
 
-    def _on_publish(self, request):
-        return self.publish(request.sender, request.recipient,
-                            request.nodeIdentifier, request.items)
+        # Preprocess the request, knowing the handling resource
+        try:
+            preProcessor = getattr(self, '_preProcess_%s' % request.verb)
+        except AttributeError:
+            pass
+        else:
+            request = preProcessor(resource, request)
+            if request is None:
+                return defer.succeed(None)
 
+        # Process the request itself, 
+        if resource is not self:
+            try:
+                handler = getattr(resource, request.verb)
+            except AttributeError:
+                # fix lookup feature
+                text = "Request verb: %s" % request.verb
+                return defer.fail(Unsupported('', text))
 
-    def _on_subscribe(self, request):
+            d = handler(request)
+        else:
+            handlerName, argNames = self._legacyHandlers[request.verb]
+            handler = getattr(self, handlerName)
+            args = [getattr(request, arg) for arg in argNames]
+            d = handler(*args)
 
-        def toResponse(result):
-            response = domish.Element((NS_PUBSUB, "pubsub"))
-            subscription = response.addElement("subscription")
-            if result.nodeIdentifier:
-                subscription["node"] = result.nodeIdentifier
-            subscription["jid"] = result.subscriber.full()
-            subscription["subscription"] = result.state
-            return response
+        # If needed, translate the result into a response
+        try:
+            cb = getattr(self, '_toResponse_%s' % request.verb)
+        except AttributeError:
+            pass
+        else:
+            d.addCallback(cb, resource, request)
 
-        d = self.subscribe(request.sender, request.recipient,
-                           request.nodeIdentifier, request.subscriber)
-        d.addCallback(toResponse)
         return d
 
 
-    def _on_unsubscribe(self, request):
-        return self.unsubscribe(request.sender, request.recipient,
-                                request.nodeIdentifier, request.subscriber)
+    def _toResponse_subscribe(self, result, resource, request):
+        response = domish.Element((NS_PUBSUB, "pubsub"))
+        subscription = response.addElement("subscription")
+        if result.nodeIdentifier:
+            subscription["node"] = result.nodeIdentifier
+        subscription["jid"] = result.subscriber.full()
+        subscription["subscription"] = result.state
+        return response
 
 
-    def _on_optionsGet(self, request):
-        raise Unsupported('subscription-options')
+    def _toResponse_subscriptions(self, result, resource, request):
+        response = domish.Element((NS_PUBSUB, 'pubsub'))
+        subscriptions = response.addElement('subscriptions')
+        for subscription in result:
+            item = subscriptions.addElement('subscription')
+            item['node'] = subscription.nodeIdentifier
+            item['jid'] = subscription.subscriber.full()
+            item['subscription'] = subscription.state
+        return response
 
 
-    def _on_optionsSet(self, request):
-        raise Unsupported('subscription-options')
+    def _toResponse_affiliations(self, result, resource, request):
+        response = domish.Element((NS_PUBSUB, 'pubsub'))
+        affiliations = response.addElement('affiliations')
+
+        for nodeIdentifier, affiliation in result:
+            item = affiliations.addElement('affiliation')
+            item['node'] = nodeIdentifier
+            item['affiliation'] = affiliation
+
+        return response
 
 
-    def _on_subscriptions(self, request):
-
-        def toResponse(result):
+    def _toResponse_create(self, result, resource, request):
+        if not request.nodeIdentifier or request.nodeIdentifier != result:
             response = domish.Element((NS_PUBSUB, 'pubsub'))
-            subscriptions = response.addElement('subscriptions')
-            for subscription in result:
-                item = subscriptions.addElement('subscription')
-                item['node'] = subscription.nodeIdentifier
-                item['jid'] = subscription.subscriber.full()
-                item['subscription'] = subscription.state
+            create = response.addElement('create')
+            create['node'] = result
             return response
-
-        d = self.subscriptions(request.sender, request.recipient)
-        d.addCallback(toResponse)
-        return d
-
-
-    def _on_affiliations(self, request):
-
-        def toResponse(result):
-            response = domish.Element((NS_PUBSUB, 'pubsub'))
-            affiliations = response.addElement('affiliations')
-
-            for nodeIdentifier, affiliation in result:
-                item = affiliations.addElement('affiliation')
-                item['node'] = nodeIdentifier
-                item['affiliation'] = affiliation
-
-            return response
-
-        d = self.affiliations(request.sender, request.recipient)
-        d.addCallback(toResponse)
-        return d
-
-
-    def _on_create(self, request):
-
-        def toResponse(result):
-            if not request.nodeIdentifier or request.nodeIdentifier != result:
-                response = domish.Element((NS_PUBSUB, 'pubsub'))
-                create = response.addElement('create')
-                create['node'] = result
-                return response
-            else:
-                return None
-
-        d = self.create(request.sender, request.recipient,
-                        request.nodeIdentifier)
-        d.addCallback(toResponse)
-        return d
+        else:
+            return None
 
 
     def _makeFields(self, options, values):
@@ -977,8 +1027,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return fields
 
 
-    def _formFromConfiguration(self, values):
-        options = self.getConfigurationOptions()
+    def _formFromConfiguration(self, resource, values):
+        options = resource.getConfigurationOptions()
         fields = self._makeFields(options, values)
         form = data_form.Form(formType="form",
                               formNamespace=NS_PUBSUB_NODE_CONFIG,
@@ -987,8 +1037,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return form
 
 
-    def _checkConfiguration(self, values):
-        options = self.getConfigurationOptions()
+    def _checkConfiguration(self, resource, values):
+        options = resource.getConfigurationOptions()
         processedValues = {}
 
         for key, value in values.iteritems():
@@ -1012,102 +1062,52 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return processedValues
 
 
-    def _on_default(self, request):
-
-        def toResponse(options):
-            response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
-            default = response.addElement("default")
-            default.addChild(self._formFromConfiguration(options).toElement())
-            return response
-
+    def _preProcess_default(self, resource, request):
         if request.nodeType not in ('leaf', 'collection'):
-            return defer.fail(error.StanzaError('not-acceptable'))
-
-        d = self.getDefaultConfiguration(request.sender, request.recipient,
-                                         request.nodeType)
-        d.addCallback(toResponse)
-        return d
+            raise error.StanzaError('not-acceptable')
+        else:
+            return request
 
 
-    def _on_configureGet(self, request):
-        def toResponse(options):
-            response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
-            configure = response.addElement("configure")
-            form = self._formFromConfiguration(options)
-            configure.addChild(form.toElement())
-
-            if request.nodeIdentifier:
-                configure["node"] = request.nodeIdentifier
-
-            return response
-
-        d = self.getConfiguration(request.sender, request.recipient,
-                                  request.nodeIdentifier)
-        d.addCallback(toResponse)
-        return d
+    def _toResponse_default(self, options, resource, request):
+        response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
+        default = response.addElement("default")
+        form = self._formFromConfiguration(resource, options)
+        default.addChild(form.toElement())
+        return response
 
 
-    def _on_configureSet(self, request):
+    def _toResponse_configureGet(self, options, resource, request):
+        response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
+        configure = response.addElement("configure")
+        form = self._formFromConfiguration(resource, options)
+        configure.addChild(form.toElement())
+
+        if request.nodeIdentifier:
+            configure["node"] = request.nodeIdentifier
+
+        return response
+
+
+    def _preProcess_configureSet(self, resource, request):
         if request.options:
-            request.options = self._checkConfiguration(request.options)
-            return self.setConfiguration(request.sender, request.recipient,
-                                         request.nodeIdentifier,
-                                         request.options)
+            request.options = self._checkConfiguration(resource,
+                                                       request.options)
+            return request
         else:
             return None
 
 
+    def _toResponse_items(self, result, resource, request):
+        response = domish.Element((NS_PUBSUB, 'pubsub'))
+        items = response.addElement('items')
+        items["node"] = request.nodeIdentifier
 
-    def _on_items(self, request):
+        for item in result:
+            items.addChild(item)
 
-        def toResponse(result):
-            response = domish.Element((NS_PUBSUB, 'pubsub'))
-            items = response.addElement('items')
-            items["node"] = request.nodeIdentifier
+        return response
 
-            for item in result:
-                items.addChild(item)
-
-            return response
-
-        d = self.items(request.sender, request.recipient,
-                       request.nodeIdentifier, request.maxItems,
-                       request.itemIdentifiers)
-        d.addCallback(toResponse)
-        return d
-
-
-    def _on_retract(self, request):
-        return self.retract(request.sender, request.recipient,
-                            request.nodeIdentifier, request.itemIdentifiers)
-
-
-    def _on_purge(self, request):
-        return self.purge(request.sender, request.recipient,
-                          request.nodeIdentifier)
-
-
-    def _on_delete(self, request):
-        return self.delete(request.sender, request.recipient,
-                           request.nodeIdentifier)
-
-
-    def _on_affiliationsGet(self, iq):
-        raise Unsupported('modify-affiliations')
-
-
-    def _on_affiliationsSet(self, iq):
-        raise Unsupported('modify-affiliations')
-
-
-    def _on_subscriptionsGet(self, iq):
-        raise Unsupported('manage-subscriptions')
-
-
-    def _on_subscriptionsSet(self, iq):
-        raise Unsupported('manage-subscriptions')
-
-    # public methods
 
     def _createNotification(self, eventType, service, nodeIdentifier,
                                   subscriber, subscriptions=None):
@@ -1130,6 +1130,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             message.addChild(shim.Headers(headers))
 
         return message
+
+    # public methods
 
     def notifyPublish(self, service, nodeIdentifier, notifications):
         for subscriber, subscriptions, items in notifications:
@@ -1215,3 +1217,98 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     def delete(self, requestor, service, nodeIdentifier):
         raise Unsupported('delete-nodes')
+
+
+
+class PubSubResource(object):
+
+    implements(IPubSubResource)
+
+    features = []
+    discoIdentity = disco.DiscoIdentity('pubsub',
+                                        'service',
+                                        'Publish-Subscribe Service')
+
+
+    def locateResource(self, request):
+        return self
+
+
+    def getInfo(self, requestor, service, nodeIdentifier):
+        return defer.succeed(None)
+
+
+    def getNodes(self, requestor, service, nodeIdentifier):
+        return defer.succeed([])
+
+
+    def getConfigurationOptions(self):
+        return {}
+
+
+    def publish(self, request):
+        return defer.fail(Unsupported('publish'))
+
+
+    def subscribe(self, request):
+        return defer.fail(Unsupported('subscribe'))
+
+
+    def unsubscribe(self, request):
+        return defer.fail(Unsupported('subscribe'))
+
+
+    def subscriptions(self, request):
+        return defer.fail(Unsupported('retrieve-subscriptions'))
+
+
+    def affiliations(self, request):
+        return defer.fail(Unsupported('retrieve-affiliations'))
+
+
+    def create(self, request):
+        return defer.fail(Unsupported('create-nodes'))
+
+
+    def default(self, request):
+        return defer.fail(Unsupported('retrieve-default'))
+
+
+    def configureGet(self, request):
+        return defer.fail(Unsupported('config-node'))
+
+
+    def configureSet(self, request):
+        return defer.fail(Unsupported('config-node'))
+
+
+    def items(self, request):
+        return defer.fail(Unsupported('retrieve-items'))
+
+
+    def retract(self, request):
+        return defer.fail(Unsupported('retract-items'))
+
+
+    def purge(self, request):
+        return defer.fail(Unsupported('purge-nodes'))
+
+
+    def delete(self, request):
+        return defer.fail(Unsupported('delete-nodes'))
+
+
+    def affiliationsGet(self, request):
+        return defer.fail(Unsupported('modify-affiliations'))
+
+
+    def affiliationsSet(self, request):
+        return defer.fail(Unsupported('modify-affiliations'))
+
+
+    def subscriptionsGet(self, request):
+        return defer.fail(Unsupported('manage-subscriptions'))
+
+
+    def subscriptionsSet(self, request):
+        return defer.fail(Unsupported('manage-subscriptions'))
