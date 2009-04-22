@@ -624,7 +624,7 @@ class PubSubClient(XMPPHandler):
         pass
 
 
-    def createNode(self, service, nodeIdentifier=None):
+    def createNode(self, service, nodeIdentifier=None, sender=None):
         """
         Create a publish subscribe node.
 
@@ -636,6 +636,7 @@ class PubSubClient(XMPPHandler):
         request = PubSubRequest('create')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
+        request.sender = sender
 
         def cb(iq):
             try:
@@ -650,7 +651,7 @@ class PubSubClient(XMPPHandler):
         return d
 
 
-    def deleteNode(self, service, nodeIdentifier):
+    def deleteNode(self, service, nodeIdentifier, sender=None):
         """
         Delete a publish subscribe node.
 
@@ -662,10 +663,11 @@ class PubSubClient(XMPPHandler):
         request = PubSubRequest('delete')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
+        request.sender = sender
         return request.send(self.xmlstream)
 
 
-    def subscribe(self, service, nodeIdentifier, subscriber):
+    def subscribe(self, service, nodeIdentifier, subscriber, sender=None):
         """
         Subscribe to a publish subscribe node.
 
@@ -681,6 +683,7 @@ class PubSubClient(XMPPHandler):
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.subscriber = subscriber
+        request.sender = sender
 
         def cb(iq):
             subscription = iq.pubsub.subscription["subscription"]
@@ -700,7 +703,7 @@ class PubSubClient(XMPPHandler):
         return d
 
 
-    def unsubscribe(self, service, nodeIdentifier, subscriber):
+    def unsubscribe(self, service, nodeIdentifier, subscriber, sender=None):
         """
         Unsubscribe from a publish subscribe node.
 
@@ -715,10 +718,11 @@ class PubSubClient(XMPPHandler):
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.subscriber = subscriber
+        request.sender = sender
         return request.send(self.xmlstream)
 
 
-    def publish(self, service, nodeIdentifier, items=None):
+    def publish(self, service, nodeIdentifier, items=None, sender=None):
         """
         Publish to a publish subscribe node.
 
@@ -733,10 +737,11 @@ class PubSubClient(XMPPHandler):
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.items = items
+        request.sender = sender
         return request.send(self.xmlstream)
 
 
-    def items(self, service, nodeIdentifier, maxItems=None):
+    def items(self, service, nodeIdentifier, maxItems=None, sender=None):
         """
         Retrieve previously published items from a publish subscribe node.
 
@@ -752,6 +757,7 @@ class PubSubClient(XMPPHandler):
         request.nodeIdentifier = nodeIdentifier
         if maxItems:
             request.maxItems = str(int(maxItems))
+        request.sender = sender
 
         def cb(iq):
             items = []

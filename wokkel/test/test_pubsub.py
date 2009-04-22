@@ -255,6 +255,22 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_createNodeWithSender(self):
+        """
+        Test sending create request from a specific JID.
+        """
+
+        d = self.protocol.createNode(JID('pubsub.example.org'), 'test',
+                                     sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('user@example.org', iq['from'])
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
     def test_deleteNode(self):
         """
         Test sending delete request.
@@ -272,6 +288,22 @@ class PubSubClientTest(unittest.TestCase):
         self.assertEquals(1, len(children))
         child = children[0]
         self.assertEquals('test', child['node'])
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_deleteNodeWithSender(self):
+        """
+        Test sending delete request.
+        """
+
+        d = self.protocol.deleteNode(JID('pubsub.example.org'), 'test',
+                                     sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('user@example.org', iq['from'])
 
         response = toResponse(iq, 'result')
         self.stub.send(response)
@@ -323,6 +355,23 @@ class PubSubClientTest(unittest.TestCase):
         self.assertEquals(1, len(children))
         child = children[0]
         self.assertEquals('test', child['node'])
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_publishWithSender(self):
+        """
+        Test sending publish request from a specific JID.
+        """
+
+        item = pubsub.Item()
+        d = self.protocol.publish(JID('pubsub.example.org'), 'test', [item],
+                                  JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('user@example.org', iq['from'])
 
         response = toResponse(iq, 'result')
         self.stub.send(response)
@@ -398,6 +447,27 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_subscribeWithSender(self):
+        """
+        Test sending subscription request from a specific JID.
+        """
+        d = self.protocol.subscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'),
+                                      sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('user@example.org', iq['from'])
+
+        response = toResponse(iq, 'result')
+        pubsub = response.addElement((NS_PUBSUB, 'pubsub'))
+        subscription = pubsub.addElement('subscription')
+        subscription['node'] = 'test'
+        subscription['jid'] = 'user@example.org'
+        subscription['subscription'] = 'subscribed'
+        self.stub.send(response)
+        return d
+
+
     def test_unsubscribe(self):
         """
         Test sending unsubscription request.
@@ -417,6 +487,20 @@ class PubSubClientTest(unittest.TestCase):
         self.assertEquals('test', child['node'])
         self.assertEquals('user@example.org', child['jid'])
 
+        self.stub.send(toResponse(iq, 'result'))
+        return d
+
+
+    def test_unsubscribeWithSender(self):
+        """
+        Test sending unsubscription request from a specific JID.
+        """
+        d = self.protocol.unsubscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'),
+                                      sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('user@example.org', iq['from'])
         self.stub.send(toResponse(iq, 'result'))
         return d
 
@@ -484,6 +568,25 @@ class PubSubClientTest(unittest.TestCase):
 
         self.stub.send(response)
 
+        return d
+
+
+    def test_itemsWithSender(self):
+        """
+        Test sending items request from a specific JID.
+        """
+
+        d = self.protocol.items(JID('pubsub.example.org'), 'test',
+                               sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('user@example.org', iq['from'])
+
+        response = toResponse(iq, 'result')
+        items = response.addElement((NS_PUBSUB, 'pubsub')).addElement('items')
+        items['node'] = 'test'
+
+        self.stub.send(response)
         return d
 
 
