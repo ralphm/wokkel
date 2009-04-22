@@ -85,12 +85,18 @@ class InternalComponent(XMPPHandlerCollection, service.Service):
     Instead of opening a socket to connect to a router, like L{Component},
     components of this type connect to a router in the same process. This
     allows for one-process XMPP servers.
+
+    @ivar domains: Domains (as C{str}) this component will handle traffic for.
+    @type domains: L{set}
     """
 
-    def __init__(self, router, domain):
+    def __init__(self, router, domain=None):
         XMPPHandlerCollection.__init__(self)
-        self.router = router
-        self.domain = domain
+
+        self._router = router
+        self.domains = set()
+        if domain:
+            self.domains.add(domain)
 
         self.xmlstream = None
 
@@ -100,9 +106,11 @@ class InternalComponent(XMPPHandlerCollection, service.Service):
         """
         service.Service.startService(self)
 
-        self.pipe = XmlPipe()
-        self.xmlstream = self.pipe.source
-        self.router.addRoute(self.domain, self.pipe.sink)
+        self._pipe = XmlPipe()
+        self.xmlstream = self._pipe.source
+
+        for domain in self.domains:
+            self._router.addRoute(domain, self._pipe.sink)
 
         for e in self:
             e.makeConnection(self.xmlstream)
@@ -115,8 +123,10 @@ class InternalComponent(XMPPHandlerCollection, service.Service):
         """
         service.Service.stopService(self)
 
-        self.router.removeRoute(self.domain, self.pipe.sink)
-        self.pipe = None
+        for domain in self.domains:
+            self._router.removeRoute(domain, self._pipe.sink)
+
+        self._pipe = None
         self.xmlstream = None
 
         for e in self:

@@ -41,11 +41,43 @@ class InternalComponentTest(unittest.TestCase):
         verifyObject(IXMPPHandlerCollection, self.component)
 
 
-    def test_startService(self):
-        """
-        Starting the service creates a new route and hooks up handlers.
-        """
 
+    def test_startServiceRunning(self):
+        """
+        Starting the service makes it running.
+        """
+        self.assertFalse(self.component.running)
+        self.component.startService()
+        self.assertTrue(self.component.running)
+
+
+    def test_startServiceAddRoute(self):
+        """
+        Starting the service creates a new route.
+        """
+        self.component.startService()
+        self.assertIn('component', self.router.routes)
+
+
+    def test_startServiceNoDomain(self):
+        self.component = component.InternalComponent(self.router)
+        self.component.startService()
+
+
+    def test_startServiceAddMultipleRoutes(self):
+        """
+        Starting the service creates a new route.
+        """
+        self.component.domains.add('component2')
+        self.component.startService()
+        self.assertIn('component', self.router.routes)
+        self.assertIn('component2', self.router.routes)
+
+
+    def test_startServiceHandlerDispatch(self):
+        """
+        Starting the service hooks up handlers.
+        """
         events = []
 
         class TestHandler(XMPPHandler):
@@ -56,23 +88,51 @@ class InternalComponentTest(unittest.TestCase):
 
         TestHandler().setHandlerParent(self.component)
 
-        self.assertFalse(self.component.running)
-
         self.component.startService()
-
-        self.assertTrue(self.component.running)
-        self.assertIn('component', self.router.routes)
-
         self.assertEquals([], events)
         self.component.xmlstream.dispatch(None, '//event/test')
         self.assertEquals([None], events)
 
 
-    def test_stopService(self):
+    def test_stopServiceNotRunning(self):
         """
-        Stopping the service removes the route and disconnects handlers.
+        Stopping the service makes it not running.
         """
+        self.component.startService()
+        self.component.stopService()
+        self.assertFalse(self.component.running)
 
+
+    def test_stopServiceRemoveRoute(self):
+        """
+        Stopping the service removes routes.
+        """
+        self.component.startService()
+        self.component.stopService()
+        self.assertNotIn('component', self.router.routes)
+
+
+    def test_stopServiceNoDomain(self):
+        self.component = component.InternalComponent(self.router)
+        self.component.startService()
+        self.component.stopService()
+
+
+    def test_startServiceRemoveMultipleRoutes(self):
+        """
+        Starting the service creates a new route.
+        """
+        self.component.domains.add('component2')
+        self.component.startService()
+        self.component.stopService()
+        self.assertNotIn('component', self.router.routes)
+        self.assertNotIn('component2', self.router.routes)
+
+
+    def test_stopServiceHandlerDispatch(self):
+        """
+        Stopping the service disconnects handlers.
+        """
         events = []
 
         class TestHandler(XMPPHandler):
@@ -84,10 +144,7 @@ class InternalComponentTest(unittest.TestCase):
 
         self.component.startService()
         self.component.stopService()
-
-        self.assertFalse(self.component.running)
         self.assertEquals(1, len(events))
-        self.assertNotIn('component', self.router.routes)
 
 
     def test_addHandler(self):
