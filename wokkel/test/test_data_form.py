@@ -229,11 +229,50 @@ class FieldTest(unittest.TestCase):
         self.assertEquals(None, field.fieldType)
 
 
-    def test_fromElementValue(self):
+    def test_fromElementValueTextSingle(self):
+        """
+        Parsed text-single field values should be of type C{unicode}.
+        """
         element = domish.Element((NS_X_DATA, 'field'))
-        element.addElement("value", content="text")
+        element['type'] = 'text-single'
+        element.addElement('value', content=u'text')
         field = data_form.Field.fromElement(element)
         self.assertEquals('text', field.value)
+
+
+    def test_fromElementValueJID(self):
+        """
+        Parsed jid-single field values should be of type C{unicode}.
+        """
+        element = domish.Element((NS_X_DATA, 'field'))
+        element['type'] = 'jid-single'
+        element.addElement('value', content=u'user@example.org')
+        field = data_form.Field.fromElement(element)
+        self.assertEquals(u'user@example.org', field.value)
+
+    def test_fromElementValueJIDMalformed(self):
+        """
+        Parsed jid-single field values should be of type C{unicode}.
+
+        No validation should be done at this point, so invalid JIDs should
+        also be passed as-is.
+        """
+        element = domish.Element((NS_X_DATA, 'field'))
+        element['type'] = 'jid-single'
+        element.addElement('value', content=u'@@')
+        field = data_form.Field.fromElement(element)
+        self.assertEquals(u'@@', field.value)
+
+
+    def test_fromElementValueBoolean(self):
+        """
+        Parsed boolean field values should be of type C{unicode}.
+        """
+        element = domish.Element((NS_X_DATA, 'field'))
+        element['type'] = 'boolean'
+        element.addElement('value', content=u'false')
+        field = data_form.Field.fromElement(element)
+        self.assertEquals(u'false', field.value)
 
 
 

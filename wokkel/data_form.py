@@ -295,10 +295,6 @@ class Field(object):
     @staticmethod
     def _parse_value(field, element):
         value = unicode(element)
-        if field.fieldType == 'boolean':
-            value = value.lower() in ('1', 'true')
-        elif field.fieldType in ('jid-multi', 'jid-single'):
-            value = JID(value)
         field.values.append(value)
 
 

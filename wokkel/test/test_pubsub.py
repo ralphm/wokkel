@@ -753,7 +753,10 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                      "label": "Persist items to storage"},
                 "pubsub#deliver_payloads":
                     {"type": "boolean",
-                     "label": "Deliver payloads with event notifications"}
+                     "label": "Deliver payloads with event notifications"},
+                "pubsub#owner":
+                    {"type": "jid-single",
+                     "label": "Owner of the node"}
                 }
 
         def getConfiguration(requestor, service, nodeIdentifier):
@@ -762,7 +765,8 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual('test', nodeIdentifier)
 
             return defer.succeed({'pubsub#deliver_payloads': '0',
-                                  'pubsub#persist_items': '1'})
+                                  'pubsub#persist_items': '1',
+                                  'pubsub#owner': JID('user@example.org')})
 
         def cb(element):
             self.assertEqual('pubsub', element.name)
@@ -775,12 +779,20 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertIn('pubsub#deliver_payloads', fields)
             field = fields['pubsub#deliver_payloads']
             self.assertEqual('boolean', field.fieldType)
+            field.typeCheck()
             self.assertEqual(False, field.value)
 
             self.assertIn('pubsub#persist_items', fields)
             field = fields['pubsub#persist_items']
             self.assertEqual('boolean', field.fieldType)
+            field.typeCheck()
             self.assertEqual(True, field.value)
+
+            self.assertIn('pubsub#owner', fields)
+            field = fields['pubsub#owner']
+            self.assertEqual('jid-single', field.fieldType)
+            field.typeCheck()
+            self.assertEqual(JID('user@example.org'), field.value)
 
         self.service.getConfigurationOptions = getConfigurationOptions
         self.service.getConfiguration = getConfiguration
