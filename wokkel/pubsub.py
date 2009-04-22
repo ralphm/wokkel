@@ -16,7 +16,7 @@ from twisted.internet import defer
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
-from wokkel import disco, data_form, shim
+from wokkel import disco, data_form, generic, shim
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 from wokkel.iwokkel import IPubSubClient, IPubSubService
 
@@ -31,43 +31,12 @@ NS_PUBSUB_ERRORS = NS_PUBSUB + '#errors'
 NS_PUBSUB_OWNER = NS_PUBSUB + "#owner"
 NS_PUBSUB_NODE_CONFIG = NS_PUBSUB + "#node_config"
 NS_PUBSUB_META_DATA = NS_PUBSUB + "#meta-data"
+NS_PUBSUB_SUBSCRIBE_OPTIONS = NS_PUBSUB + "#subscribe_options"
 
-# In publish-subscribe namespace XPath query selector.
-IN_NS_PUBSUB = '[@xmlns="' + NS_PUBSUB + '"]'
-IN_NS_PUBSUB_OWNER = '[@xmlns="' + NS_PUBSUB_OWNER + '"]'
-
-# Publish-subscribe XPath queries
-PUBSUB_ELEMENT = '/pubsub' + IN_NS_PUBSUB
-PUBSUB_OWNER_ELEMENT = '/pubsub' + IN_NS_PUBSUB_OWNER
-PUBSUB_GET = IQ_GET + PUBSUB_ELEMENT
-PUBSUB_SET = IQ_SET + PUBSUB_ELEMENT
-PUBSUB_OWNER_GET = IQ_GET + PUBSUB_OWNER_ELEMENT
-PUBSUB_OWNER_SET = IQ_SET + PUBSUB_OWNER_ELEMENT
-
-# Publish-subscribe command XPath queries
-PUBSUB_PUBLISH = PUBSUB_SET + '/publish' + IN_NS_PUBSUB
-PUBSUB_CREATE = PUBSUB_SET + '/create' + IN_NS_PUBSUB
-PUBSUB_SUBSCRIBE = PUBSUB_SET + '/subscribe' + IN_NS_PUBSUB
-PUBSUB_UNSUBSCRIBE = PUBSUB_SET + '/unsubscribe' + IN_NS_PUBSUB
-PUBSUB_OPTIONS_GET = PUBSUB_GET + '/options' + IN_NS_PUBSUB
-PUBSUB_OPTIONS_SET = PUBSUB_SET + '/options' + IN_NS_PUBSUB
-PUBSUB_DEFAULT = PUBSUB_OWNER_GET + '/default' + IN_NS_PUBSUB_OWNER
-PUBSUB_CONFIGURE_GET = PUBSUB_OWNER_GET + '/configure' + IN_NS_PUBSUB_OWNER
-PUBSUB_CONFIGURE_SET = PUBSUB_OWNER_SET + '/configure' + IN_NS_PUBSUB_OWNER
-PUBSUB_SUBSCRIPTIONS = PUBSUB_GET + '/subscriptions' + IN_NS_PUBSUB
-PUBSUB_AFFILIATIONS = PUBSUB_GET + '/affiliations' + IN_NS_PUBSUB
-PUBSUB_AFFILIATIONS_GET = PUBSUB_OWNER_GET + '/affiliations' + \
-                          IN_NS_PUBSUB_OWNER
-PUBSUB_AFFILIATIONS_SET = PUBSUB_OWNER_SET + '/affiliations' + \
-                          IN_NS_PUBSUB_OWNER
-PUBSUB_SUBSCRIPTIONS_GET = PUBSUB_OWNER_GET + '/subscriptions' + \
-                          IN_NS_PUBSUB_OWNER
-PUBSUB_SUBSCRIPTIONS_SET = PUBSUB_OWNER_SET + '/subscriptions' + \
-                          IN_NS_PUBSUB_OWNER
-PUBSUB_ITEMS = PUBSUB_GET + '/items' + IN_NS_PUBSUB
-PUBSUB_RETRACT = PUBSUB_SET + '/retract' + IN_NS_PUBSUB
-PUBSUB_PURGE = PUBSUB_OWNER_SET + '/purge' + IN_NS_PUBSUB_OWNER
-PUBSUB_DELETE = PUBSUB_OWNER_SET + '/delete' + IN_NS_PUBSUB_OWNER
+# XPath to match pubsub requests
+PUBSUB_REQUEST = '/iq[@type="get" or @type="set"]/' + \
+                    'pubsub[@xmlns="' + NS_PUBSUB + '" or ' + \
+                           '@xmlns="' + NS_PUBSUB_OWNER + '"]'
 
 class SubscriptionPending(Exception):
     """
@@ -98,12 +67,18 @@ class PubSubError(error.StanzaError):
 
 
 
-class BadRequest(PubSubError):
+class BadRequest(error.StanzaError):
     """
     Bad request stanza error.
     """
     def __init__(self, pubsubCondition=None, text=None):
-        PubSubError.__init__(self, 'bad-request', pubsubCondition, text)
+        if pubsubCondition:
+            appCondition = domish.Element((NS_PUBSUB_ERRORS, pubsubCondition))
+        else:
+            appCondition = None
+        error.StanzaError.__init__(self, 'bad-request',
+                                         text=text,
+                                         appCondition=appCondition)
 
 
 
@@ -167,40 +142,362 @@ class Item(domish.Element):
 
 
 
-class _PubSubRequest(xmlstream.IQ):
+class PubSubRequest(generic.Stanza):
     """
-    Publish subscribe request.
+    A publish-subscribe request.
 
-    @ivar verb: Request verb
-    @type verb: C{str}
-    @ivar namespace: Request namespace.
-    @type namespace: C{str}
-    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
-    @type method: C{str}
-    @ivar command: Command element of the request. This is the direct child of
-                   the C{pubsub} element in the C{namespace} with the name
-                   C{verb}.
+    The set of instance variables used depends on the type of request. If
+    a variable is not applicable or not passed in the request, its value is
+    C{None}.
+
+    @ivar verb: The type of publish-subscribe request. See L{_requestVerbMap}.
+    @type verb: C{str}.
+
+    @ivar affiliations: Affiliations to be modified.
+    @type affiliations: C{set}
+    @ivar items: The items to be published, as L{domish.Element}s.
+    @type items: C{list}
+    @ivar itemIdentifiers: Identifiers of the items to be retrieved or
+                           retracted.
+    @type itemIdentifiers: C{set}
+    @ivar maxItems: Maximum number of items to retrieve.
+    @type maxItems: C{int}.
+    @ivar nodeIdentifier: Identifier of the node the request is about.
+    @type nodeIdentifier: C{unicode}
+    @ivar nodeType: The type of node that should be created, or for which the
+                    configuration is retrieved. C{'leaf'} or C{'collection'}.
+    @type nodeType: C{str}
+    @ivar options: Configurations options for nodes, subscriptions and publish
+                   requests.
+    @type options: L{data_form.Form}
+    @ivar subscriber: The subscribing entity.
+    @type subscriber: L{JID}
+    @ivar subscriptionIdentifier: Identifier for a specific subscription.
+    @type subscriptionIdentifier: C{unicode}
+    @ivar subscriptions: Subscriptions to be modified, as a set of
+                         L{Subscription}.
+    @type subscriptions: C{set}
     """
 
-    def __init__(self, xs, verb, namespace=NS_PUBSUB, method='set'):
-        xmlstream.IQ.__init__(self, xs, method)
-        self.addElement((namespace, 'pubsub'))
+    verb = None
 
-        self.command = self.pubsub.addElement(verb)
+    affiliations = None
+    items = None
+    itemIdentifiers = None
+    maxItems = None
+    nodeIdentifier = None
+    nodeType = None
+    options = None
+    subscriber = None
+    subscriptionIdentifier = None
+    subscriptions = None
+
+    # Map request iq type and subelement name to request verb
+    _requestVerbMap = {
+        ('set', NS_PUBSUB, 'publish'): 'publish',
+        ('set', NS_PUBSUB, 'subscribe'): 'subscribe',
+        ('set', NS_PUBSUB, 'unsubscribe'): 'unsubscribe',
+        ('get', NS_PUBSUB, 'options'): 'optionsGet',
+        ('set', NS_PUBSUB, 'options'): 'optionsSet',
+        ('get', NS_PUBSUB, 'subscriptions'): 'subscriptions',
+        ('get', NS_PUBSUB, 'affiliations'): 'affiliations',
+        ('set', NS_PUBSUB, 'create'): 'create',
+        ('get', NS_PUBSUB_OWNER, 'default'): 'default',
+        ('get', NS_PUBSUB_OWNER, 'configure'): 'configureGet',
+        ('set', NS_PUBSUB_OWNER, 'configure'): 'configureSet',
+        ('get', NS_PUBSUB, 'items'): 'items',
+        ('set', NS_PUBSUB, 'retract'): 'retract',
+        ('set', NS_PUBSUB_OWNER, 'purge'): 'purge',
+        ('set', NS_PUBSUB_OWNER, 'delete'): 'delete',
+        ('get', NS_PUBSUB_OWNER, 'affiliations'): 'affiliationsGet',
+        ('set', NS_PUBSUB_OWNER, 'affiliations'): 'affiliationsSet',
+        ('get', NS_PUBSUB_OWNER, 'subscriptions'): 'subscriptionsGet',
+        ('set', NS_PUBSUB_OWNER, 'subscriptions'): 'subscriptionsSet',
+    }
+
+    # Map request verb to request iq type and subelement name
+    _verbRequestMap = dict(((v, k) for k, v in _requestVerbMap.iteritems()))
+
+    # Map request verb to parameter handler names
+    _parameters = {
+        'publish': ['node', 'items'],
+        'subscribe': ['nodeOrEmpty', 'jid'],
+        'unsubscribe': ['nodeOrEmpty', 'jid'],
+        'optionsGet': ['nodeOrEmpty', 'jid'],
+        'optionsSet': ['nodeOrEmpty', 'jid', 'options'],
+        'subscriptions': [],
+        'affiliations': [],
+        'create': ['nodeOrNone'],
+        'default': ['default'],
+        'configureGet': ['nodeOrEmpty'],
+        'configureSet': ['nodeOrEmpty', 'configure'],
+        'items': ['node', 'maxItems', 'itemIdentifiers'],
+        'retract': ['node', 'itemIdentifiers'],
+        'purge': ['node'],
+        'delete': ['node'],
+        'affiliationsGet': [],
+        'affiliationsSet': [],
+        'subscriptionsGet': [],
+        'subscriptionsSet': [],
+    }
+
+    def __init__(self, verb=None):
+        self.verb = verb
 
 
-    def send(self, to):
+    @staticmethod
+    def _findForm(element, formNamespace):
         """
-        Send out request.
+        Find a Data Form.
 
-        Extends L{xmlstream.IQ.send} by requiring the C{to} parameter to be
-        a L{JID} instance.
-
-        @param to: Entity to send the request to.
-        @type to: L{JID}
+        Look for an element that represents a Data Form with the specified
+        form namespace as a child element of the given element.
         """
-        destination = to.full()
-        return xmlstream.IQ.send(self, destination)
+        if not element:
+            return None
+
+        form = None
+        for child in element.elements():
+            try:
+                form = data_form.Form.fromElement(child)
+            except data_form.Error:
+                continue
+
+            if form.formNamespace != NS_PUBSUB_NODE_CONFIG:
+                continue
+
+        return form
+
+
+    def _parse_node(self, verbElement):
+        """
+        Parse the required node identifier out of the verbElement.
+        """
+        try:
+            self.nodeIdentifier = verbElement["node"]
+        except KeyError:
+            raise BadRequest('nodeid-required')
+
+
+    def _render_node(self, verbElement):
+        """
+        Render the required node identifier on the verbElement.
+        """
+        if not self.nodeIdentifier:
+            raise Exception("Node identifier is required")
+
+        verbElement['node'] = self.nodeIdentifier
+
+
+    def _parse_nodeOrEmpty(self, verbElement):
+        """
+        Parse the node identifier out of the verbElement. May be empty.
+        """
+        self.nodeIdentifier = verbElement.getAttribute("node", '')
+
+
+    def _render_nodeOrEmpty(self, verbElement):
+        """
+        Render the node identifier on the verbElement. May be empty.
+        """
+        if self.nodeIdentifier:
+            verbElement['node'] = self.nodeIdentifier
+
+
+    def _parse_nodeOrNone(self, verbElement):
+        """
+        Parse the optional node identifier out of the verbElement.
+        """
+        self.nodeIdentifier = verbElement.getAttribute("node")
+
+
+    def _render_nodeOrNone(self, verbElement):
+        """
+        Render the optional node identifier on the verbElement.
+        """
+        if self.nodeIdentifier:
+            verbElement['node'] = self.nodeIdentifier
+
+
+    def _parse_items(self, verbElement):
+        """
+        Parse items out of the verbElement for publish requests.
+        """
+        self.items = []
+        for element in verbElement.elements():
+            if element.uri == NS_PUBSUB and element.name == 'item':
+                self.items.append(element)
+
+
+    def _render_items(self, verbElement):
+        """
+        Render items into the verbElement for publish requests.
+        """
+        if self.items:
+            for item in self.items:
+                verbElement.addChild(item)
+
+
+    def _parse_jid(self, verbElement):
+        """
+        Parse subscriber out of the verbElement for un-/subscribe requests.
+        """
+        try:
+            self.subscriber = jid.internJID(verbElement["jid"])
+        except KeyError:
+            raise BadRequest('jid-required')
+
+
+    def _render_jid(self, verbElement):
+        """
+        Render subscriber into the verbElement for un-/subscribe requests.
+        """
+        verbElement['jid'] = self.subscriber.full()
+
+
+    def _parse_default(self, verbElement):
+        """
+        Parse node type out of a request for the default node configuration.
+        """
+        form = PubSubRequest._findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
+        if form and form.formType == 'submit':
+            values = form.getValues()
+            self.nodeType = values.get('pubsub#node_type', 'leaf')
+        else:
+            self.nodeType = 'leaf'
+
+
+    def _parse_configure(self, verbElement):
+        """
+        Parse options out of a request for setting the node configuration.
+        """
+        form = PubSubRequest._findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
+        if form:
+            if form.formType == 'submit':
+                self.options = form.getValues()
+            elif form.formType == 'cancel':
+                self.options = {}
+            else:
+                raise BadRequest(text="Unexpected form type %r" % form.formType)
+        else:
+            raise BadRequest(text="Missing configuration form")
+
+
+
+    def _parse_itemIdentifiers(self, verbElement):
+        """
+        Parse item identifiers out of items and retract requests.
+        """
+        self.itemIdentifiers = []
+        for element in verbElement.elements():
+            if element.uri == NS_PUBSUB and element.name == 'item':
+                try:
+                    self.itemIdentifiers.append(element["id"])
+                except KeyError:
+                    raise BadRequest()
+
+
+    def _render_itemIdentifiers(self, verbElement):
+        """
+        Render item identifiers into items and retract requests.
+        """
+        if self.itemIdentifiers:
+            for itemIdentifier in self.itemIdentifiers:
+                item = verbElement.addElement('item')
+                item['id'] = itemIdentifier
+
+
+    def _parse_maxItems(self, verbElement):
+        """
+        Parse maximum items out of an items request.
+        """
+        value = verbElement.getAttribute('max_items')
+
+        if value:
+            try:
+                self.maxItems = int(value)
+            except ValueError:
+                raise BadRequest(text="Field max_items requires a positive " +
+                                      "integer value")
+
+
+    def _render_maxItems(self, verbElement):
+        """
+        Parse maximum items into an items request.
+        """
+        if self.maxItems:
+            verbElement['max_items'] = unicode(self.maxItems)
+
+
+    def _parse_options(self, verbElement):
+        form = PubSubRequest._findForm(verbElement, NS_PUBSUB_SUBSCRIBE_OPTIONS)
+        if form:
+            if form.formType == 'submit':
+                self.options = form.getValues()
+            elif form.formType == 'cancel':
+                self.options = {}
+            else:
+                raise BadRequest(text="Unexpected form type %r" % form.formType)
+        else:
+            raise BadRequest(text="Missing options form")
+
+    def parseElement(self, element):
+        """
+        Parse the publish-subscribe verb and parameters out of a request.
+        """
+        generic.Stanza.parseElement(self, element)
+
+        for child in element.pubsub.elements():
+            key = (self.stanzaType, child.uri, child.name)
+            try:
+                verb = self._requestVerbMap[key]
+            except KeyError:
+                continue
+            else:
+                self.verb = verb
+                break
+
+        if not self.verb:
+            raise NotImplementedError()
+
+        for parameter in self._parameters[verb]:
+            getattr(self, '_parse_%s' % parameter)(child)
+
+
+    def send(self, xs):
+        """
+        Send this request to its recipient.
+
+        This renders all of the relevant parameters for this specific
+        requests into an L{xmlstream.IQ}, and invoke its C{send} method.
+        This returns a deferred that fires upon reception of a response. See
+        L{xmlstream.IQ} for details.
+
+        @param xs: The XML stream to send the request on.
+        @type xs: L{xmlstream.XmlStream}
+        @rtype: L{defer.Deferred}.
+        """
+
+        try:
+            (self.stanzaType,
+             childURI,
+             childName) = self._verbRequestMap[self.verb]
+        except KeyError:
+            raise NotImplementedError()
+
+        iq = xmlstream.IQ(xs, self.stanzaType)
+        iq.addElement((childURI, 'pubsub'))
+        verbElement = iq.pubsub.addElement(childName)
+
+        if self.sender:
+            iq['from'] = self.sender.full()
+        if self.recipient:
+            iq['to'] = self.recipient.full()
+
+        for parameter in self._parameters[self.verb]:
+            getattr(self, '_render_%s' % parameter)(verbElement)
+
+        return iq.send()
 
 
 
@@ -336,11 +633,9 @@ class PubSubClient(XMPPHandler):
         @param nodeIdentifier: Optional suggestion for the id of the node.
         @type nodeIdentifier: C{unicode}
         """
-
-
-        request = _PubSubRequest(self.xmlstream, 'create')
-        if nodeIdentifier:
-            request.command['node'] = nodeIdentifier
+        request = PubSubRequest('create')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
 
         def cb(iq):
             try:
@@ -350,7 +645,9 @@ class PubSubClient(XMPPHandler):
                 new_node = nodeIdentifier
             return new_node
 
-        return request.send(service).addCallback(cb)
+        d = request.send(self.xmlstream)
+        d.addCallback(cb)
+        return d
 
 
     def deleteNode(self, service, nodeIdentifier):
@@ -362,9 +659,10 @@ class PubSubClient(XMPPHandler):
         @param nodeIdentifier: The identifier of the node.
         @type nodeIdentifier: C{unicode}
         """
-        request = _PubSubRequest(self.xmlstream, 'delete', NS_PUBSUB_OWNER)
-        request.command['node'] = nodeIdentifier
-        return request.send(service)
+        request = PubSubRequest('delete')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
+        return request.send(self.xmlstream)
 
 
     def subscribe(self, service, nodeIdentifier, subscriber):
@@ -379,10 +677,10 @@ class PubSubClient(XMPPHandler):
                            will get notifications of new published items.
         @type subscriber: L{JID}
         """
-        request = _PubSubRequest(self.xmlstream, 'subscribe')
-        if nodeIdentifier:
-            request.command['node'] = nodeIdentifier
-        request.command['jid'] = subscriber.full()
+        request = PubSubRequest('subscribe')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
+        request.subscriber = subscriber
 
         def cb(iq):
             subscription = iq.pubsub.subscription["subscription"]
@@ -397,7 +695,9 @@ class PubSubClient(XMPPHandler):
                 # yielded a stanza error.
                 return None
 
-        return request.send(service).addCallback(cb)
+        d = request.send(self.xmlstream)
+        d.addCallback(cb)
+        return d
 
 
     def unsubscribe(self, service, nodeIdentifier, subscriber):
@@ -411,11 +711,11 @@ class PubSubClient(XMPPHandler):
         @param subscriber: The entity to unsubscribe from the node.
         @type subscriber: L{JID}
         """
-        request = _PubSubRequest(self.xmlstream, 'unsubscribe')
-        if nodeIdentifier:
-            request.command['node'] = nodeIdentifier
-        request.command['jid'] = subscriber.full()
-        return request.send(service)
+        request = PubSubRequest('unsubscribe')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
+        request.subscriber = subscriber
+        return request.send(self.xmlstream)
 
 
     def publish(self, service, nodeIdentifier, items=None):
@@ -429,13 +729,11 @@ class PubSubClient(XMPPHandler):
         @param items: Optional list of L{Item}s to publish.
         @type items: C{list}
         """
-        request = _PubSubRequest(self.xmlstream, 'publish')
-        request.command['node'] = nodeIdentifier
-        if items:
-            for item in items:
-                request.command.addChild(item)
-
-        return request.send(service)
+        request = PubSubRequest('publish')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
+        request.items = items
+        return request.send(self.xmlstream)
 
 
     def items(self, service, nodeIdentifier, maxItems=None):
@@ -449,11 +747,11 @@ class PubSubClient(XMPPHandler):
         @param maxItems: Optional limit on the number of retrieved items.
         @type maxItems: C{int}
         """
-        request = _PubSubRequest(self.xmlstream, 'items', method='get')
-        if nodeIdentifier:
-            request.command['node'] = nodeIdentifier
+        request = PubSubRequest('items')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
         if maxItems:
-            request.command["max_items"] = str(int(maxItems))
+            request.maxItems = str(int(maxItems))
 
         def cb(iq):
             items = []
@@ -462,7 +760,9 @@ class PubSubClient(XMPPHandler):
                     items.append(element)
             return items
 
-        return request.send(service).addCallback(cb)
+        d = request.send(self.xmlstream)
+        d.addCallback(cb)
+        return d
 
 
 
@@ -497,27 +797,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
     implements(IPubSubService)
 
     iqHandlers = {
-            PUBSUB_PUBLISH: '_onPublish',
-            PUBSUB_CREATE: '_onCreate',
-            PUBSUB_SUBSCRIBE: '_onSubscribe',
-            PUBSUB_OPTIONS_GET: '_onOptionsGet',
-            PUBSUB_OPTIONS_SET: '_onOptionsSet',
-            PUBSUB_AFFILIATIONS: '_onAffiliations',
-            PUBSUB_ITEMS: '_onItems',
-            PUBSUB_RETRACT: '_onRetract',
-            PUBSUB_SUBSCRIPTIONS: '_onSubscriptions',
-            PUBSUB_UNSUBSCRIBE: '_onUnsubscribe',
-
-            PUBSUB_AFFILIATIONS_GET: '_onAffiliationsGet',
-            PUBSUB_AFFILIATIONS_SET: '_onAffiliationsSet',
-            PUBSUB_CONFIGURE_GET: '_onConfigureGet',
-            PUBSUB_CONFIGURE_SET: '_onConfigureSet',
-            PUBSUB_DEFAULT: '_onDefault',
-            PUBSUB_PURGE: '_onPurge',
-            PUBSUB_DELETE: '_onDelete',
-            PUBSUB_SUBSCRIPTIONS_GET: '_onSubscriptionsGet',
-            PUBSUB_SUBSCRIPTIONS_SET: '_onSubscriptionsSet',
-
+            '/*': '_onPubSubRequest',
             }
 
 
@@ -530,10 +810,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def connectionMade(self):
-        self.xmlstream.addObserver(PUBSUB_GET, self.handleRequest)
-        self.xmlstream.addObserver(PUBSUB_SET, self.handleRequest)
-        self.xmlstream.addObserver(PUBSUB_OWNER_GET, self.handleRequest)
-        self.xmlstream.addObserver(PUBSUB_OWNER_SET, self.handleRequest)
+        self.xmlstream.addObserver(PUBSUB_REQUEST, self.handleRequest)
 
 
     def getDiscoInfo(self, requestor, target, nodeIdentifier):
@@ -585,92 +862,18 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return d
 
 
-    def _findForm(self, element, formNamespace):
-        if not element:
-            return None
-
-        form = None
-        for child in element.elements():
-            try:
-                form = data_form.Form.fromElement(child)
-            except data_form.Error:
-                continue
-
-            if form.formNamespace != NS_PUBSUB_NODE_CONFIG:
-                continue
-
-        return form
+    def _onPubSubRequest(self, iq):
+        request = PubSubRequest.fromElement(iq)
+        handler = getattr(self, '_on_%s' % request.verb)
+        return handler(request)
 
 
-    def _getParameter_node(self, commandElement):
-        try:
-            return commandElement["node"]
-        except KeyError:
-            raise BadRequest('nodeid-required')
+    def _on_publish(self, request):
+        return self.publish(request.sender, request.recipient,
+                            request.nodeIdentifier, request.items)
 
 
-    def _getParameter_nodeOrEmpty(self, commandElement):
-        return commandElement.getAttribute("node", '')
-
-
-    def _getParameter_jid(self, commandElement):
-        try:
-            return jid.internJID(commandElement["jid"])
-        except KeyError:
-            raise BadRequest('jid-required')
-
-
-    def _getParameter_max_items(self, commandElement):
-        value = commandElement.getAttribute('max_items')
-
-        if value:
-            try:
-                return int(value)
-            except ValueError:
-                raise BadRequest(text="Field max_items requires a positive " +
-                                      "integer value")
-        else:
-            return None
-
-
-    def _getParameters(self, iq, *names):
-        requestor = jid.internJID(iq["from"]).userhostJID()
-        service = jid.internJID(iq["to"])
-
-        params = [requestor, service]
-
-        if names:
-            command = names[0]
-            commandElement = getattr(iq.pubsub, command)
-            if not commandElement:
-                raise Exception("Could not find command element %r" % command)
-
-        for name in names[1:]:
-            try:
-                getter = getattr(self, '_getParameter_' + name)
-            except KeyError:
-                raise Exception("No parameter getter for this name")
-
-            params.append(getter(commandElement))
-
-        return params
-
-
-    def _onPublish(self, iq):
-        requestor, service, nodeIdentifier = self._getParameters(
-                iq, 'publish', 'node')
-
-        items = []
-        for element in iq.pubsub.publish.elements():
-            if element.uri == NS_PUBSUB and element.name == 'item':
-                items.append(element)
-
-        return self.publish(requestor, service, nodeIdentifier, items)
-
-
-    def _onSubscribe(self, iq):
-        requestor, service, nodeIdentifier, subscriber = self._getParameters(
-                iq, 'subscribe', 'nodeOrEmpty', 'jid')
+    def _on_subscribe(self, request):
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, "pubsub"))
@@ -681,28 +884,26 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             subscription["subscription"] = result.state
             return response
 
-        d = self.subscribe(requestor, service, nodeIdentifier, subscriber)
+        d = self.subscribe(request.sender, request.recipient,
+                           request.nodeIdentifier, request.subscriber)
         d.addCallback(toResponse)
         return d
 
 
-    def _onUnsubscribe(self, iq):
-        requestor, service, nodeIdentifier, subscriber = self._getParameters(
-                iq, 'unsubscribe', 'nodeOrEmpty', 'jid')
-
-        return self.unsubscribe(requestor, service, nodeIdentifier, subscriber)
+    def _on_unsubscribe(self, request):
+        return self.unsubscribe(request.sender, request.recipient,
+                                request.nodeIdentifier, request.subscriber)
 
 
-    def _onOptionsGet(self, iq):
+    def _on_optionsGet(self, request):
         raise Unsupported('subscription-options')
 
 
-    def _onOptionsSet(self, iq):
+    def _on_optionsSet(self, request):
         raise Unsupported('subscription-options')
 
 
-    def _onSubscriptions(self, iq):
-        requestor, service = self._getParameters(iq)
+    def _on_subscriptions(self, request):
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
@@ -714,13 +915,12 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 item['subscription'] = subscription.state
             return response
 
-        d = self.subscriptions(requestor, service)
+        d = self.subscriptions(request.sender, request.recipient)
         d.addCallback(toResponse)
         return d
 
 
-    def _onAffiliations(self, iq):
-        requestor, service = self._getParameters(iq)
+    def _on_affiliations(self, request):
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
@@ -733,17 +933,15 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
             return response
 
-        d = self.affiliations(requestor, service)
+        d = self.affiliations(request.sender, request.recipient)
         d.addCallback(toResponse)
         return d
 
 
-    def _onCreate(self, iq):
-        requestor, service = self._getParameters(iq)
-        nodeIdentifier = iq.pubsub.create.getAttribute("node")
+    def _on_create(self, request):
 
         def toResponse(result):
-            if not nodeIdentifier or nodeIdentifier != result:
+            if not request.nodeIdentifier or request.nodeIdentifier != result:
                 response = domish.Element((NS_PUBSUB, 'pubsub'))
                 create = response.addElement('create')
                 create['node'] = result
@@ -751,7 +949,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             else:
                 return None
 
-        d = self.create(requestor, service, nodeIdentifier)
+        d = self.create(request.sender, request.recipient,
+                        request.nodeIdentifier)
         d.addCallback(toResponse)
         return d
 
@@ -771,6 +970,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             fields.append(data_form.Field.fromDict(option))
         return fields
 
+
     def _formFromConfiguration(self, values):
         options = self.getConfigurationOptions()
         fields = self._makeFields(options, values)
@@ -779,6 +979,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                               fields=fields)
 
         return form
+
 
     def _checkConfiguration(self, values):
         options = self.getConfigurationOptions()
@@ -805,8 +1006,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return processedValues
 
 
-    def _onDefault(self, iq):
-        requestor, service = self._getParameters(iq)
+    def _on_default(self, request):
 
         def toResponse(options):
             response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
@@ -814,127 +1014,91 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             default.addChild(self._formFromConfiguration(options).toElement())
             return response
 
-        form = self._findForm(iq.pubsub.config, NS_PUBSUB_NODE_CONFIG)
-        values = form and form.formType == 'result' and form.getValues() or {}
-        nodeType = values.get('pubsub#node_type', 'leaf')
-
-        if nodeType not in ('leaf', 'collections'):
+        if request.nodeType not in ('leaf', 'collection'):
             return defer.fail(error.StanzaError('not-acceptable'))
 
-        d = self.getDefaultConfiguration(requestor, service, nodeType)
+        d = self.getDefaultConfiguration(request.sender, request.recipient,
+                                         request.nodeType)
         d.addCallback(toResponse)
         return d
 
 
-    def _onConfigureGet(self, iq):
-        requestor, service, nodeIdentifier = self._getParameters(
-                iq, 'configure', 'nodeOrEmpty')
-
+    def _on_configureGet(self, request):
         def toResponse(options):
             response = domish.Element((NS_PUBSUB_OWNER, "pubsub"))
             configure = response.addElement("configure")
-            configure.addChild(self._formFromConfiguration(options).toElement())
+            form = self._formFromConfiguration(options)
+            configure.addChild(form.toElement())
 
-            if nodeIdentifier:
-                configure["node"] = nodeIdentifier
+            if request.nodeIdentifier:
+                configure["node"] = request.nodeIdentifier
 
             return response
 
-        d = self.getConfiguration(requestor, service, nodeIdentifier)
+        d = self.getConfiguration(request.sender, request.recipient,
+                                  request.nodeIdentifier)
         d.addCallback(toResponse)
         return d
 
 
-    def _onConfigureSet(self, iq):
-        requestor, service, nodeIdentifier = self._getParameters(
-                iq, 'configure', 'nodeOrEmpty')
-
-        # Search configuration form with correct FORM_TYPE and process it
-
-        form = self._findForm(iq.pubsub.configure, NS_PUBSUB_NODE_CONFIG)
-
-        if form:
-            if form.formType == 'submit':
-                options = self._checkConfiguration(form.getValues())
-
-                return self.setConfiguration(requestor, service,
-                                             nodeIdentifier, options)
-            elif form.formType == 'cancel':
-                return None
-
-        raise BadRequest()
+    def _on_configureSet(self, request):
+        if request.options:
+            request.options = self._checkConfiguration(request.options)
+            return self.setConfiguration(request.sender, request.recipient,
+                                         request.nodeIdentifier,
+                                         request.options)
+        else:
+            return None
 
 
-    def _onItems(self, iq):
-        requestor, service, nodeIdentifier, maxItems = self._getParameters(
-                iq, 'items', 'nodeOrEmpty', 'max_items')
 
-        itemIdentifiers = []
-        for child in iq.pubsub.items.elements():
-            if child.name == 'item' and child.uri == NS_PUBSUB:
-                try:
-                    itemIdentifiers.append(child["id"])
-                except KeyError:
-                    raise BadRequest()
+    def _on_items(self, request):
 
         def toResponse(result):
             response = domish.Element((NS_PUBSUB, 'pubsub'))
             items = response.addElement('items')
-            if nodeIdentifier:
-                items["node"] = nodeIdentifier
+            items["node"] = request.nodeIdentifier
 
             for item in result:
                 items.addChild(item)
 
             return response
 
-        d = self.items(requestor, service, nodeIdentifier, maxItems,
-                       itemIdentifiers)
+        d = self.items(request.sender, request.recipient,
+                       request.nodeIdentifier, request.maxItems,
+                       request.itemIdentifiers)
         d.addCallback(toResponse)
         return d
 
 
-    def _onRetract(self, iq):
-        requestor, service, nodeIdentifier = self._getParameters(
-                iq, 'retract', 'node')
-
-        itemIdentifiers = []
-        for child in iq.pubsub.retract.elements():
-            if child.uri == NS_PUBSUB and child.name == 'item':
-                try:
-                    itemIdentifiers.append(child["id"])
-                except KeyError:
-                    raise BadRequest()
-
-        return self.retract(requestor, service, nodeIdentifier,
-                            itemIdentifiers)
+    def _on_retract(self, request):
+        return self.retract(request.sender, request.recipient,
+                            request.nodeIdentifier, request.itemIdentifiers)
 
 
-    def _onPurge(self, iq):
-        requestor, service, nodeIdentifier = self._getParameters(
-                iq, 'purge', 'node')
-        return self.purge(requestor, service, nodeIdentifier)
+    def _on_purge(self, request):
+        return self.purge(request.sender, request.recipient,
+                          request.nodeIdentifier)
 
 
-    def _onDelete(self, iq):
-        requestor, service, nodeIdentifier = self._getParameters(
-                iq, 'delete', 'node')
-        return self.delete(requestor, service, nodeIdentifier)
+    def _on_delete(self, request):
+        return self.delete(request.sender, request.recipient,
+                           request.nodeIdentifier)
 
 
-    def _onAffiliationsGet(self, iq):
+    def _on_affiliationsGet(self, iq):
         raise Unsupported('modify-affiliations')
 
 
-    def _onAffiliationsSet(self, iq):
+    def _on_affiliationsSet(self, iq):
         raise Unsupported('modify-affiliations')
 
 
-    def _onSubscriptionsGet(self, iq):
+    def _on_subscriptionsGet(self, iq):
         raise Unsupported('manage-subscriptions')
 
 
-    def _onSubscriptionsSet(self, iq):
+    def _on_subscriptionsSet(self, iq):
         raise Unsupported('manage-subscriptions')
 
     # public methods

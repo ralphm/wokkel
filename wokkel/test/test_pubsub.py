@@ -15,6 +15,7 @@ from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.xmlstream import toResponse
 
 from wokkel import data_form, disco, iwokkel, pubsub, shim
+from wokkel.generic import parseXml
 from wokkel.test.helpers import TestableRequestHandlerMixin, XmlStreamStub
 
 NS_PUBSUB = 'http://jabber.org/protocol/pubsub'
@@ -487,6 +488,630 @@ class PubSubClientTest(unittest.TestCase):
 
 
 
+class PubSubRequestTest(unittest.TestCase):
+
+    def test_fromElementPublish(self):
+        """
+        Test parsing a publish request.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <publish node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('publish', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+        self.assertEqual([], request.items)
+
+
+    def test_fromElementPublishItems(self):
+        """
+        Test parsing a publish request with items.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <publish node='test'>
+              <item id="item1"/>
+              <item id="item2"/>
+            </publish>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual(2, len(request.items))
+        self.assertEqual(u'item1', request.items[0]["id"])
+        self.assertEqual(u'item2', request.items[1]["id"])
+
+
+    def test_fromElementPublishNoNode(self):
+        """
+        A publish request to the root node should raise an exception.
+        """
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <publish/>
+          </pubsub>
+        </iq>
+        """
+
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual(NS_PUBSUB_ERRORS, err.appCondition.uri)
+        self.assertEqual('nodeid-required', err.appCondition.name)
+
+
+    def test_fromElementSubscribe(self):
+        """
+        Test parsing a subscription request.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('subscribe', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+        self.assertEqual(JID('user@example.org/Home'), request.subscriber)
+
+
+    def test_fromElementSubscribeEmptyNode(self):
+        """
+        Test parsing a subscription request to the root node.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('', request.nodeIdentifier)
+
+
+    def test_fromElementSubscribeNoJID(self):
+        """
+        Subscribe requests without a JID should raise a bad-request exception.
+        """
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe node='test'/>
+          </pubsub>
+        </iq>
+        """
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual(NS_PUBSUB_ERRORS, err.appCondition.uri)
+        self.assertEqual('jid-required', err.appCondition.name)
+
+    def test_fromElementUnsubscribe(self):
+        """
+        Test parsing an unsubscription request.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <unsubscribe node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('unsubscribe', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+        self.assertEqual(JID('user@example.org/Home'), request.subscriber)
+
+
+    def test_fromElementUnsubscribeNoJID(self):
+        """
+        Unsubscribe requests without a JID should raise a bad-request exception.
+        """
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <unsubscribe node='test'/>
+          </pubsub>
+        </iq>
+        """
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual(NS_PUBSUB_ERRORS, err.appCondition.uri)
+        self.assertEqual('jid-required', err.appCondition.name)
+
+
+    def test_fromElementOptionsGet(self):
+        """
+        Test parsing a request for getting subscription options.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('optionsGet', request.verb)
+
+
+    def test_fromElementOptionsSet(self):
+        """
+        Test parsing a request for setting subscription options.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options node='test' jid='user@example.org/Home'>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#subscribe_options</value>
+                </field>
+                <field var='pubsub#deliver'><value>1</value></field>
+              </x>
+            </options>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('optionsSet', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+        self.assertEqual(JID('user@example.org/Home'), request.subscriber)
+        self.assertEqual({'pubsub#deliver': '1'}, request.options)
+
+
+    def test_fromElementOptionsSetCancel(self):
+        """
+        Test parsing a request for cancelling setting subscription options.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options node='test' jid='user@example.org/Home'>
+              <x xmlns='jabber:x:data' type='cancel'/>
+            </options>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual({}, request.options)
+
+
+    def test_fromElementOptionsSetBadFormType(self):
+        """
+        On a options set request unknown fields should be ignored.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options node='test' jid='user@example.org/Home'>
+              <x xmlns='jabber:x:data' type='result'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver'><value>1</value></field>
+              </x>
+            </options>
+          </pubsub>
+        </iq>
+        """
+
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual(None, err.appCondition)
+
+
+    def test_fromElementOptionsSetNoForm(self):
+        """
+        On a options set request a form is required.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual(None, err.appCondition)
+
+
+    def test_fromElementSubscriptions(self):
+        """
+        Test parsing a request for all subscriptions.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscriptions/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('subscriptions', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+
+
+    def test_fromElementAffiliations(self):
+        """
+        Test parsing a request for all affiliations.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <affiliations/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('affiliations', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+
+
+    def test_fromElementCreate(self):
+        """
+        Test parsing a request to create a node.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create node='mynode'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('create', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('mynode', request.nodeIdentifier)
+
+
+    def test_fromElementCreateInstant(self):
+        """
+        Test parsing a request to create an instant node.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertIdentical(None, request.nodeIdentifier)
+
+
+    def test_fromElementDefault(self):
+        """
+        Test parsing a request for the default node configuration.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <default/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('default', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('leaf', request.nodeType)
+
+
+    def test_fromElementDefaultCollection(self):
+        """
+        Parsing a request for the default configuration extracts the node type.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <default>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#node_type'>
+                  <value>collection</value>
+                </field>
+              </x>
+            </default>
+
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('collection', request.nodeType)
+
+
+    def test_fromElementConfigureGet(self):
+        """
+        Test parsing a node configuration get request.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('configureGet', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+
+
+    def test_fromElementConfigureSet(self):
+        """
+        On a node configuration set request the Data Form is parsed.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver_payloads'><value>0</value></field>
+                <field var='pubsub#persist_items'><value>1</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('configureSet', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+        self.assertEqual({'pubsub#deliver_payloads': '0',
+                          'pubsub#persist_items': '1'}, request.options)
+
+
+    def test_fromElementConfigureSetCancel(self):
+        """
+        The node configuration is cancelled, so no options.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='cancel'/>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual({}, request.options)
+
+
+    def test_fromElementConfigureSetBadFormType(self):
+        """
+        On a node configuration set request unknown fields should be ignored.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='result'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver_payloads'><value>0</value></field>
+                <field var='x-myfield'><value>1</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual(None, err.appCondition)
+
+
+    def test_fromElementConfigureSetNoForm(self):
+        """
+        On a node configuration set request a form is required.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'/>
+          </pubsub>
+        </iq>
+        """
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual(None, err.appCondition)
+
+
+    def test_fromElementItems(self):
+        """
+        Test parsing an items request.
+        """
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <items node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('items', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+        self.assertIdentical(None, request.maxItems)
+        self.assertEqual([], request.itemIdentifiers)
+
+
+    def test_fromElementRetract(self):
+        """
+        Test parsing a retract request.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <retract node='test'>
+              <item id='item1'/>
+              <item id='item2'/>
+            </retract>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('retract', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+        self.assertEqual(['item1', 'item2'], request.itemIdentifiers)
+
+
+    def test_fromElementPurge(self):
+        """
+        Test parsing a purge request.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <purge node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('purge', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+
+
+    def test_fromElementDelete(self):
+        """
+        Test parsing a delete request.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <delete node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('delete', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+
+
+
 class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
     """
     Tests for L{pubsub.PubSubService}.
@@ -502,6 +1127,29 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         Do instances of L{pubsub.PubSubService} provide L{iwokkel.IPubSubService}?
         """
         verify.verifyObject(iwokkel.IPubSubService, self.service)
+
+
+    def test_connectionMade(self):
+        """
+        Verify setup of observers in L{pubsub.connectionMade}.
+        """
+        requests = []
+
+        def handleRequest(iq):
+            requests.append(iq)
+
+        self.service.xmlstream = self.stub.xmlstream
+        self.service.handleRequest = handleRequest
+        self.service.connectionMade()
+
+        for namespace in (NS_PUBSUB, NS_PUBSUB_OWNER):
+            for stanzaType in ('get', 'set'):
+                iq = domish.Element((None, 'iq'))
+                iq['type'] = stanzaType
+                iq.addElement((namespace, 'pubsub'))
+                self.stub.xmlstream.dispatch(iq)
+
+        self.assertEqual(4, len(requests))
 
 
     def test_getDiscoInfo(self):
@@ -569,28 +1217,6 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_onPublishNoNode(self):
-        """
-        The root node is always a collection, publishing is a bad request.
-        """
-        xml = """
-        <iq type='set' to='pubsub.example.org'
-                       from='user@example.org'>
-          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
-            <publish/>
-          </pubsub>
-        </iq>
-        """
-
-        def cb(result):
-            self.assertEquals('bad-request', result.condition)
-
-        d = self.handleRequest(xml)
-        self.assertFailure(d, error.StanzaError)
-        d.addCallback(cb)
-        return d
-
-
     def test_onPublish(self):
         """
         A publish request should result in L{PubSubService.publish} being
@@ -607,26 +1233,146 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
 
         def publish(requestor, service, nodeIdentifier, items):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
-            self.assertEqual('test', nodeIdentifier)
-            self.assertEqual([], items)
             return defer.succeed(None)
 
         self.service.publish = publish
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
         return self.handleRequest(xml)
+
+
+    def test_onSubscribe(self):
+        """
+        A successful subscription should return the current subscription.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        def subscribe(requestor, service, nodeIdentifier, subscriber):
+            return defer.succeed(pubsub.Subscription(nodeIdentifier,
+                                                     subscriber,
+                                                     'subscribed'))
+
+        def cb(element):
+            self.assertEqual('pubsub', element.name)
+            self.assertEqual(NS_PUBSUB, element.uri)
+            subscription = element.subscription
+            self.assertEqual(NS_PUBSUB, subscription.uri)
+            self.assertEqual('test', subscription['node'])
+            self.assertEqual('user@example.org/Home', subscription['jid'])
+            self.assertEqual('subscribed', subscription['subscription'])
+
+        self.service.subscribe = subscribe
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onSubscribeEmptyNode(self):
+        """
+        A successful subscription on root node should return no node attribute.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        def subscribe(requestor, service, nodeIdentifier, subscriber):
+            return defer.succeed(pubsub.Subscription(nodeIdentifier,
+                                                     subscriber,
+                                                     'subscribed'))
+
+        def cb(element):
+            self.assertFalse(element.subscription.hasAttribute('node'))
+
+        self.service.subscribe = subscribe
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onUnsubscribe(self):
+        """
+        A successful unsubscription should return an empty response.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <unsubscribe node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        def unsubscribe(requestor, service, nodeIdentifier, subscriber):
+            return defer.succeed(None)
+
+        def cb(element):
+            self.assertIdentical(None, element)
+
+        self.service.unsubscribe = unsubscribe
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
 
 
     def test_onOptionsGet(self):
         """
-        Subscription options are not supported.
+        Getting subscription options is not supported.
         """
 
         xml = """
         <iq type='get' to='pubsub.example.org'
                        from='user@example.org'>
           <pubsub xmlns='http://jabber.org/protocol/pubsub'>
-            <options/>
+            <options node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onOptionsSet(self):
+        """
+        Setting subscription options is not supported.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options node='test' jid='user@example.org/Home'>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#subscribe_options</value>
+                </field>
+                <field var='pubsub#deliver'><value>1</value></field>
+              </x>
+            </options>
           </pubsub>
         </iq>
         """
@@ -673,13 +1419,140 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
 
         def subscriptions(requestor, service):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
             subscription = pubsub.Subscription('test', JID('user@example.org'),
                                                'subscribed')
             return defer.succeed([subscription])
 
         self.service.subscriptions = subscriptions
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onAffiliations(self):
+        """
+        A subscriptions request should result in
+        L{PubSubService.affiliations} being called and the result prepared
+        for the response.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <affiliations/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(element):
+            self.assertEqual('pubsub', element.name)
+            self.assertEqual(NS_PUBSUB, element.uri)
+            self.assertEqual(NS_PUBSUB, element.affiliations.uri)
+            children = list(element.affiliations.elements())
+            self.assertEqual(1, len(children))
+            affiliation = children[0]
+            self.assertEqual('affiliation', affiliation.name)
+            self.assertEqual(NS_PUBSUB, affiliation.uri)
+            self.assertEqual('test', affiliation['node'])
+            self.assertEqual('owner', affiliation['affiliation'])
+
+
+        def affiliations(requestor, service):
+            affiliation = ('test', 'owner')
+            return defer.succeed([affiliation])
+
+        self.service.affiliations = affiliations
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onCreate(self):
+        """
+        Replies to create node requests don't return the created node.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create node='mynode'/>
+          </pubsub>
+        </iq>
+        """
+
+        def create(requestor, service, nodeIdentifier):
+            return defer.succeed(nodeIdentifier)
+
+        def cb(element):
+            self.assertIdentical(None, element)
+
+        self.service.create = create
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onCreateChanged(self):
+        """
+        Replies to create node requests return the created node if changed.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create node='mynode'/>
+          </pubsub>
+        </iq>
+        """
+
+        def create(requestor, service, nodeIdentifier):
+            return defer.succeed(u'myrenamednode')
+
+        def cb(element):
+            self.assertEqual('pubsub', element.name)
+            self.assertEqual(NS_PUBSUB, element.uri)
+            self.assertEqual(NS_PUBSUB, element.create.uri)
+            self.assertEqual(u'myrenamednode',
+                             element.create.getAttribute('node'))
+
+        self.service.create = create
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onCreateInstant(self):
+        """
+        Replies to create instant node requests return the created node.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create/>
+          </pubsub>
+        </iq>
+        """
+
+        def create(requestor, service, nodeIdentifier):
+            return defer.succeed(u'random')
+
+        def cb(element):
+            self.assertEqual('pubsub', element.name)
+            self.assertEqual(NS_PUBSUB, element.uri)
+            self.assertEqual(NS_PUBSUB, element.create.uri)
+            self.assertEqual(u'random', element.create.getAttribute('node'))
+
+        self.service.create = create
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
@@ -711,9 +1584,6 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                 }
 
         def getDefaultConfiguration(requestor, service, nodeType):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
-            self.assertEqual('leaf', nodeType)
             return defer.succeed({})
 
         def cb(element):
@@ -727,6 +1597,85 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.service.getDefaultConfiguration = getDefaultConfiguration
         verify.verifyObject(iwokkel.IPubSubService, self.service)
         d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onDefaultCollection(self):
+        """
+        Responses to default requests should depend on passed node type.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <default>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#node_type'>
+                  <value>collection</value>
+                </field>
+              </x>
+            </default>
+
+          </pubsub>
+        </iq>
+        """
+
+        def getConfigurationOptions():
+            return {
+                "pubsub#deliver_payloads":
+                    {"type": "boolean",
+                     "label": "Deliver payloads with event notifications"}
+                }
+
+        def getDefaultConfiguration(requestor, service, nodeType):
+            return defer.succeed({})
+
+        self.service.getConfigurationOptions = getConfigurationOptions
+        self.service.getDefaultConfiguration = getDefaultConfiguration
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        return self.handleRequest(xml)
+
+
+    def test_onDefaultUnknownNodeType(self):
+        """
+        A default request should result in
+        L{PubSubService.getDefaultConfiguration} being called.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <default>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#node_type'>
+                  <value>unknown</value>
+                </field>
+              </x>
+            </default>
+
+          </pubsub>
+        </iq>
+        """
+
+        def getDefaultConfiguration(requestor, service, nodeType):
+            self.fail("Unexpected call to getConfiguration")
+
+        def cb(result):
+            self.assertEquals('not-acceptable', result.condition)
+
+        self.service.getDefaultConfiguration = getDefaultConfiguration
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
         d.addCallback(cb)
         return d
 
@@ -760,13 +1709,10 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                 }
 
         def getConfiguration(requestor, service, nodeIdentifier):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
-            self.assertEqual('test', nodeIdentifier)
-
             return defer.succeed({'pubsub#deliver_payloads': '0',
                                   'pubsub#persist_items': '1',
-                                  'pubsub#owner': JID('user@example.org')})
+                                  'pubsub#owner': JID('user@example.org'),
+                                  'x-myfield': ['a', 'b']})
 
         def cb(element):
             self.assertEqual('pubsub', element.name)
@@ -794,8 +1740,12 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             field.typeCheck()
             self.assertEqual(JID('user@example.org'), field.value)
 
+            self.assertNotIn('x-myfield', fields)
+
+
         self.service.getConfigurationOptions = getConfigurationOptions
         self.service.getConfiguration = getConfiguration
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
         d = self.handleRequest(xml)
         d.addCallback(cb)
         return d
@@ -835,15 +1785,13 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                 }
 
         def setConfiguration(requestor, service, nodeIdentifier, options):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
-            self.assertEqual('test', nodeIdentifier)
             self.assertEqual({'pubsub#deliver_payloads': False,
                               'pubsub#persist_items': True}, options)
             return defer.succeed(None)
 
         self.service.getConfigurationOptions = getConfigurationOptions
         self.service.setConfiguration = setConfiguration
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
         return self.handleRequest(xml)
 
 
@@ -872,6 +1820,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.fail("Unexpected call to setConfiguration")
 
         self.service.setConfiguration = setConfiguration
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
         return self.handleRequest(xml)
 
 
@@ -912,7 +1861,39 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         self.service.getConfigurationOptions = getConfigurationOptions
         self.service.setConfiguration = setConfiguration
+        verify.verifyObject(iwokkel.IPubSubService, self.service)
         return self.handleRequest(xml)
+
+
+    def test_onConfigureSetBadFormType(self):
+        """
+        On a node configuration set request unknown fields should be ignored.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='result'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver_payloads'><value>0</value></field>
+                <field var='x-myfield'><value>1</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('bad-request', result.condition)
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
 
 
     def test_onItems(self):
@@ -928,12 +1909,8 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
-        def items(requestor, service, nodeIdentifier, maxItems, items):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
-            self.assertEqual('test', nodeIdentifier)
-            self.assertIdentical(None, maxItems)
-            self.assertEqual([], items)
+        def items(requestor, service, nodeIdentifier, maxItems,
+                  itemIdentifiers):
             return defer.succeed([pubsub.Item('current')])
 
         def cb(element):
@@ -971,10 +1948,6 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
 
         def retract(requestor, service, nodeIdentifier, itemIdentifiers):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
-            self.assertEqual('test', nodeIdentifier)
-            self.assertEqual(['item1', 'item2'], itemIdentifiers)
             return defer.succeed(None)
 
         self.service.retract = retract
@@ -997,9 +1970,6 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
 
         def purge(requestor, service, nodeIdentifier):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
-            self.assertEqual('test', nodeIdentifier)
             return defer.succeed(None)
 
         self.service.purge = purge
@@ -1022,9 +1992,6 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
 
         def delete(requestor, service, nodeIdentifier):
-            self.assertEqual(JID('user@example.org'), requestor)
-            self.assertEqual(JID('pubsub.example.org'), service)
-            self.assertEqual('test', nodeIdentifier)
             return defer.succeed(None)
 
         self.service.delete = delete
@@ -1076,3 +2043,461 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.assertEqual(NS_PUBSUB_EVENT, message.event.delete.redirect.uri)
         self.assertTrue(message.event.delete.redirect.hasAttribute('uri'))
         self.assertEqual(redirectURI, message.event.delete.redirect['uri'])
+
+
+    def test_onSubscriptionsGet(self):
+        """
+        Getting subscription options is not supported.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <subscriptions/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('manage-subscriptions',
+                              result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onSubscriptionsSet(self):
+        """
+        Setting subscription options is not supported.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <subscriptions/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('manage-subscriptions',
+                              result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onAffiliationsGet(self):
+        """
+        Getting subscription options is not supported.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <affiliations/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('modify-affiliations',
+                              result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onAffiliationsSet(self):
+        """
+        Setting subscription options is not supported.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <affiliations/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('modify-affiliations',
+                              result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_publish(self):
+        """
+        Non-overridden L{PubSubService.publish} yields unsupported error.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <publish node='mynode'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('publish', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_subscribe(self):
+        """
+        Non-overridden L{PubSubService.subscribe} yields unsupported error.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('subscribe', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_unsubscribe(self):
+        """
+        Non-overridden L{PubSubService.unsubscribe} yields unsupported error.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <unsubscribe node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('subscribe', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_subscriptions(self):
+        """
+        Non-overridden L{PubSubService.subscriptions} yields unsupported error.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscriptions/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retrieve-subscriptions',
+                              result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_affiliations(self):
+        """
+        Non-overridden L{PubSubService.affiliations} yields unsupported error.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <affiliations/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retrieve-affiliations',
+                              result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_create(self):
+        """
+        Non-overridden L{PubSubService.create} yields unsupported error.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create node='mynode'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('create-nodes', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_getDefaultConfiguration(self):
+        """
+        Non-overridden L{PubSubService.getDefaultConfiguration} yields
+        unsupported error.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <default/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retrieve-default', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_getConfiguration(self):
+        """
+        Non-overridden L{PubSubService.getConfiguration} yields unsupported
+        error.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('config-node', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_setConfiguration(self):
+        """
+        Non-overridden L{PubSubService.setConfiguration} yields unsupported
+        error.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver_payloads'><value>0</value></field>
+                <field var='pubsub#persist_items'><value>1</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('config-node', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_items(self):
+        """
+        Non-overridden L{PubSubService.items} yields unsupported error.
+        """
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <items node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retrieve-items', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_retract(self):
+        """
+        Non-overridden L{PubSubService.retract} yields unsupported error.
+        """
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <retract node='test'>
+              <item id='item1'/>
+              <item id='item2'/>
+            </retract>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('retract-items', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_purge(self):
+        """
+        Non-overridden L{PubSubService.purge} yields unsupported error.
+        """
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <purge node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('purge-nodes', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_delete(self):
+        """
+        Non-overridden L{PubSubService.delete} yields unsupported error.
+        """
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <delete node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('delete-nodes', result.appCondition['feature'])
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d

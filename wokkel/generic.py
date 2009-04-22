@@ -10,7 +10,7 @@ Generic XMPP protocol helpers.
 from zope.interface import implements
 
 from twisted.internet import defer, protocol
-from twisted.words.protocols.jabber import error, xmlstream
+from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import domish, utility
 
@@ -160,6 +160,37 @@ class XmlPipe(object):
         self.sink = utility.EventDispatcher()
         self.source.send = lambda obj: self.sink.dispatch(obj)
         self.sink.send = lambda obj: self.source.dispatch(obj)
+
+
+
+class Stanza(object):
+    """
+    Abstract representation of a stanza.
+
+    @ivar sender: The sending entity.
+    @type sender: L{jid.JID}
+    @ivar recipient: The receiving entity.
+    @type recipient: L{jid.JID}
+    """
+
+    sender = None
+    recipient = None
+    stanzaType = None
+
+    @classmethod
+    def fromElement(Class, element):
+        stanza = Class()
+        stanza.parseElement(element)
+        return stanza
+
+
+    def parseElement(self, element):
+        self.sender = jid.internJID(element['from'])
+        if element.hasAttribute('from'):
+            self.sender = jid.internJID(element['from'])
+        if element.hasAttribute('to'):
+            self.recipient = jid.internJID(element['to'])
+        self.stanzaType = element.getAttribute('type')
 
 
 class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):
