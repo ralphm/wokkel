@@ -1,3 +1,21 @@
+0.6.0 (2009-04-22)
+==================
+
+Features
+--------
+
+ - Server-to-server support, based on the dialback protocol (#33).
+ - Enhancement to InternalProtocol to support multiple domains (#43).
+ - Publish-subscribe request abstraction (#45).
+ - Publish-subscribe abstraction to implement a node in code (#47).
+ - Enhancement to PubSubClient to send requests from a specific JID (#46).
+
+Fixes
+-----
+
+ - Remove type interpretation in Data Forms field parsing code (#44).
+
+
 0.5.0 (2009-04-07)
 ==================
 
