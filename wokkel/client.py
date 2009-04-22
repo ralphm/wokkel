@@ -11,16 +11,12 @@ that should probably eventually move there.
 """
 
 from twisted.application import service
-from twisted.internet import defer, protocol, reactor
+from twisted.internet import reactor
 from twisted.names.srvconnect import SRVConnector
 from twisted.words.protocols.jabber import client, sasl, xmlstream
 
-try:
-    from twisted.words.xish.xmlstream import BootstrapMixin
-except ImportError:
-    from wokkel.compat import BootstrapMixin
-
-from wokkel.subprotocols import StreamManager, XMPPHandler
+from wokkel import generic
+from wokkel.subprotocols import StreamManager
 
 class CheckAuthInitializer(object):
     """
@@ -127,43 +123,11 @@ class XMPPClient(StreamManager, service.Service):
             return c
 
 
-class DeferredClientFactory(BootstrapMixin, protocol.ClientFactory):
-    protocol = xmlstream.XmlStream
+class DeferredClientFactory(generic.DeferredXmlStreamFactory):
 
     def __init__(self, jid, password):
-        BootstrapMixin.__init__(self)
-
-        self.jid = jid
-        self.password = password
-
-        deferred = defer.Deferred()
-        self.deferred = deferred
-        self.addBootstrap(xmlstream.INIT_FAILED_EVENT, deferred.errback)
-
-        class ConnectionInitializedHandler(XMPPHandler):
-            def connectionInitialized(self):
-                deferred.callback(None)
-
-        self.streamManager = StreamManager(self)
-        self.addHandler(ConnectionInitializedHandler())
-
-
-    def buildProtocol(self, addr):
-        """
-        Create an instance of XmlStream.
-
-        A new authenticator instance will be created and passed to the new
-        XmlStream. Registered bootstrap event observers are installed as well.
-        """
-        self.authenticator = client.XMPPAuthenticator(self.jid, self.password)
-        xs = self.protocol(self.authenticator)
-        xs.factory = self
-        self.installBootstraps(xs)
-        return xs
-
-
-    def clientConnectionFailed(self, connector, reason):
-        self.deferred.errback(reason)
+        authenticator = client.XMPPAuthenticator(jid, password)
+        generic.DeferredXmlStreamFactory.__init__(self, authenticator)
 
 
     def addHandler(self, handler):
@@ -180,8 +144,9 @@ class DeferredClientFactory(BootstrapMixin, protocol.ClientFactory):
         self.streamManager.removeHandler(handler)
 
 
+
 def clientCreator(factory):
-    domain = factory.jid.host
+    domain = factory.authenticator.jid.host
     c = SRVConnector(reactor, 'xmpp-client', domain, factory)
     c.connect()
     return factory.deferred

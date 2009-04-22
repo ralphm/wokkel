@@ -9,10 +9,15 @@ Generic XMPP protocol helpers.
 
 from zope.interface import implements
 
-from twisted.internet import defer
-from twisted.words.protocols.jabber import error
+from twisted.internet import defer, protocol
+from twisted.words.protocols.jabber import error, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import domish, utility
+
+try:
+    from twisted.words.xish.xmlstream import BootstrapMixin
+except ImportError:
+    from wokkel.compat import BootstrapMixin
 
 from wokkel import disco
 from wokkel.iwokkel import IDisco
@@ -155,3 +160,34 @@ class XmlPipe(object):
         self.sink = utility.EventDispatcher()
         self.source.send = lambda obj: self.sink.dispatch(obj)
         self.sink.send = lambda obj: self.source.dispatch(obj)
+
+
+class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):
+    protocol = xmlstream.XmlStream
+
+    def __init__(self, authenticator):
+        BootstrapMixin.__init__(self)
+
+        self.authenticator = authenticator
+
+        deferred = defer.Deferred()
+        self.deferred = deferred
+        self.addBootstrap(xmlstream.STREAM_AUTHD_EVENT, self.deferred.callback)
+        self.addBootstrap(xmlstream.INIT_FAILED_EVENT, deferred.errback)
+
+
+    def buildProtocol(self, addr):
+        """
+        Create an instance of XmlStream.
+
+        A new authenticator instance will be created and passed to the new
+        XmlStream. Registered bootstrap event observers are installed as well.
+        """
+        xs = self.protocol(self.authenticator)
+        xs.factory = self
+        self.installBootstraps(xs)
+        return xs
+
+
+    def clientConnectionFailed(self, connector, reason):
+        self.deferred.errback(reason)
