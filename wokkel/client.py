@@ -11,16 +11,12 @@ that should probably eventually move there.
 """
 
 from twisted.application import service
-from twisted.internet import defer, protocol, reactor
+from twisted.internet import reactor
 from twisted.names.srvconnect import SRVConnector
 from twisted.words.protocols.jabber import client, sasl, xmlstream
 
-try:
-    from twisted.words.xish.xmlstream import XmlStreamFactoryMixin
-except ImportError:
-    from wokkel.compat import XmlStreamFactoryMixin
-
-from wokkel.subprotocols import StreamManager, XMPPHandler
+from wokkel import generic
+from wokkel.subprotocols import StreamManager
 
 class CheckAuthInitializer(object):
     """
@@ -127,27 +123,12 @@ class XMPPClient(StreamManager, service.Service):
             return c
 
 
-class DeferredClientFactory(XmlStreamFactoryMixin, protocol.ClientFactory):
-    protocol = xmlstream.XmlStream
+class DeferredClientFactory(generic.DeferredXmlStreamFactory):
 
     def __init__(self, jid, password):
-        self.authenticator = client.XMPPAuthenticator(jid, password)
-        XmlStreamFactoryMixin.__init__(self, self.authenticator)
+        authenticator = client.XMPPAuthenticator(jid, password)
+        generic.DeferredXmlStreamFactory.__init__(self, authenticator)
 
-        deferred = defer.Deferred()
-        self.deferred = deferred
-
-        self.addBootstrap(xmlstream.INIT_FAILED_EVENT, deferred.errback)
-
-        class ConnectionInitializedHandler(XMPPHandler):
-            def connectionInitialized(self):
-                deferred.callback(None)
-
-        self.streamManager = StreamManager(self)
-        self.addHandler(ConnectionInitializedHandler())
-
-    def clientConnectionFailed(self, connector, reason):
-        self.deferred.errback(reason)
 
     def addHandler(self, handler):
         """
@@ -155,11 +136,13 @@ class DeferredClientFactory(XmlStreamFactoryMixin, protocol.ClientFactory):
         """
         self.streamManager.addHandler(handler)
 
+
     def removeHandler(self, handler):
         """
         Add a subprotocol handler to the stream manager.
         """
         self.streamManager.removeHandler(handler)
+
 
 
 def clientCreator(factory):

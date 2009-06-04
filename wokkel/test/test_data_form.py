@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -7,20 +7,19 @@ Tests for {wokkel.data_form}.
 
 from twisted.trial import unittest
 from twisted.words.xish import domish
+from twisted.words.protocols.jabber import jid
 
-from wokkel.data_form import Field, Form, Option, FieldNameRequiredError
+from wokkel import data_form
 
 NS_X_DATA = 'jabber:x:data'
 
-
-
 class OptionTest(unittest.TestCase):
     """
-    Tests for L{Option}.
+    Tests for L{data_form.Option}.
     """
 
     def test_toElement(self):
-        option = Option('value', 'label')
+        option = data_form.Option('value', 'label')
         element = option.toElement()
         self.assertEquals('option', element.name)
         self.assertEquals(NS_X_DATA, element.uri)
@@ -33,53 +32,253 @@ class OptionTest(unittest.TestCase):
 
 class FieldTest(unittest.TestCase):
     """
-    Tests for L{Field}.
+    Tests for L{data_form.Field}.
     """
 
     def test_basic(self):
-        field = Field(var='test')
+        """
+        Test basic field initialization.
+        """
+        field = data_form.Field(var='test')
         self.assertEqual('text-single', field.fieldType)
         self.assertEqual('test', field.var)
 
+
+    def test_toElement(self):
+        """
+        Test rendering to a DOM.
+        """
+        field = data_form.Field(var='test')
         element = field.toElement()
 
         self.assertTrue(domish.IElement.providedBy(element))
         self.assertEquals('field', element.name)
         self.assertEquals(NS_X_DATA, element.uri)
-        self.assertEquals('text-single', element['type'])
+        self.assertEquals('text-single',
+                          element.getAttribute('type', 'text-single'))
         self.assertEquals('test', element['var'])
         self.assertEquals([], element.children)
 
 
-    def test_noFieldName(self):
-        field = Field()
-        self.assertRaises(FieldNameRequiredError, field.toElement)
+    def test_toElementTypeNotListSingle(self):
+        """
+        Always render the field type, if different from list-single.
+        """
+        field = data_form.Field('hidden', var='test')
+        element = field.toElement()
+
+        self.assertEquals('hidden', element.getAttribute('type'))
+
+
+    def test_toElementAsForm(self):
+        """
+        Always render the field type, if asForm is True.
+        """
+        field = data_form.Field(var='test')
+        element = field.toElement(True)
+
+        self.assertEquals('text-single', element.getAttribute('type'))
+
+
+    def test_toElementOptions(self):
+        """
+        Test rendering to a DOM with options.
+        """
+        field = data_form.Field('list-single', var='test')
+        field.options = [data_form.Option(u'option1'),
+                         data_form.Option(u'option2')]
+        element = field.toElement(True)
+
+        self.assertEqual(2, len(element.children))
+
+
+    def test_toElementLabel(self):
+        """
+        Test rendering to a DOM with a label.
+        """
+        field = data_form.Field(var='test', label=u'my label')
+        element = field.toElement(True)
+
+        self.assertEqual(u'my label', element.getAttribute('label'))
+
+
+    def test_toElementDescription(self):
+        """
+        Test rendering to a DOM with options.
+        """
+        field = data_form.Field(var='test', desc=u'My desc')
+        element = field.toElement(True)
+
+        self.assertEqual(1, len(element.children))
+        child = element.children[0]
+        self.assertEqual('desc', child.name)
+        self.assertEqual(NS_X_DATA, child.uri)
+        self.assertEqual(u'My desc', unicode(child))
+
+
+    def test_toElementRequired(self):
+        """
+        Test rendering to a DOM with options.
+        """
+        field = data_form.Field(var='test', required=True)
+        element = field.toElement(True)
+
+        self.assertEqual(1, len(element.children))
+        child = element.children[0]
+        self.assertEqual('required', child.name)
+        self.assertEqual(NS_X_DATA, child.uri)
+
+
+    def test_toElementJID(self):
+        field = data_form.Field(fieldType='jid-single', var='test',
+                                value=jid.JID(u'test@example.org'))
+        element = field.toElement()
+        self.assertEqual(u'test@example.org', unicode(element.value))
+
+
+    def test_typeCheckNoFieldName(self):
+        """
+        A field not of type fixed must have a var.
+        """
+        field = data_form.Field(fieldType='list-single')
+        self.assertRaises(data_form.FieldNameRequiredError, field.typeCheck)
+
+
+    def test_typeCheckTooManyValues(self):
+        """
+        Expect an exception if too many values are set, depending on type.
+        """
+        field = data_form.Field(fieldType='list-single', var='test',
+                                values=[u'value1', u'value2'])
+        self.assertRaises(data_form.TooManyValuesError, field.typeCheck)
+
+
+    def test_typeCheckBooleanFalse(self):
+        """
+        Test possible False values for a boolean field.
+        """
+        field = data_form.Field(fieldType='boolean', var='test')
+
+        for value in (False, 0, '0', 'false', 'False', []):
+            field.value = value
+            field.typeCheck()
+            self.assertIsInstance(field.value, bool)
+            self.assertFalse(field.value)
+
+
+    def test_typeCheckBooleanTrue(self):
+        """
+        Test possible True values for a boolean field.
+        """
+        field = data_form.Field(fieldType='boolean', var='test')
+
+        for value in (True, 1, '1', 'true', 'True', ['test']):
+            field.value = value
+            field.typeCheck()
+            self.assertIsInstance(field.value, bool)
+            self.assertTrue(field.value)
+
+
+    def test_typeCheckBooleanBad(self):
+        """
+        A bad value for a boolean field should raise a ValueError
+        """
+        field = data_form.Field(fieldType='boolean', var='test')
+        field.value = 'test'
+        self.assertRaises(ValueError, field.typeCheck)
+
+
+    def test_typeCheckJID(self):
+        """
+        The value of jid field should be a JID or coercable to one.
+        """
+        field = data_form.Field(fieldType='jid-single', var='test',
+                                value=jid.JID('test@example.org'))
+        field.typeCheck()
+
+
+    def test_typeCheckJIDString(self):
+        """
+        The string value of jid field should be coercable into a JID.
+        """
+        field = data_form.Field(fieldType='jid-single', var='test',
+                                value='test@example.org')
+        field.typeCheck()
+        self.assertEquals(jid.JID(u'test@example.org'), field.value)
+
+
+    def test_typeCheckJIDBad(self):
+        """
+        An invalid JID string should raise an exception.
+        """
+        field = data_form.Field(fieldType='jid-single', var='test',
+                                value='test@@example.org')
+        self.assertRaises(jid.InvalidFormat, field.typeCheck)
 
 
     def test_fromElementType(self):
         element = domish.Element((NS_X_DATA, 'field'))
         element['type'] = 'fixed'
-        field = Field.fromElement(element)
+        field = data_form.Field.fromElement(element)
         self.assertEquals('fixed', field.fieldType)
 
 
     def test_fromElementNoType(self):
         element = domish.Element((NS_X_DATA, 'field'))
-        field = Field.fromElement(element)
+        field = data_form.Field.fromElement(element)
         self.assertEquals(None, field.fieldType)
 
 
-    def test_fromElementValue(self):
+    def test_fromElementValueTextSingle(self):
+        """
+        Parsed text-single field values should be of type C{unicode}.
+        """
         element = domish.Element((NS_X_DATA, 'field'))
-        element.addElement("value", content="text")
-        field = Field.fromElement(element)
+        element['type'] = 'text-single'
+        element.addElement('value', content=u'text')
+        field = data_form.Field.fromElement(element)
         self.assertEquals('text', field.value)
+
+
+    def test_fromElementValueJID(self):
+        """
+        Parsed jid-single field values should be of type C{unicode}.
+        """
+        element = domish.Element((NS_X_DATA, 'field'))
+        element['type'] = 'jid-single'
+        element.addElement('value', content=u'user@example.org')
+        field = data_form.Field.fromElement(element)
+        self.assertEquals(u'user@example.org', field.value)
+
+    def test_fromElementValueJIDMalformed(self):
+        """
+        Parsed jid-single field values should be of type C{unicode}.
+
+        No validation should be done at this point, so invalid JIDs should
+        also be passed as-is.
+        """
+        element = domish.Element((NS_X_DATA, 'field'))
+        element['type'] = 'jid-single'
+        element.addElement('value', content=u'@@')
+        field = data_form.Field.fromElement(element)
+        self.assertEquals(u'@@', field.value)
+
+
+    def test_fromElementValueBoolean(self):
+        """
+        Parsed boolean field values should be of type C{unicode}.
+        """
+        element = domish.Element((NS_X_DATA, 'field'))
+        element['type'] = 'boolean'
+        element.addElement('value', content=u'false')
+        field = data_form.Field.fromElement(element)
+        self.assertEquals(u'false', field.value)
 
 
 
 class FormTest(unittest.TestCase):
     """
-    Tests for L{Form}.
+    Tests for L{data_form.Form}.
     """
 
     def test_formType(self):
@@ -87,14 +286,14 @@ class FormTest(unittest.TestCase):
         A form has a type.
         """
 
-        form = Form('result')
+        form = data_form.Form('result')
         self.assertEqual('result', form.formType)
 
     def test_toElement(self):
         """
         The toElement method returns a form's DOM representation.
         """
-        form = Form('result')
+        form = data_form.Form('result')
         element = form.toElement()
 
         self.assertTrue(domish.IElement.providedBy(element))
@@ -106,11 +305,11 @@ class FormTest(unittest.TestCase):
 
     def test_fromElement(self):
         """
-        The fromElement static method creates a L{Form} from a L{DOM.
+        C{fromElement} creates a L{data_form.Form} from a DOM representation.
         """
         element = domish.Element((NS_X_DATA, 'x'))
         element['type'] = 'result'
-        form = Form.fromElement(element)
+        form = data_form.Form.fromElement(element)
 
         self.assertEquals('result', form.formType)
         self.assertEquals(None, form.title)
@@ -123,7 +322,7 @@ class FormTest(unittest.TestCase):
         Bail if the passed element does not have the correct name.
         """
         element = domish.Element((NS_X_DATA, 'form'))
-        self.assertRaises(Exception, Form.fromElement, element)
+        self.assertRaises(Exception, data_form.Form.fromElement, element)
 
 
     def test_fromElementInvalidElementURI(self):
@@ -131,13 +330,13 @@ class FormTest(unittest.TestCase):
         Bail if the passed element does not have the correct namespace.
         """
         element = domish.Element(('myns', 'x'))
-        self.assertRaises(Exception, Form.fromElement, element)
+        self.assertRaises(Exception, data_form.Form.fromElement, element)
 
 
     def test_fromElementTitle(self):
         element = domish.Element((NS_X_DATA, 'x'))
         element.addElement('title', content='My title')
-        form = Form.fromElement(element)
+        form = data_form.Form.fromElement(element)
 
         self.assertEquals('My title', form.title)
 
@@ -145,7 +344,7 @@ class FormTest(unittest.TestCase):
     def test_fromElementInstructions(self):
         element = domish.Element((NS_X_DATA, 'x'))
         element.addElement('instructions', content='instruction')
-        form = Form.fromElement(element)
+        form = data_form.Form.fromElement(element)
 
         self.assertEquals(['instruction'], form.instructions)
 
@@ -153,7 +352,7 @@ class FormTest(unittest.TestCase):
         element = domish.Element((NS_X_DATA, 'x'))
         element.addElement('instructions', content='instruction 1')
         element.addElement('instructions', content='instruction 2')
-        form = Form.fromElement(element)
+        form = data_form.Form.fromElement(element)
 
         self.assertEquals(['instruction 1', 'instruction 2'], form.instructions)
 
@@ -161,7 +360,7 @@ class FormTest(unittest.TestCase):
     def test_fromElementOneField(self):
         element = domish.Element((NS_X_DATA, 'x'))
         element.addElement('field')
-        form = Form.fromElement(element)
+        form = data_form.Form.fromElement(element)
 
         self.assertEquals(1, len(form.fieldList))
         self.assertNotIn('field', form.fields)
@@ -171,7 +370,7 @@ class FormTest(unittest.TestCase):
         element = domish.Element((NS_X_DATA, 'x'))
         element.addElement('field')['var'] = 'field1'
         element.addElement('field')['var'] = 'field2'
-        form = Form.fromElement(element)
+        form = data_form.Form.fromElement(element)
 
         self.assertEquals(2, len(form.fieldList))
         self.assertIn('field1', form.fields)

@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_data_form -*-
 #
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -68,7 +68,7 @@ class Option(object):
         """
         Return the DOM representation of this option.
 
-        @rtype L{domish.Element}.
+        @rtype: L{domish.Element}.
         """
         option = domish.Element((NS_X_DATA, 'option'))
         option.addElement('value', content=self.value)
@@ -219,26 +219,33 @@ class Field(object):
             newValues = []
             for value in self.values:
                 if self.fieldType == 'boolean':
-                    # We send out the textual representation of boolean values
-                    value = bool(int(value))
+                    if isinstance(value, (str, unicode)):
+                        checkValue = value.lower()
+                        if not checkValue in ('0', '1', 'false', 'true'):
+                            raise ValueError("Not a boolean")
+                        value = checkValue in ('1', 'true')
+                    value = bool(value)
                 elif self.fieldType in ('jid-single', 'jid-multi'):
-                    value = value.full()
+                    if not hasattr(value, 'full'):
+                        value = JID(value)
 
                 newValues.append(value)
 
             self.values = newValues
 
-    def toElement(self):
+    def toElement(self, asForm=False):
         """
         Return the DOM representation of this Field.
 
-        @rtype L{domish.Element}.
+        @rtype: L{domish.Element}.
         """
 
         self.typeCheck()
 
         field = domish.Element((NS_X_DATA, 'field'))
-        field['type'] = self.fieldType
+
+        if asForm or self.fieldType != 'text-single':
+            field['type'] = self.fieldType
 
         if self.var is not None:
             field['var'] = self.var
@@ -246,20 +253,24 @@ class Field(object):
         for value in self.values:
             if self.fieldType == 'boolean':
                 value = unicode(value).lower()
+            elif self.fieldType in ('jid-single', 'jid-multi'):
+                value = value.full()
+
             field.addElement('value', content=value)
 
-        if self.fieldType in ('list-single', 'list-multi'):
-            for option in self.options:
-                field.addChild(option.toElement())
+        if asForm:
+            if self.fieldType in ('list-single', 'list-multi'):
+                for option in self.options:
+                    field.addChild(option.toElement())
 
-        if self.label is not None:
-            field['label'] = self.label
+            if self.label is not None:
+                field['label'] = self.label
 
-        if self.desc is not None:
-            field.addElement('desc', content=self.desc)
+            if self.desc is not None:
+                field.addElement('desc', content=self.desc)
 
-        if self.required:
-            field.addElement('required')
+            if self.required:
+                field.addElement('required')
 
         return field
 
@@ -284,10 +295,6 @@ class Field(object):
     @staticmethod
     def _parse_value(field, element):
         value = unicode(element)
-        if field.fieldType == 'boolean':
-            value = value.lower() in ('1', 'true')
-        elif field.fieldType in ('jid-multi', 'jid-single'):
-            value = JID(value)
         field.values.append(value)
 
 
@@ -424,7 +431,7 @@ class Form(object):
             form.addChild(field.toElement())
 
         for field in self.fieldList:
-            form.addChild(field.toElement())
+            form.addChild(field.toElement(self.formType=='form'))
 
         return form
 

@@ -5,7 +5,11 @@
 Unit test helpers.
 """
 
+from twisted.internet import defer
+from twisted.words.xish import xpath
 from twisted.words.xish.utility import EventDispatcher
+
+from wokkel.generic import parseXml
 
 class XmlStreamStub(object):
     """
@@ -54,3 +58,37 @@ class XmlStreamStub(object):
                    L{IElement<twisted.words.xish.domish.IElement>}.
         """
         self.xmlstream.dispatch(obj)
+
+
+class TestableRequestHandlerMixin(object):
+    """
+    Mixin for testing XMPPHandlers that process iq requests.
+
+    Handlers that use L{wokkel.subprotocols.IQHandlerMixin} define a
+    C{iqHandlers} attribute that lists the handlers to be called for iq
+    requests. This mixin provides L{handleRequest} to mimic the handler
+    processing for easier testing.
+    """
+
+    def handleRequest(self, xml):
+        """
+        Find a handler and call it directly.
+
+        @param xml: XML stanza that may yield a handler being called.
+        @type xml: C{str}.
+        @return: Deferred that fires with the result of a handler for this
+                 stanza. If no handler was found, the deferred has its errback
+                 called with a C{NotImplementedError} exception.
+        """
+        handler = None
+        iq = parseXml(xml)
+        for queryString, method in self.service.iqHandlers.iteritems():
+            if xpath.internQuery(queryString).matches(iq):
+                handler = getattr(self.service, method)
+
+        if handler:
+            d = defer.maybeDeferred(handler, iq)
+        else:
+            d = defer.fail(NotImplementedError())
+
+        return d
