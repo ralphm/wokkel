@@ -17,38 +17,38 @@ from twisted.internet import defer, reactor
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
-from wokkel import disco, data_form, xmppim
+from wokkel import data_form, xmppim
 from wokkel.subprotocols import XMPPHandler
 from wokkel.iwokkel import IMUCClient
 
 # Multi User Chat namespaces
-NS_MUC          = 'http://jabber.org/protocol/muc'
-NS_MUC_USER     = NS_MUC + '#user'
-NS_MUC_ADMIN    = NS_MUC + '#admin'
-NS_MUC_OWNER    = NS_MUC + '#owner'
+NS_MUC = 'http://jabber.org/protocol/muc'
+NS_MUC_USER = NS_MUC + '#user'
+NS_MUC_ADMIN = NS_MUC + '#admin'
+NS_MUC_OWNER = NS_MUC + '#owner'
 NS_MUC_ROOMINFO = NS_MUC + '#roominfo'
-NS_MUC_CONFIG   = NS_MUC + '#roomconfig'
-NS_MUC_REQUEST  = NS_MUC + '#request'
+NS_MUC_CONFIG = NS_MUC + '#roomconfig'
+NS_MUC_REQUEST = NS_MUC + '#request'
 NS_MUC_REGISTER = NS_MUC + '#register'
 
-NS_DELAY        = 'urn:xmpp:delay'
+NS_DELAY = 'urn:xmpp:delay'
 NS_JABBER_DELAY = 'jabber:x:delay'
 
-NS_REQUEST  = 'jabber:iq:register'
+NS_REQUEST = 'jabber:iq:register'
 
 # Iq get and set XPath queries
-IQ     = '/iq'
+IQ = '/iq'
 IQ_GET = IQ+'[@type="get"]'
 IQ_SET = IQ+'[@type="set"]'
 
 IQ_RESULT = IQ+'[@type="result"]'
-IQ_ERROR  = IQ+'[@type="error"]'
+IQ_ERROR = IQ+'[@type="error"]'
 
-IQ_QUERY     = IQ+'/query'
+IQ_QUERY = IQ+'/query'
 IQ_GET_QUERY = IQ_GET + '/query'
 IQ_SET_QUERY = IQ_SET + '/query'
 
-IQ_COMMAND   = IQ+'/command'
+IQ_COMMAND = IQ+'/command'
 
 MUC_ADMIN = IQ_QUERY+'[@xmlns="' + NS_MUC_ADMIN + '"]'
 MUC_OWNER = IQ_QUERY+'[@xmlns="' + NS_MUC_OWNER + '"]'
@@ -56,14 +56,14 @@ MUC_OWNER = IQ_QUERY+'[@xmlns="' + NS_MUC_OWNER + '"]'
 MUC_AO = MUC_ADMIN + '|' + MUC_OWNER
 
 
-MESSAGE  = '/message'
+MESSAGE = '/message'
 PRESENCE = '/presence'
 
 CHAT_BODY = MESSAGE +'[@type="chat"]/body'
-CHAT      = MESSAGE +'[@type="chat"]'
+CHAT = MESSAGE +'[@type="chat"]'
 
-GROUPCHAT     = MESSAGE +'[@type="groupchat"]/body'
-SUBJECT       = MESSAGE +'[@type="groupchat"]/subject'
+GROUPCHAT = MESSAGE +'[@type="groupchat"]/body'
+SUBJECT = MESSAGE +'[@type="groupchat"]/subject'
 MESSAGE_ERROR = MESSAGE +'[@type="error"]'
 
 STATUS_CODES = { # see http://www.xmpp.org/extensions/xep-0045.html#registrar-statuscodes
@@ -90,7 +90,7 @@ class JidMalformed(Exception):
 
 
     """
-    condition    = 'modify'
+    condition = 'modify'
     mucCondition = 'jid-malformed'
 
 
@@ -98,7 +98,7 @@ class JidMalformed(Exception):
 class NotAuthorized(Exception):
     """
     """
-    condition    = 'auth'
+    condition = 'auth'
     mucCondition = 'not-authorized'
 
 
@@ -106,7 +106,7 @@ class NotAuthorized(Exception):
 class RegistrationRequired(Exception):
     """
     """
-    condition    = 'auth'
+    condition = 'auth'
     mucCondition = 'registration-required'
 
 
@@ -114,7 +114,7 @@ class RegistrationRequired(Exception):
 class Forbidden(Exception):
     """
     """
-    condition    = 'auth'
+    condition = 'auth'
     mucCondition = 'forbidden'
 
 
@@ -122,7 +122,7 @@ class Forbidden(Exception):
 class Conflict(Exception):
     """
     """
-    condition    = 'cancel'
+    condition = 'cancel'
     mucCondition = 'conflict'
 
 
@@ -130,7 +130,7 @@ class Conflict(Exception):
 class NotFound(Exception):
     """
     """
-    condition    = 'cancel'
+    condition = 'cancel'
     mucCondition = 'not-found'
 
 
@@ -138,7 +138,7 @@ class NotFound(Exception):
 class ServiceUnavailable(Exception):
     """
     """
-    condition    = 'wait'
+    condition = 'wait'
     mucCondition = 'service-unavailable'
 
 
@@ -384,18 +384,15 @@ class PrivateChat(domish.Element):
 
 
 
-class InviteMessage(PrivateChat):
-    def __init__(self, to, reason=None, full_jid=None, body=None, frm=None, password=None):
-        PrivateChat.__init__(self, to, body=body, frm=frm)
-        del self['type'] # remove type
+class InviteMessage(domish.Element):
+    def __init__(self, bareRoomJID, invitee, reason=None):
+        domish.Element.__init__(self, (None, 'message'))
+        self['to'] = unicode(bareRoomJID)
         x = self.addElement('x', NS_MUC_USER)
         invite = x.addElement('invite')
-        if full_jid:
-            invite['to'] = full_jid
+        invite['to'] = invitee
         if reason:
             invite.addElement('reason', None, reason)
-        if password:
-            invite.addElement('password', None, password)
 
 
 
@@ -433,10 +430,10 @@ class HistoryOptions(object):
     attributes = ['maxchars', 'maxstanzas', 'seconds', 'since']
 
     def __init__(self, maxchars=None, maxstanzas=None, seconds=None, since=None):
-        self.maxchars   = maxchars
+        self.maxchars = maxchars
         self.maxstanzas = maxstanzas
-        self.seconds    = seconds
-        self.since      = since
+        self.seconds = seconds
+        self.since = since
 
 
     def toElement(self):
@@ -461,14 +458,14 @@ class User(object):
     A user/entity in a multi-user chat room.
     """
 
-    def __init__(self, nick, user_jid=None):
+    def __init__(self, nick, entity=None):
         self.nick = nick
-        self.user_jid = user_jid
+        self.entity = entity
         self.affiliation = 'none'
         self.role = 'none'
 
         self.status = None
-        self.show   = None
+        self.show = None
 
 
 
@@ -478,15 +475,15 @@ class Room(object):
     """
 
 
-    def __init__(self, name, server, nick, state=None):
+    def __init__(self, roomIdentifier, service, nick, state=None):
         """
         Initialize the room.
 
-        @ivar name: The name of the MUC room.
-        @type name: L{unicode}
+        @ivar roomIdentifier: The Room ID of the MUC room.
+        @type roomIdentifier: L{unicode}
 
-        @ivar server: The server where the MUC room is located.
-        @type server: L{unicode}
+        @ivar service: The server where the MUC room is located.
+        @type service: L{unicode}
 
         @ivar nick: The nick name for the client in this room.
         @type nick: L{unicode}
@@ -494,30 +491,32 @@ class Room(object):
         @ivar state: The status code of the room.
         @type state: L{int}
 
-        @ivar entity_id: The jid of the room. Generated from name, server, and nick.
-        @type entity_id: L{jid.JID}
+        @ivar roomJID: The JID of the occupant in the room. Generated from roomIdentifier, service, and nick.
+        @type roomJID: L{jid.JID}
 
         """
-        self.state  = state
-        self.name   = name
-        self.server = server
-        self.nick   = nick
+        self.state = state
+        self.roomIdentifier = roomIdentifier
+        self.service = service
+        self.nick = nick
         self.status = 0
 
-        self.entity_id = self.entityId()
+        self.roomJID = self.refreshRoomJID()
 
         self.roster = {}
 
 
-    def entityId(self):
+    def refreshRoomJID(self):
         """
-        Creates the L{jid.JID} for the room. If name, server, or nick change then this method
-        should be called.
+        Refreshes the Room JID.
 
+        This method should be called whenever roomIdentifier, service, or nick
+        change.
         """
-        self.entity_id = jid.internJID(self.name+'@'+self.server+'/'+self.nick)
-
-        return self.entity_id
+        self.roomJID = jid.internJID(u"%s@%s/%s" % (self.roomIdentifier,
+                                                    self.service,
+                                                    self.nick))
+        return self.roomJID
 
 
     def addUser(self, user):
@@ -665,17 +664,26 @@ class PresenceError(xmppim.Presence):
 
 class MUCClient(XMPPHandler):
     """
-    Multi-User chat client protocol. This is a subclass of L{XMPPHandler} and implements L{IMUCCLient}.
+    Multi-User Chat client protocol.
 
+    This is a subclass of L{XMPPHandler} and implements L{IMUCCLient}.
+
+    @ivar _rooms: Collection of occupied rooms, keyed by the bare JID of the
+                  room. Note that a particular entity can only join a room once
+                  at a time.
+    @type _rooms: C{dict}
     """
 
     implements(IMUCClient)
 
-    rooms = {}
-
     timeout = None
 
-    _deferreds = []
+    def __init__(self):
+        XMPPHandler.__init__(self)
+
+        self._rooms = {}
+        self._deferreds = []
+
 
     def connectionInitialized(self):
         """
@@ -693,26 +701,37 @@ class MUCClient(XMPPHandler):
         self.initialized()
 
 
-    def _setRoom(self, room):
+    def _addRoom(self, room):
         """
         Add a room to the room collection.
+
+        Rooms are stored by the JID of the room itself. I.e. it uses the Room
+        ID and service parts of the Room JID.
+
+        @note: An entity can only join a particular room once.
         """
-        self.rooms[room.entity_id.userhost().lower()] = room
+        bareRoomJID = room.roomJID.userhostJID()
+        self._rooms[bareRoomJID] = room
 
 
-    def _getRoom(self, room_jid):
+    def _getRoom(self, roomJID):
         """
         Grab a room from the room collection.
+
+        This uses the Room ID and service parts of the given JID to look up
+        the L{Room} instance associated with it.
         """
-        return self.rooms.get(room_jid.userhost().lower())
+        bareRoomJID = roomJID.userhostJID()
+        return self._rooms.get(bareRoomJID)
 
 
-    def _removeRoom(self, room_jid):
+    def _removeRoom(self, roomJID):
         """
         Delete a room from the room collection.
         """
-        if self.rooms.has_key(room_jid.userhost().lower()):
-            del self.rooms[room_jid.userhost().lower()]
+        bareRoomJID = roomJID.userhostJID()
+        if bareRoomJID in self._rooms:
+            del self._rooms[bareRoomJID]
 
 
     def _onUnavailablePresence(self, prs):
@@ -776,7 +795,7 @@ class MUCClient(XMPPHandler):
         room_jid = jid.internJID(prs.getAttribute('from', ''))
 
         status = getattr(prs, 'status', None)
-        show   = getattr(prs, 'show', None)
+        show = getattr(prs, 'show', None)
 
         # grab room
         room = self._getRoom(room_jid)
@@ -818,7 +837,7 @@ class MUCClient(XMPPHandler):
         for e in msg.elements():
             if e.uri == NS_DELAY or e.uri == NS_JABBER_DELAY:
                 delay = e
-        body  = unicode(msg.body)
+        body = unicode(msg.body)
         # grab room
         if delay is None:
             self.receivedGroupChat(room, user, body)
@@ -855,41 +874,41 @@ class MUCClient(XMPPHandler):
         """
         We have presence that says we joined a room.
         """
-        room_jid = jid.internJID(prs['from'])
+        roomJID = jid.internJID(prs['from'])
 
         # check for errors
         if prs.hasAttribute('type') and prs['type'] == 'error':
             d.errback(self._getExceptionFromElement(prs))
         else:
             # change the state of the room
-            r = self._getRoom(room_jid)
-            if r is None:
+            room = self._getRoom(roomJID)
+            if room is None:
                 raise NotFound
-            r.state = 'joined'
+            room.state = 'joined'
 
             # grab status
-            status = getattr(prs.x,'status',None)
+            status = getattr(prs.x, 'status', None)
             if status:
-                r.status = status.getAttribute('code', None)
+                room.status = status.getAttribute('code', None)
 
-            d.callback(r)
+            d.callback(room)
 
 
     def _leftRoom(self, d, prs):
         """
-        We have presence that says we joined a room.
+        We have presence that says we left a room.
         """
-        room_jid = jid.internJID(prs['from'])
+        roomJID = jid.internJID(prs['from'])
 
         # check for errors
         if prs.hasAttribute('type') and prs['type'] == 'error':
             d.errback(self._getExceptionFromElement(prs))
         else:
             # change the state of the room
-            r = self._getRoom(room_jid)
-            if r is None:
+            room = self._getRoom(roomJID)
+            if room is None:
                 raise NotFound
-            self._removeRoom(room_jid)
+            self._removeRoom(roomJID)
 
             d.callback(True)
 
@@ -1007,24 +1026,6 @@ class MUCClient(XMPPHandler):
         return d
 
 
-    def disco(self, entity, type='info'):
-        """
-        Send disco queries to a XMPP entity.
-
-        @param entity: The server or entity where we want discovery information from.
-        @type  entity: L{jid.JID}
-
-        @param type: The optional disco type.
-        @type  type: L{unicode}
-
-        """
-
-        iq = disco.DiscoRequest(self.xmlstream, disco.NS_INFO, 'get')
-        iq['to'] = entity
-
-        return iq.send().addBoth(self._cbDisco)
-
-
     def configure(self, room_jid, fields=[]):
         """
         Configure a room
@@ -1055,131 +1056,134 @@ class MUCClient(XMPPHandler):
         return request.send()
 
 
-    def join(self, server, room, nick, history = None):
+    def join(self, service, roomIdentifier, nick, history=None):
         """
-        Join a MUC room by sending presence to it. Returns a defered that is called when
-        the entity is in the room or an error has occurred.
+        Join a MUC room by sending presence to it.
 
         @param server: The server where the room is located.
         @type  server: L{unicode}
-
         @param room: The room name the entity is joining.
         @type  room: L{unicode}
-
         @param nick: The nick name for the entitity joining the room.
         @type  nick: L{unicode}
-
         @param history: The maximum number of history stanzas you would like.
 
+        @return: A deferred that fires when the entity is in the room or an
+                 error has occurred.
         """
-        r = Room(room, server, nick, state='joining')
-        self._setRoom(r)
+        room = Room(roomIdentifier, service, nick, state='joining')
+        self._addRoom(room)
 
-        p = BasicPresence(to=r.entity_id)
+        p = BasicPresence(to=room.roomJID)
         if history is not None:
             p.x.addChild(history.toElement())
 
         d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
 
         # add observer for joining the room
-        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()),
-                                          self._joinedRoom, 1, d)
+        query = PRESENCE + u"[@from='%s']" % room.roomJID
+        self.xmlstream.addOnetimeObserver(query, self._joinedRoom, 1, d)
 
         return d
 
 
-    def _changeUserStatus(self, r, room_jid, status, show):
-        # change the user status in a room.
+    def _changeUserStatus(self, room, roomJID, status, show):
+        """
+        Change the user status in a room.
+        """
 
         # check if user is in roster
-        user = r.getUser(room_jid.resource)
+        user = room.getUser(roomJID.resource)
         if user is None: # create a user that does not exist
-            user = User(room_jid.resource)
+            user = User(roomJID.resource)
 
         if status is not None:
-            user.status = str(status)
+            user.status = unicode(status)
         if show is not None:
-            user.show   = str(show)
+            user.show = unicode(show)
 
         return user
 
 
-    def _changed(self, d, room_jid, prs):
+    def _changed(self, d, roomJID, prs):
         """
         Callback for changing the nick and status.
         """
 
         status = getattr(prs, 'status', None)
-        show   = getattr(prs, 'show', None)
+        show = getattr(prs, 'show', None)
 
-        r = self._getRoom(room_jid)
+        room = self._getRoom(roomJID)
 
-        user = self._changeUserStatus(r, room_jid, status, show)
+        user = self._changeUserStatus(room, roomJID, status, show)
 
-        d.callback(r)
+        d.callback(room)
 
 
-    def nick(self, room_jid, new_nick):
+    def nick(self, bareRoomJID, new_nick):
         """
         Change an entities nick name in a MUC room.
 
         See: http://xmpp.org/extensions/xep-0045.html#changenick
 
-        @param room_jid: The room jabber/xmpp entity id for the requested configuration form.
-        @type  room_jid: L{jid.JID}
+        @param bareRoomJID: The JID of the room, i.e. without a resource.
+        @type bareRoomJID: L{jid.JID}
 
         @param new_nick: The nick name for the entitity joining the room.
-        @type  new_nick: L{unicode}
+        @type new_nick: L{unicode}
 
         """
 
 
-        r = self._getRoom(room_jid)
-        if r is None:
+        room = self._getRoom(bareRoomJID)
+        if room is None:
             raise NotFound
-        r.nick = new_nick # change the nick
-        # create presence
-        # make sure we call the method to generate the new entity xmpp id
-        p = BasicPresence(to=r.entityId())
+
+        # Change the nickname
+        room.nick = new_nick
+        room.refreshRoomJID()
+
+        # Create presence
+        p = BasicPresence(to=room.roomJID)
         d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
 
-        # add observer for joining the room
-        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()),
-                                          self._changed, 1, d, room_jid)
+        # Add observer for joining the room
+        query = PRESENCE+"[@from='%s']" % (room.roomJID.full())
+        self.xmlstream.addOnetimeObserver(query, self._changed, 1, d, bareRoomJID)
 
         return d
 
 
-    def leave(self, room_jid):
+    def leave(self, roomJID):
         """
         Leave a MUC room.
 
         See: http://xmpp.org/extensions/xep-0045.html#exit
 
-        @param room_jid: The room entity id you want to exit.
-        @type  room_jid: L{jid.JID}
+        @param roomJID: The Room JID of the room to leave.
+        @type roomJID: L{jid.JID}
 
         """
-        r = self._getRoom(room_jid)
+        room = self._getRoom(roomJID)
 
-        p = xmppim.UnavailablePresence(to=r.entity_id)
+        p = xmppim.UnavailablePresence(to=room.roomJID)
 
         d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
         # add observer for joining the room
-        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s' and @type='unavailable']" % (r.entity_id.full()),
-                                          self._leftRoom, 1, d)
+        query = PRESENCE + u"[@from='%s' and @type='unavailable']" % (room.roomJID)
+        self.xmlstream.addOnetimeObserver(query, self._leftRoom, 1, d)
 
         return d
 
 
-    def status(self, room_jid, show=None, status=None):
+    def status(self, roomJID, show=None, status=None):
         """
         Change user status.
 
         See: http://xmpp.org/extensions/xep-0045.html#changepres
 
-        @param room_jid: The room jabber/xmpp entity id for the requested configuration form.
-        @type  room_jid: L{jid.JID}
+        @param roomJID: The room jabber/xmpp entity id for the requested configuration form.
+        @type  roomJID: L{jid.JID}
 
         @param show: The availability of the entity. Common values are xa, available, etc
         @type  show: L{unicode}
@@ -1188,11 +1192,11 @@ class MUCClient(XMPPHandler):
         @type  show: L{unicode}
 
         """
-        r = self._getRoom(room_jid)
-        if r is None:
+        room = self._getRoom(roomJID)
+        if room is None:
             raise NotFound
 
-        p = BasicPresence(to=r.entityId())
+        p = BasicPresence(to=room.roomJID)
         if status is not None:
             p.addElement('status', None, status)
 
@@ -1202,17 +1206,19 @@ class MUCClient(XMPPHandler):
         d = self.sendDeferred(p, timeout=DEFER_TIMEOUT)
 
         # add observer for joining the room
-        self.xmlstream.addOnetimeObserver(PRESENCE+"[@from='%s']" % (r.entity_id.full()),
-                                          self._changed, 1, d, room_jid)
+        query = PRESENCE + u"[@from='%s']" % room.roomJID
+        self.xmlstream.addOnetimeObserver(query, self._changed, 1, d, roomJID)
 
         return d
 
 
     def _sendMessage(self, msg, children=None):
-        # send a message
+        """
+        Send a message.
+        """
         if children:
-            for c in children:
-                msg.addChild(c)
+            for child in children:
+                msg.addChild(child)
 
         self.xmlstream.send(msg)
 
@@ -1242,23 +1248,21 @@ class MUCClient(XMPPHandler):
         self._sendMessage(msg, children=children)
 
 
-    def invite(self, room_jid, reason=None, full_jid=None):
+    def invite(self, bareRoomJID, reason=None, invitee=None):
         """
         Invite a xmpp entity to a MUC room.
 
         See: http://xmpp.org/extensions/xep-0045.html#invite
 
-        @param room_jid: The room entity id.
-        @type  room_jid: L{jid.JID}
-
+        @param bareRoomJID: The bare JID of the room.
+        @type bareRoomJID: L{jid.JID}
         @param reason: The reason for the invite.
-        @type  reason: L{unicode}
-
-        @param full_jid: The xmpp user's entity id.
-        @type  full_jid: L{jid.JID}
+        @type reason: L{unicode}
+        @param invitee: The entity that is being invited.
+        @type invitee: L{jid.JID}
 
         """
-        msg = InviteMessage(room_jid, reason=reason, full_jid=full_jid)
+        msg = InviteMessage(bareRoomJID, reason=reason, invitee=invitee)
         self._sendMessage(msg)
 
 
@@ -1316,80 +1320,83 @@ class MUCClient(XMPPHandler):
         return iq.send()
 
 
-    def _setAffiliationList(self, affiliation, room_jid, iq):
+    def _setAffiliationList(self, iq, affiliation, roomJID):
         # set a rooms affiliation list
-        r = self._getRoom(room_jid)
-        if r is not None:
+        room = self._getRoom(roomJID)
+        if room is not None:
             affiliation_list = []
-            setattr(r, affiliation, [])
+            setattr(room, affiliation, [])
 
             for item in iq.query.elements():
-                nick   = item.getAttribute('nick', None)
+                nick = item.getAttribute('nick', None)
                 entity = item.getAttribute('jid', None)
-                u      = None
+                role = item.getAttribute('role', None)
+                user = None
                 if nick is None and entity is None:
                     raise Exception, 'bad attributes in item list'
                 if nick is not None:
-                    u = r.getUser(nick)
-                if u is None:
-                    u = User(nick, user_jid=jid.internJID(entity))
-                    u.affiliation = 'member'
+                    user = room.getUser(nick)
+                if user is None:
+                    user = User(nick, entity=jid.internJID(entity))
+                    user.affiliation = 'member'
+                if role is not None:
+                    user.role = role
 
-                affiliation_list.append(u)
+                affiliation_list.append(user)
 
-            setattr(r, affiliation, affiliation_list)
-        return r
+            setattr(room, affiliation, affiliation_list)
+        return room
 
 
-    def getMemberList(self, room_jid):
+    def getMemberList(self, bareRoomJID):
         """
-        Get a member list from a room.
+        Get the member list of a room.
 
-        @param room_jid: The room jabber/xmpp entity id for the requested member list.
-        @type  room_jid: L{jid.JID}
+        @param bareRoomJID: The bare JID of the room.
+        @type  bareRoomJID: L{jid.JID}
 
         """
-        d = self._getAffiliationList(room_jid, 'member')
-        d.addCallback(self._setAffiliationList, 'members', room_jid)
+        d = self._getAffiliationList(bareRoomJID, 'member')
+        d.addCallback(self._setAffiliationList, 'members', bareRoomJID)
         return d
 
 
-    def getAdminList(self, room_jid):
+    def getAdminList(self, bareRoomJID):
         """
-        Get an admin list from a room.
+        Get the admin list of a room.
 
-        @param room_jid: The room jabber/xmpp entity id for the requested member list.
-        @type  room_jid: L{jid.JID}
+        @param bareRoomJID: The bare JID of the room.
+        @type  bareRoomJID: L{jid.JID}
 
         """
-        d = self._getAffiliationList(room_jid, 'admin')
-        d.addCallback(self._setAffiliationList, 'members', room_jid)
+        d = self._getAffiliationList(bareRoomJID, 'admin')
+        d.addCallback(self._setAffiliationList, 'admin', bareRoomJID)
         return d
 
 
-    def getBanList(self, room_jid):
+    def getBanList(self, bareRoomJID):
         """
         Get an outcast list from a room.
 
-        @param room_jid: The room jabber/xmpp entity id for the requested member list.
-        @type  room_jid: L{jid.JID}
+        @param bareRoomJID: The bare JID of the room.
+        @type  bareRoomJID: L{jid.JID}
 
         """
-        d = self._getAffiliationList(room_jid, 'outcast')
-        d.addCallback(self._setAffiliationList, 'members', room_jid)
+        d = self._getAffiliationList(bareRoomJID, 'outcast')
+        d.addCallback(self._setAffiliationList, 'outcast', bareRoomJID)
         return d
 
 
-    def getOwnerList(self, room_jid):
+    def getOwnerList(self, bareRoomJID):
         """
         Get an owner list from a room.
 
-        @param room_jid: The room jabber/xmpp entity id for the requested member list.
-        @type  room_jid: L{jid.JID}
+        @param bareRoomJID: The room jabber/xmpp entity id for the requested member list.
+        @type  bareRoomJID: L{jid.JID}
 
         """
-        d = self._getAffiliationList(room_jid, 'owner')
-        d.addCallback(self._setAffiliationList, 'members', room_jid)
+        d = self._getAffiliationList(bareRoomJID, 'owner')
+        d.addCallback(self._setAffiliationList, 'owner', bareRoomJID)
         return d
 
 
@@ -1422,7 +1429,7 @@ class MUCClient(XMPPHandler):
             return True
 
         iq = OwnerRequest(self.xmlstream, method='set')
-        d  = iq.query.addElement('destroy')
+        d = iq.query.addElement('destroy')
         d['jid'] = room_jid.userhost()
         if reason is not None:
             d.addElement('reason', None, reason)

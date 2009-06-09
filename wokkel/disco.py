@@ -408,22 +408,6 @@ class DiscoClientProtocol(XMPPHandler):
 
 
 
-class DiscoRequest(xmlstream.IQ):
-    """
-    Disco request.
-
-    @ivar namespace: Request namespace.
-    @type namespace: C{str}
-    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
-    @type method: C{str}
-    """
-
-    def __init__(self, xs, namespace=NS, method='get'):
-        xmlstream.IQ.__init__(self, xs, method)
-        self.addElement((namespace, 'query'))
-
-
-
 class DiscoHandler(XMPPHandler, IQHandlerMixin):
     """
     Protocol implementation for XMPP Service Discovery.

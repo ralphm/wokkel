@@ -798,19 +798,6 @@ class IMUCClient(Interface):
 
         """
 
-    
-    def disco(entity, type='info'):
-        """Send disco queries to a XMPP entity
-
-        @param entity: A XMPP entity to send the disco request to.
-        @type entity: C{unicode}
-
-        @param type: Optional argument to determine the type of discovery being done.
-        @type type: C{str}
-
-        """
-
-        
 
     def configure(room_jid, fields=[]):
         """Configure a room. When a user has administration privledges they can configure 
