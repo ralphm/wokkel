@@ -128,6 +128,7 @@ class DeferredClientFactory(generic.DeferredXmlStreamFactory):
     def __init__(self, jid, password):
         authenticator = client.XMPPAuthenticator(jid, password)
         generic.DeferredXmlStreamFactory.__init__(self, authenticator)
+        self.streamManager = StreamManager(self)
 
 
     def addHandler(self, handler):

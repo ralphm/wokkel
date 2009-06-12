@@ -13,6 +13,11 @@ from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.xmlstream import STREAM_AUTHD_EVENT
 from twisted.words.protocols.jabber.xmlstream import INIT_FAILED_EVENT
 
+try:
+    from twisted.words.protocols.jabber.xmlstream import XMPPHandler
+except ImportError:
+    from wokkel.subprotocols import XMPPHandler
+
 from wokkel import client
 from wokkel.test.test_compat import BootstrapMixinTest
 
@@ -75,6 +80,27 @@ class DeferredClientFactoryTest(BootstrapMixinTest):
         self.factory.clientConnectionFailed(self, TestException())
         self.assertFailure(self.factory.deferred, TestException)
         return self.factory.deferred
+
+
+    def test_addHandler(self):
+        """
+        Test the addition of a protocol handler.
+        """
+        handler = XMPPHandler()
+        handler.setHandlerParent(self.factory.streamManager)
+        self.assertIn(handler, self.factory.streamManager)
+        self.assertIdentical(self.factory.streamManager, handler.parent)
+
+
+    def test_removeHandler(self):
+        """
+        Test removal of a protocol handler.
+        """
+        handler = XMPPHandler()
+        handler.setHandlerParent(self.factory.streamManager)
+        handler.disownHandlerParent(self.factory.streamManager)
+        self.assertNotIn(handler, self.factory.streamManager)
+        self.assertIdentical(None, handler.parent)
 
 
 
