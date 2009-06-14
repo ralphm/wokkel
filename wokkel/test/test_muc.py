@@ -226,10 +226,10 @@ class MucClientTest(unittest.TestCase):
         # create a room
         self._createRoom()
         # add user to room
-        u = muc.User(self.room_jid.resource)
+        user = muc.User(self.room_jid.resource)
 
         room = self.protocol._getRoom(self.room_jid)
-        room.addUser(u)
+        room.addUser(user)
 
         def userPresence(room, user):
             self.failUnless(room.roomIdentifier==self.test_room, 'Wrong room name')
@@ -249,7 +249,8 @@ class MucClientTest(unittest.TestCase):
             self.failUnless(banned, 'Did not ban user')
 
 
-        d = self.protocol.ban(self.room_jid, banned, self.user_jid, reason='Spam')
+        d = self.protocol.ban(self.room_jid, banned, reason='Spam',
+                              sender=self.user_jid)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
@@ -267,12 +268,13 @@ class MucClientTest(unittest.TestCase):
         """
         Kick an entity from a room.
         """
-        kicked = JID('kick@jabber.org/TroubleMakger')
+        nick = 'TroubleMakger'
+
         def cb(kicked):
             self.failUnless(kicked, 'Did not kick user')
 
-
-        d = self.protocol.kick(self.room_jid, kicked, self.user_jid, reason='Spam')
+        d = self.protocol.kick(self.room_jid, nick, reason='Spam',
+                               sender=self.user_jid)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
@@ -330,7 +332,7 @@ class MucClientTest(unittest.TestCase):
         msg.addElement('body', None, 'test')
         msg.addElement('thread', None, thread)
 
-        archive.append(msg)
+        archive.append({'stanza': msg, 'timestamp': '2002-10-13T23:58:37Z'})
 
         msg = domish.Element((None, 'message'))
         msg['to'] = 'testing2@example.com'
@@ -338,7 +340,7 @@ class MucClientTest(unittest.TestCase):
         msg.addElement('body', None, 'yo')
         msg.addElement('thread', None, thread)
 
-        archive.append(msg)
+        archive.append({'stanza': msg, 'timestamp': '2002-10-13T23:58:43Z'})
 
         self.protocol.history(self.room_jid, archive)
 
@@ -404,7 +406,7 @@ class MucClientTest(unittest.TestCase):
         """
         Client requesting voice for a room.
         """
-        self.protocol.voice(self.room_jid.userhost())
+        self.protocol.voice(self.room_jid)
 
         m = self.stub.output[-1]
 
@@ -487,12 +489,12 @@ class MucClientTest(unittest.TestCase):
         Test granting voice to a user.
 
         """
-        give_voice = JID('voice@jabber.org/TroubleMakger')
+        nick = 'TroubleMakger'
         def cb(give_voice):
             self.failUnless(give_voice, 'Did not give voice user')
 
 
-        d = self.protocol.grantVoice(self.user_jid, self.room_jid, give_voice)
+        d = self.protocol.grantVoice(self.room_jid, nick, sender=self.user_jid)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
@@ -511,16 +513,16 @@ class MucClientTest(unittest.TestCase):
         Change status
         """
         self._createRoom()
-        r = self.protocol._getRoom(self.room_jid)
-        u = muc.User(self.room_jid.resource)
-        r.addUser(u)
+        room = self.protocol._getRoom(self.room_jid)
+        user = muc.User(self.room_jid.resource)
+        room.addUser(user)
 
         def cb(room):
             self.assertEquals(self.test_room, room.roomIdentifier)
-            u = room.getUser(self.room_jid.resource)
-            self.failUnless(u is not None, 'User not found')
-            self.failUnless(u.status == 'testing MUC', 'Wrong status')
-            self.failUnless(u.show == 'xa', 'Wrong show')
+            user = room.getUser(self.room_jid.resource)
+            self.failUnless(user is not None, 'User not found')
+            self.failUnless(user.status == 'testing MUC', 'Wrong status')
+            self.failUnless(user.show == 'xa', 'Wrong show')
 
         d = self.protocol.status(self.room_jid, 'xa', 'testing MUC')
         d.addCallback(cb)
