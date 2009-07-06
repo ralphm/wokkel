@@ -13,9 +13,9 @@ All of it should eventually move to Twisted.
 """
 
 from twisted.words.protocols.jabber.jid import JID
-from twisted.words.protocols.jabber.xmlstream import IQ
 from twisted.words.xish import domish
 
+from wokkel.compat import IQ
 from wokkel.subprotocols import XMPPHandler
 
 NS_XML = 'http://www.w3.org/XML/1998/namespace'

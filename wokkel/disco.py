@@ -11,10 +11,11 @@ U{XEP-0030<http://www.xmpp.org/extensions/xep-0030.html>}.
 """
 
 from twisted.internet import defer
-from twisted.words.protocols.jabber import error, jid, xmlstream
+from twisted.words.protocols.jabber import error, jid
 from twisted.words.xish import domish
 
 from wokkel import data_form
+from wokkel.compat import IQ
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 
@@ -345,7 +346,7 @@ class DiscoItems(object):
 
 
 
-class _DiscoRequest(xmlstream.IQ):
+class _DiscoRequest(IQ):
     """
     Element representing an XMPP service discovery request.
     """
@@ -361,7 +362,7 @@ class _DiscoRequest(xmlstream.IQ):
         @param nodeIdentifier: Node to request info from.
         @type nodeIdentifier: C{unicode}
         """
-        xmlstream.IQ.__init__(self, xs, "get")
+        IQ.__init__(self, xs, "get")
         query = self.addElement((namespace, 'query'))
         if nodeIdentifier:
             query['node'] = nodeIdentifier

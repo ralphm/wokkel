@@ -525,7 +525,7 @@ class DiscoClientProtocolTest(unittest.TestCase):
         self.assertEqual(u'test.example.org', iq.getAttribute(u'from'))
 
         response = toResponse(iq, u'result')
-        query = response.addElement((NS_DISCO_ITEMS, u'query'))
+        response.addElement((NS_DISCO_ITEMS, u'query'))
         self.stub.send(response)
 
         return d
@@ -581,7 +581,7 @@ class DiscoClientProtocolTest(unittest.TestCase):
         self.assertEqual(u'test.example.org', iq.getAttribute(u'from'))
 
         response = toResponse(iq, u'result')
-        query = response.addElement((NS_DISCO_INFO, u'query'))
+        response.addElement((NS_DISCO_INFO, u'query'))
         self.stub.send(response)
 
         return d
