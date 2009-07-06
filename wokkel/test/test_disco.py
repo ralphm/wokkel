@@ -514,6 +514,23 @@ class DiscoClientProtocolTest(unittest.TestCase):
         return d
 
 
+    def test_requestItemsFrom(self):
+        """
+        A disco items request can be sent with an explicit sender address.
+        """
+        d = self.protocol.requestItems(JID(u'example.org'),
+                                       sender=JID(u'test.example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEqual(u'test.example.org', iq.getAttribute(u'from'))
+
+        response = toResponse(iq, u'result')
+        query = response.addElement((NS_DISCO_ITEMS, u'query'))
+        self.stub.send(response)
+
+        return d
+
+
     def test_requestInfo(self):
         """
         Test request sent out by C{requestInfo} and parsing of response.
@@ -549,6 +566,24 @@ class DiscoClientProtocolTest(unittest.TestCase):
         element[u'var'] = u'http://jabber.org/protocol/muc'
 
         self.stub.send(response)
+        return d
+
+
+    def test_requestInfoFrom(self):
+        """
+        A disco info request can be sent with an explicit sender address.
+        """
+        d = self.protocol.requestInfo(JID(u'example.org'),
+                                       sender=JID(u'test.example.org'))
+
+        iq = self.stub.output[-1]
+        print iq.toXml()
+        self.assertEqual(u'test.example.org', iq.getAttribute(u'from'))
+
+        response = toResponse(iq, u'result')
+        query = response.addElement((NS_DISCO_INFO, u'query'))
+        self.stub.send(response)
+
         return d
 
 

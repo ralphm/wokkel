@@ -373,34 +373,46 @@ class DiscoClientProtocol(XMPPHandler):
     XMPP Service Discovery client protocol.
     """
 
-    def requestInfo(self, entity, nodeIdentifier=''):
+    def requestInfo(self, entity, nodeIdentifier='', sender=None):
         """
         Request information discovery from a node.
 
         @param entity: Entity to send the request to.
         @type entity: L{jid.JID}
+
         @param nodeIdentifier: Optional node to request info from.
         @type nodeIdentifier: C{unicode}
+
+        @param sender: Optional sender address.
+        @type sender: L{jid.JID}
         """
 
         request = _DiscoRequest(self.xmlstream, NS_DISCO_INFO, nodeIdentifier)
+        if sender is not None:
+            request['from'] = unicode(sender)
 
         d = request.send(entity.full())
         d.addCallback(lambda iq: DiscoInfo.fromElement(iq.query))
         return d
 
 
-    def requestItems(self, entity, nodeIdentifier=''):
+    def requestItems(self, entity, nodeIdentifier='', sender=None):
         """
         Request items discovery from a node.
 
         @param entity: Entity to send the request to.
         @type entity: L{jid.JID}
+
         @param nodeIdentifier: Optional node to request info from.
         @type nodeIdentifier: C{unicode}
+
+        @param sender: Optional sender address.
+        @type sender: L{jid.JID}
         """
 
         request = _DiscoRequest(self.xmlstream, NS_DISCO_ITEMS, nodeIdentifier)
+        if sender is not None:
+            request['from'] = unicode(sender)
 
         d = request.send(entity.full())
         d.addCallback(lambda iq: DiscoItems.fromElement(iq.query))
