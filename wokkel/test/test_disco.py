@@ -751,6 +751,33 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
+    def test_infoNotDeferred(self):
+        """
+        C{info} should gather disco info from sibling handlers.
+        """
+        discoItems = [disco.DiscoIdentity('dummy', 'generic',
+                                          'Generic Dummy Entity'),
+                      disco.DiscoFeature('jabber:iq:version')
+        ]
+
+        class DiscoResponder(XMPPHandler):
+            implements(disco.IDisco)
+
+            def getDiscoInfo(self, requestor, target, nodeIdentifier):
+                if not nodeIdentifier:
+                    return discoItems
+                else:
+                    return []
+
+        def cb(result):
+            self.assertEquals(discoItems, result)
+
+        self.service.parent = [self.service, DiscoResponder()]
+        d = self.service.info(JID('test@example.com'), JID('example.com'), '')
+        d.addCallback(cb)
+        return d
+
+
     def test_items(self):
         """
         C{info} should gather disco items from sibling handlers.
@@ -765,6 +792,30 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
                     return defer.succeed(discoItems)
                 else:
                     return defer.succeed([])
+
+        def cb(result):
+            self.assertEquals(discoItems, result)
+
+        self.service.parent = [self.service, DiscoResponder()]
+        d = self.service.items(JID('test@example.com'), JID('example.com'), '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_itemsNotDeferred(self):
+        """
+        C{info} should also collect results not returned via a deferred.
+        """
+        discoItems = [disco.DiscoItem(JID('example.com'), 'test', 'Test node')]
+
+        class DiscoResponder(XMPPHandler):
+            implements(disco.IDisco)
+
+            def getDiscoItems(self, requestor, target, nodeIdentifier):
+                if not nodeIdentifier:
+                    return discoItems
+                else:
+                    return []
 
         def cb(result):
             self.assertEquals(discoItems, result)

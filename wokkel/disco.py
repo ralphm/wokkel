@@ -538,7 +538,8 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         @return: Deferred with the gathered results from sibling handlers.
         @rtype: L{defer.Deferred}
         """
-        dl = [handler.getDiscoInfo(requestor, target, nodeIdentifier)
+        dl = [defer.maybeDeferred(handler.getDiscoInfo, requestor, target,
+                                                        nodeIdentifier)
               for handler in self.parent
               if IDisco.providedBy(handler)]
         return self._gatherResults(dl)
@@ -560,7 +561,8 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         @return: Deferred with the gathered results from sibling handlers.
         @rtype: L{defer.Deferred}
         """
-        dl = [handler.getDiscoItems(requestor, target, nodeIdentifier)
+        dl = [defer.maybeDeferred(handler.getDiscoItems, requestor, target,
+                                                         nodeIdentifier)
               for handler in self.parent
               if IDisco.providedBy(handler)]
         return self._gatherResults(dl)
