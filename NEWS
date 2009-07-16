@@ -1,4 +1,17 @@
+0.6.2 (2009-07-08)
+
+Features
+--------
+
+ - Add support for XMPP Ping (XEP-0199), doubling as example protocol
+   handler (#55).
+ - Provide examples for setting up clients, components and servers (#55).
+ - Make Service Discovery support accept non-deferred results from getDiscoInfo
+   and getDiscoItems (#55).
+
+
 0.6.1 (2009-07-06)
+==================
 
 Features
 --------
