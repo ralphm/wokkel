@@ -577,7 +577,6 @@ class DiscoClientProtocolTest(unittest.TestCase):
                                        sender=JID(u'test.example.org'))
 
         iq = self.stub.output[-1]
-        print iq.toXml()
         self.assertEqual(u'test.example.org', iq.getAttribute(u'from'))
 
         response = toResponse(iq, u'result')
