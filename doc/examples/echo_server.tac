@@ -1,8 +1,10 @@
 """
 An XMPP echo server as a standalone server via s2s.
 
-This ping responder accepts and initiates server-to-server connections using
-dialback and listens on C{127.0.0.1} with the domain C{localhost}.
+This echo server accepts and initiates server-to-server connections using
+dialback and listens on C{127.0.0.1} with the domain C{localhost}. It will
+accept subscription requests for any potential entity at the domain and
+send back messages sent to it.
 """
 
 from twisted.application import service, strports
