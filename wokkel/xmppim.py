@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_xmppim -*-
 #
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -16,6 +16,7 @@ from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
 
 from wokkel.compat import IQ
+from wokkel.generic import ErrorStanza, Stanza
 from wokkel.subprotocols import XMPPHandler
 
 NS_XML = 'http://www.w3.org/XML/1998/namespace'
@@ -113,6 +114,7 @@ class PresenceClientProtocol(XMPPHandler):
 
     def _onPresenceUnsubscribe(self, presence):
         self.unsubscribeReceived(JID(presence["from"]))
+
 
     def availableReceived(self, entity, show=None, statuses=None, priority=0):
         """
@@ -245,6 +247,328 @@ class PresenceClientProtocol(XMPPHandler):
         @type entity: {JID}
         """
         self.send(Presence(to=entity, type='unsubscribed'))
+
+
+
+class BasePresence(Stanza):
+    """
+    Stanza of kind presence.
+    """
+    stanzaKind = 'presence'
+
+
+
+class AvailabilityPresence(BasePresence):
+    """
+    Presence.
+
+    This represents availability presence (as opposed to
+    L{SubscriptionPresence}).
+
+    @ivar available: The availability being communicated.
+    @type available: C{bool}
+    @ivar show: More specific availability. Can be one of C{'chat'}, C{'away'},
+                C{'xa'}, C{'dnd'} or C{None}.
+    @type show: C{str} or C{NoneType}
+    @ivar statuses: Natural language texts to detail the (un)availability.
+                    These are represented as a mapping from language code
+                    (C{str} or C{None}) to the corresponding text (C{unicode}).
+                    If the key is C{None}, the associated text is in the
+                    default language.
+    @type statuses: C{dict}
+    @ivar priority: Priority level for this resource. Must be between -128 and
+                    127. Defaults to 0.
+    @type priority: C{int}
+    """
+
+    childParsers = {(None, 'show'): '_childParser_show',
+                     (None, 'status'): '_childParser_status',
+                     (None, 'priority'): '_childParser_priority'}
+
+    def __init__(self, recipient=None, sender=None, available=True,
+                       show=None, status=None, statuses=None, priority=0):
+        BasePresence.__init__(self, recipient=recipient, sender=sender)
+        self.available = available
+        self.show = show
+        self.statuses = statuses or {}
+        if status:
+            self.statuses[None] = status
+        self.priority = priority
+
+
+    def _childParser_show(self, element):
+        show = unicode(element)
+        if show in ('chat', 'away', 'xa', 'dnd'):
+            self.show = show
+
+
+    def _childParser_status(self, element):
+        lang = element.getAttribute((NS_XML, 'lang'), None)
+        text = unicode(element)
+        self.statuses[lang] = text
+
+
+    def _childParser_priority(self, element):
+        try:
+            self.priority = int(unicode(element))
+        except ValueError:
+            pass
+
+
+    def parseElement(self, element):
+        BasePresence.parseElement(self, element)
+
+        if self.stanzaType == 'unavailable':
+            self.available = False
+
+
+    def toElement(self):
+        if not self.available:
+            self.stanzaType = 'unavailable'
+
+        presence = BasePresence.toElement(self)
+
+        if self.available:
+            if self.show in ('chat', 'away', 'xa', 'dnd'):
+                presence.addElement('show', content=self.show)
+            if self.priority != 0:
+                presence.addElement('priority', content=unicode(self.priority))
+
+        for lang, text in self.statuses.iteritems():
+            status = presence.addElement('status', content=text)
+            if lang:
+                status[(NS_XML, 'lang')] = lang
+
+        return presence
+
+
+
+class SubscriptionPresence(BasePresence):
+    """
+    Presence subscription request or response.
+
+    This kind of presence is used to represent requests for presence
+    subscription and their replies.
+
+    Based on L{BasePresence} and {Stanza}, it just uses the L{stanzaType}
+    attribute to represent the type of subscription presence. This can be
+    one of C{'subscribe'}, C{'unsubscribe'}, C{'subscribed'} and
+    C{'unsubscribed'}.
+    """
+
+
+
+class ProbePresence(BasePresence):
+    """
+    Presence probe request.
+    """
+
+    stanzaType = 'probe'
+
+
+
+class PresenceProtocol(XMPPHandler):
+    """
+    XMPP Presence protocol.
+
+    @cvar presenceTypeParserMap: Maps presence stanza types to their respective
+        stanza parser classes (derived from L{Stanza}).
+    @type presenceTypeParserMap: C{dict}
+    """
+
+    presenceTypeParserMap = {
+                'error': ErrorStanza,
+                'available': AvailabilityPresence,
+                'unavailable': AvailabilityPresence,
+                'subscribe': SubscriptionPresence,
+                'unsubscribe': SubscriptionPresence,
+                'subscribed': SubscriptionPresence,
+                'unsubscribed': SubscriptionPresence,
+                'probe': ProbePresence,
+        }
+
+    def connectionInitialized(self):
+        self.xmlstream.addObserver("/presence", self._onPresence)
+
+
+    def _onPresence(self, element):
+        stanza = Stanza.fromElement(element)
+
+        presenceType = stanza.stanzaType or 'available'
+
+        try:
+            parser = self.presenceTypeParserMap[presenceType]
+        except KeyError:
+            return
+
+        presence = parser.fromElement(element)
+
+        try:
+            handler = getattr(self, '%sReceived' % presenceType)
+        except AttributeError:
+            return
+        else:
+            handler(presence)
+
+
+    def errorReceived(self, presence):
+        """
+        Error presence was received.
+        """
+        pass
+
+
+    def availableReceived(self, presence):
+        """
+        Available presence was received.
+        """
+        pass
+
+
+    def unavailableReceived(self, presence):
+        """
+        Unavailable presence was received.
+        """
+        pass
+
+
+    def subscribedReceived(self, presence):
+        """
+        Subscription approval confirmation was received.
+        """
+        pass
+
+
+    def unsubscribedReceived(self, presence):
+        """
+        Unsubscription confirmation was received.
+        """
+        pass
+
+
+    def subscribeReceived(self, presence):
+        """
+        Subscription request was received.
+        """
+        pass
+
+
+    def unsubscribeReceived(self, presence):
+        """
+        Unsubscription request was received.
+        """
+        pass
+
+
+    def probeReceived(self, presence):
+        """
+        Probe presence was received.
+        """
+        pass
+
+
+    def available(self, recipient=None, show=None, statuses=None, priority=0,
+                        status=None, sender=None):
+        """
+        Send available presence.
+
+        @param recipient: Optional Recipient to which the presence should be
+            sent.
+        @type recipient: {JID}
+
+        @param show: Optional detailed presence information. One of C{'away'},
+            C{'xa'}, C{'chat'}, C{'dnd'}.
+        @type show: C{str}
+
+        @param statuses: Mapping of natural language descriptions of the
+           availability status, keyed by the language descriptor. A status
+           without a language specified, is keyed with C{None}.
+        @type statuses: C{dict}
+
+        @param priority: priority level of the resource.
+        @type priority: C{int}
+        """
+        presence = AvailabilityPresence(recipient=recipient, sender=sender,
+                                        show=show, statuses=statuses,
+                                        status=status, priority=priority)
+        self.send(presence.toElement())
+
+
+    def unavailable(self, recipient=None, statuses=None, sender=None):
+        """
+        Send unavailable presence.
+
+        @param recipient: Optional entity to which the presence should be sent.
+        @type recipient: {JID}
+
+        @param statuses: dictionary of natural language descriptions of the
+            availability status, keyed by the language descriptor. A status
+            without a language specified, is keyed with C{None}.
+        @type statuses: C{dict}
+        """
+        presence = AvailabilityPresence(recipient=recipient, sender=sender,
+                                        available=False, statuses=statuses)
+        self.send(presence.toElement())
+
+
+    def subscribe(self, recipient, sender=None):
+        """
+        Send subscription request
+
+        @param recipient: Entity to subscribe to.
+        @type recipient: {JID}
+        """
+        presence = SubscriptionPresence(recipient=recipient, sender=sender)
+        presence.stanzaType = 'subscribe'
+        self.send(presence.toElement())
+
+
+    def unsubscribe(self, recipient, sender=None):
+        """
+        Send unsubscription request
+
+        @param recipient: Entity to unsubscribe from.
+        @type recipient: {JID}
+        """
+        presence = SubscriptionPresence(recipient=recipient, sender=sender)
+        presence.stanzaType = 'unsubscribe'
+        self.send(presence.toElement())
+
+
+    def subscribed(self, recipient, sender=None):
+        """
+        Send subscription confirmation.
+
+        @param recipient: Entity that subscribed.
+        @type recipient: {JID}
+        """
+        presence = SubscriptionPresence(recipient=recipient, sender=sender)
+        presence.stanzaType = 'subscribed'
+        self.send(presence.toElement())
+
+
+    def unsubscribed(self, recipient, sender=None):
+        """
+        Send unsubscription confirmation.
+
+        @param recipient: Entity that unsubscribed.
+        @type recipient: {JID}
+        """
+        presence = SubscriptionPresence(recipient=recipient, sender=sender)
+        presence.stanzaType = 'unsubscribed'
+        self.send(presence.toElement())
+
+
+    def probe(self, recipient, sender=None):
+        """
+        Send presence probe.
+
+        @param recipient: Entity to be probed.
+        @type recipient: {JID}
+        """
+        presence = ProbePresence(recipient=recipient, sender=sender)
+        self.send(presence.toElement())
+
 
 
 class RosterItem(object):
