@@ -118,7 +118,7 @@ class XMPPClient(StreamManager, service.Service):
         if self.host:
             return reactor.connectTCP(self.host, self.port, self.factory)
         else:
-            c = SRVConnector(reactor, 'xmpp-client', self.domain, self.factory)
+            c = XMPPClientConnector(reactor, self.domain, self.factory)
             c.connect()
             return c
 
