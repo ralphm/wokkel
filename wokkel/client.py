@@ -146,8 +146,24 @@ class DeferredClientFactory(generic.DeferredXmlStreamFactory):
 
 
 
+class XMPPClientConnector(SRVConnector):
+    def __init__(self, reactor, domain, factory):
+        SRVConnector.__init__(self, reactor, 'xmpp-client', domain, factory)
+
+
+    def pickServer(self):
+        host, port = SRVConnector.pickServer(self)
+
+        if not self.servers and not self.orderedServers:
+            # no SRV record, fall back..
+            port = 5222
+
+        return host, port
+
+
+
 def clientCreator(factory):
     domain = factory.authenticator.jid.host
-    c = SRVConnector(reactor, 'xmpp-client', domain, factory)
+    c = XMPPClientConnector(reactor, domain, factory)
     c.connect()
     return factory.deferred
