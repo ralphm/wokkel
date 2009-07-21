@@ -79,12 +79,14 @@ def HybridClientFactory(jid, password):
     return xmlstream.XmlStreamFactory(a)
 
 
+
 class XMPPClient(StreamManager, service.Service):
     """
     Service that initiates an XMPP client connection.
     """
 
     def __init__(self, jid, password, host=None, port=5222):
+        self.jid = jid
         self.domain = jid.host
         self.host = host
         self.port = port
@@ -93,16 +95,31 @@ class XMPPClient(StreamManager, service.Service):
 
         StreamManager.__init__(self, factory)
 
+
     def startService(self):
         service.Service.startService(self)
 
         self._connection = self._getConnection()
+
 
     def stopService(self):
         service.Service.stopService(self)
 
         self.factory.stopTrying()
         self._connection.disconnect()
+
+
+    def _authd(self, xs):
+        """
+        Called when the stream has been initialized.
+
+        Save the JID that we were assigned by the server, as the resource might
+        differ from the JID we asked for. This is stored on the authenticator
+        by its constituent initializers.
+        """
+        self.jid = self.factory.authenticator.jid
+        StreamManager._authd(self, xs)
+
 
     def initializationFailed(self, reason):
         """
@@ -114,6 +131,7 @@ class XMPPClient(StreamManager, service.Service):
         self.stopService()
         reason.raiseException()
 
+
     def _getConnection(self):
         if self.host:
             return reactor.connectTCP(self.host, self.port, self.factory)
@@ -121,6 +139,7 @@ class XMPPClient(StreamManager, service.Service):
             c = XMPPClientConnector(reactor, self.domain, self.factory)
             c.connect()
             return c
+
 
 
 class DeferredClientFactory(generic.DeferredXmlStreamFactory):

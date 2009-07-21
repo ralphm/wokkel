@@ -21,6 +21,33 @@ except ImportError:
 from wokkel import client
 from wokkel.test.test_compat import BootstrapMixinTest
 
+class XMPPClientTest(unittest.TestCase):
+    """
+    Tests for L{client.XMPPClient}.
+    """
+
+    def setUp(self):
+        self.client = client.XMPPClient(JID('user@example.org'), 'secret')
+
+
+    def test_jid(self):
+        """
+        Make sure the JID we pass is stored on the client.
+        """
+        self.assertEquals(JID('user@example.org'), self.client.jid)
+
+
+    def test_jidWhenInitialized(self):
+        """
+        Make sure that upon login, the JID is updated from the authenticator.
+        """
+        xs = self.client.factory.buildProtocol(None)
+        self.client.factory.authenticator.jid = JID('user@example.org/test')
+        xs.dispatch(xs, xmlstream.STREAM_AUTHD_EVENT)
+        self.assertEquals(JID('user@example.org/test'), self.client.jid)
+
+
+
 class DeferredClientFactoryTest(BootstrapMixinTest):
     """
     Tests for L{client.DeferredClientFactory}.
