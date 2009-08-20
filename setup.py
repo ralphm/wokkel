@@ -6,7 +6,7 @@
 from setuptools import setup
 
 setup(name='wokkel',
-      version='0.6.2',
+      version='0.6.3',
       description='Twisted Jabber support library',
       author='Ralph Meijer',
       author_email='ralphm@ik.nu',

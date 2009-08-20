@@ -1,4 +1,21 @@
+0.6.3 (2009-08-20)
+==================
+
+Features
+--------
+
+ - Add a jid attribute to XMPPClient (#18).
+ - Add a better presence protocol handler PresenceProtocol. This handler
+   is also useful for component or in-server use.
+
+Fixes
+-----
+
+ - Use fallback port 5222 for failed SRV lookups for clients (#26).
+
+
 0.6.2 (2009-07-08)
+==================
 
 Features
 --------
@@ -19,6 +36,7 @@ Features
  - Add an optional sender parameter for Service Discovery requests (#52).
 
 Fixes:
+------
 
  - Fix regression in DeferredClientFactory (#51).
  - Make IQ timeouts work with InternalComponent (#53).
