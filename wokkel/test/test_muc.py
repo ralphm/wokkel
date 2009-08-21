@@ -87,8 +87,9 @@ class MucClientTest(unittest.TestCase):
         self._createRoom()
 
         def userPresence(room, user):
-            self.failUnless(room.roomIdentifier==self.test_room, 'Wrong room name')
-            self.failUnless(room.inRoster(user), 'User not in roster')
+            self.assertEqual(self.test_room, room.roomIdentifier,
+                             'Wrong room name')
+            self.assertTrue(room.inRoster(user), 'User not in roster')
 
 
         d, self.protocol.userJoinedRoom = calledAsync(userPresence)
@@ -121,7 +122,7 @@ class MucClientTest(unittest.TestCase):
         """
 
         def cb(room):
-            self.assertEquals(self.test_room, room.roomIdentifier)
+            self.assertEqual(self.test_room, room.roomIdentifier)
 
         d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
         d.addCallback(cb)
@@ -467,8 +468,8 @@ class MucClientTest(unittest.TestCase):
         self._createRoom()
 
         def cb(room):
-            self.assertEquals(self.test_room, room.roomIdentifier)
-            self.assertEquals(test_nick, room.nick)
+            self.assertEqual(self.test_room, room.roomIdentifier)
+            self.assertEqual(test_nick, room.nick)
 
         d = self.protocol.nick(self.room_jid, test_nick)
         d.addCallback(cb)
@@ -518,19 +519,19 @@ class MucClientTest(unittest.TestCase):
         room.addUser(user)
 
         def cb(room):
-            self.assertEquals(self.test_room, room.roomIdentifier)
+            self.assertEqual(self.test_room, room.roomIdentifier)
             user = room.getUser(self.room_jid.resource)
-            self.failUnless(user is not None, 'User not found')
-            self.failUnless(user.status == 'testing MUC', 'Wrong status')
-            self.failUnless(user.show == 'xa', 'Wrong show')
+            self.assertNotIdentical(None, user, 'User not found')
+            self.assertEqual('testing MUC', user.status, 'Wrong status')
+            self.assertEqual('xa', user.show, 'Wrong show')
 
         d = self.protocol.status(self.room_jid, 'xa', 'testing MUC')
         d.addCallback(cb)
 
         prs = self.stub.output[-1]
 
-        self.failUnless(prs.name=='presence', "Need to be presence")
-        self.failUnless(getattr(prs, 'x', None), 'No muc x element')
+        self.assertEqual('presence', prs.name, "Need to be presence")
+        self.assertTrue(getattr(prs, 'x', None), 'No muc x element')
 
         # send back user presence, they joined
         response = muc.UserPresence(frm=self.room_jid.full())
@@ -545,9 +546,9 @@ class MucClientTest(unittest.TestCase):
             members = room.members
             self.assertEqual(1, len(members))
             user = members[0]
-            self.assertEquals(JID(u'hag66@shakespeare.lit'), user.entity)
-            self.assertEquals(u'thirdwitch', user.nick)
-            self.assertEquals(u'participant', user.role)
+            self.assertEqual(JID(u'hag66@shakespeare.lit'), user.entity)
+            self.assertEqual(u'thirdwitch', user.nick)
+            self.assertEqual(u'participant', user.role)
 
         self._createRoom()
         bareRoomJID = self.room_jid.userhostJID()
@@ -557,7 +558,7 @@ class MucClientTest(unittest.TestCase):
         iq = self.stub.output[-1]
         query = iq.query
         self.assertNotIdentical(None, query)
-        self.assertEquals(NS_MUC_ADMIN, query.uri)
+        self.assertEqual(NS_MUC_ADMIN, query.uri)
 
         response = toResponse(iq, 'result')
         query = response.addElement((NS_MUC_ADMIN, 'query'))
