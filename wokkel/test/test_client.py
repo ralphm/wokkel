@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2007 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -13,8 +13,40 @@ from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.xmlstream import STREAM_AUTHD_EVENT
 from twisted.words.protocols.jabber.xmlstream import INIT_FAILED_EVENT
 
+try:
+    from twisted.words.protocols.jabber.xmlstream import XMPPHandler
+except ImportError:
+    from wokkel.subprotocols import XMPPHandler
+
 from wokkel import client
 from wokkel.test.test_compat import BootstrapMixinTest
+
+class XMPPClientTest(unittest.TestCase):
+    """
+    Tests for L{client.XMPPClient}.
+    """
+
+    def setUp(self):
+        self.client = client.XMPPClient(JID('user@example.org'), 'secret')
+
+
+    def test_jid(self):
+        """
+        Make sure the JID we pass is stored on the client.
+        """
+        self.assertEquals(JID('user@example.org'), self.client.jid)
+
+
+    def test_jidWhenInitialized(self):
+        """
+        Make sure that upon login, the JID is updated from the authenticator.
+        """
+        xs = self.client.factory.buildProtocol(None)
+        self.client.factory.authenticator.jid = JID('user@example.org/test')
+        xs.dispatch(xs, xmlstream.STREAM_AUTHD_EVENT)
+        self.assertEquals(JID('user@example.org/test'), self.client.jid)
+
+
 
 class DeferredClientFactoryTest(BootstrapMixinTest):
     """
@@ -75,6 +107,27 @@ class DeferredClientFactoryTest(BootstrapMixinTest):
         self.factory.clientConnectionFailed(self, TestException())
         self.assertFailure(self.factory.deferred, TestException)
         return self.factory.deferred
+
+
+    def test_addHandler(self):
+        """
+        Test the addition of a protocol handler.
+        """
+        handler = XMPPHandler()
+        handler.setHandlerParent(self.factory.streamManager)
+        self.assertIn(handler, self.factory.streamManager)
+        self.assertIdentical(self.factory.streamManager, handler.parent)
+
+
+    def test_removeHandler(self):
+        """
+        Test removal of a protocol handler.
+        """
+        handler = XMPPHandler()
+        handler.setHandlerParent(self.factory.streamManager)
+        handler.disownHandlerParent(self.factory.streamManager)
+        self.assertNotIn(handler, self.factory.streamManager)
+        self.assertIdentical(None, handler.parent)
 
 
 

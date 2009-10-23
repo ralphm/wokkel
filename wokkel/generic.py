@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_generic -*-
 #
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -10,6 +10,7 @@ Generic XMPP protocol helpers.
 from zope.interface import implements
 
 from twisted.internet import defer, protocol
+from twisted.python import reflect
 from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import domish, utility
@@ -173,9 +174,14 @@ class Stanza(object):
     @type recipient: L{jid.JID}
     """
 
-    sender = None
-    recipient = None
+    stanzaKind = None
+    stanzaID = None
     stanzaType = None
+
+    def __init__(self, recipient=None, sender=None):
+        self.recipient = recipient
+        self.sender = sender
+
 
     @classmethod
     def fromElement(Class, element):
@@ -185,12 +191,49 @@ class Stanza(object):
 
 
     def parseElement(self, element):
-        self.sender = jid.internJID(element['from'])
         if element.hasAttribute('from'):
             self.sender = jid.internJID(element['from'])
         if element.hasAttribute('to'):
             self.recipient = jid.internJID(element['to'])
         self.stanzaType = element.getAttribute('type')
+        self.stanzaID = element.getAttribute('id')
+
+        # Save element
+        stripNamespace(element)
+        self.element = element
+
+        # accumulate all childHandlers in the class hierarchy of Class 
+        handlers = {}
+        reflect.accumulateClassDict(self.__class__, 'childParsers', handlers)
+
+        for child in element.elements():
+            try:
+                handler = handlers[child.uri, child.name]
+            except KeyError:
+                pass
+            else:
+                getattr(self, handler)(child)
+
+
+    def toElement(self):
+        element = domish.Element((None, self.stanzaKind))
+        if self.sender is not None:
+            element['from'] = self.sender.full()
+        if self.recipient is not None:
+            element['to'] = self.recipient.full()
+        if self.stanzaType:
+            element['type'] = self.stanzaType
+        if self.stanzaID:
+            element['id'] = self.stanzaID
+        return element
+
+
+
+class ErrorStanza(Stanza):
+
+    def parseElement(self, element):
+        Stanza.parseElement(self, element)
+        self.exception = error.exceptionFromStanza(element)
 
 
 class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):

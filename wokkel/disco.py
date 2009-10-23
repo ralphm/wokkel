@@ -11,10 +11,11 @@ U{XEP-0030<http://www.xmpp.org/extensions/xep-0030.html>}.
 """
 
 from twisted.internet import defer
-from twisted.words.protocols.jabber import error, jid, xmlstream
+from twisted.words.protocols.jabber import error, jid
 from twisted.words.xish import domish
 
 from wokkel import data_form
+from wokkel.compat import IQ
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 
@@ -345,7 +346,7 @@ class DiscoItems(object):
 
 
 
-class _DiscoRequest(xmlstream.IQ):
+class _DiscoRequest(IQ):
     """
     Element representing an XMPP service discovery request.
     """
@@ -361,7 +362,7 @@ class _DiscoRequest(xmlstream.IQ):
         @param nodeIdentifier: Node to request info from.
         @type nodeIdentifier: C{unicode}
         """
-        xmlstream.IQ.__init__(self, xs, "get")
+        IQ.__init__(self, xs, "get")
         query = self.addElement((namespace, 'query'))
         if nodeIdentifier:
             query['node'] = nodeIdentifier
@@ -373,34 +374,46 @@ class DiscoClientProtocol(XMPPHandler):
     XMPP Service Discovery client protocol.
     """
 
-    def requestInfo(self, entity, nodeIdentifier=''):
+    def requestInfo(self, entity, nodeIdentifier='', sender=None):
         """
         Request information discovery from a node.
 
         @param entity: Entity to send the request to.
         @type entity: L{jid.JID}
+
         @param nodeIdentifier: Optional node to request info from.
         @type nodeIdentifier: C{unicode}
+
+        @param sender: Optional sender address.
+        @type sender: L{jid.JID}
         """
 
         request = _DiscoRequest(self.xmlstream, NS_DISCO_INFO, nodeIdentifier)
+        if sender is not None:
+            request['from'] = unicode(sender)
 
         d = request.send(entity.full())
         d.addCallback(lambda iq: DiscoInfo.fromElement(iq.query))
         return d
 
 
-    def requestItems(self, entity, nodeIdentifier=''):
+    def requestItems(self, entity, nodeIdentifier='', sender=None):
         """
         Request items discovery from a node.
 
         @param entity: Entity to send the request to.
         @type entity: L{jid.JID}
+
         @param nodeIdentifier: Optional node to request info from.
         @type nodeIdentifier: C{unicode}
+
+        @param sender: Optional sender address.
+        @type sender: L{jid.JID}
         """
 
         request = _DiscoRequest(self.xmlstream, NS_DISCO_ITEMS, nodeIdentifier)
+        if sender is not None:
+            request['from'] = unicode(sender)
 
         d = request.send(entity.full())
         d.addCallback(lambda iq: DiscoItems.fromElement(iq.query))
@@ -525,7 +538,8 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         @return: Deferred with the gathered results from sibling handlers.
         @rtype: L{defer.Deferred}
         """
-        dl = [handler.getDiscoInfo(requestor, target, nodeIdentifier)
+        dl = [defer.maybeDeferred(handler.getDiscoInfo, requestor, target,
+                                                        nodeIdentifier)
               for handler in self.parent
               if IDisco.providedBy(handler)]
         return self._gatherResults(dl)
@@ -547,7 +561,8 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         @return: Deferred with the gathered results from sibling handlers.
         @rtype: L{defer.Deferred}
         """
-        dl = [handler.getDiscoItems(requestor, target, nodeIdentifier)
+        dl = [defer.maybeDeferred(handler.getDiscoItems, requestor, target,
+                                                         nodeIdentifier)
               for handler in self.parent
               if IDisco.providedBy(handler)]
         return self._gatherResults(dl)

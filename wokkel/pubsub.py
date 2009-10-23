@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_pubsub -*-
 #
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2009 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -14,10 +14,11 @@ from zope.interface import implements
 
 from twisted.internet import defer
 from twisted.python import log
-from twisted.words.protocols.jabber import jid, error, xmlstream
+from twisted.words.protocols.jabber import jid, error
 from twisted.words.xish import domish
 
 from wokkel import disco, data_form, generic, shim
+from wokkel.compat import IQ
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 from wokkel.iwokkel import IPubSubClient, IPubSubService, IPubSubResource
 
@@ -475,9 +476,9 @@ class PubSubRequest(generic.Stanza):
         Send this request to its recipient.
 
         This renders all of the relevant parameters for this specific
-        requests into an L{xmlstream.IQ}, and invoke its C{send} method.
+        requests into an L{IQ}, and invoke its C{send} method.
         This returns a deferred that fires upon reception of a response. See
-        L{xmlstream.IQ} for details.
+        L{IQ} for details.
 
         @param xs: The XML stream to send the request on.
         @type xs: L{xmlstream.XmlStream}
@@ -491,7 +492,7 @@ class PubSubRequest(generic.Stanza):
         except KeyError:
             raise NotImplementedError()
 
-        iq = xmlstream.IQ(xs, self.stanzaType)
+        iq = IQ(xs, self.stanzaType)
         iq.addElement((childURI, 'pubsub'))
         verbElement = iq.pubsub.addElement(childName)
 

@@ -514,6 +514,23 @@ class DiscoClientProtocolTest(unittest.TestCase):
         return d
 
 
+    def test_requestItemsFrom(self):
+        """
+        A disco items request can be sent with an explicit sender address.
+        """
+        d = self.protocol.requestItems(JID(u'example.org'),
+                                       sender=JID(u'test.example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEqual(u'test.example.org', iq.getAttribute(u'from'))
+
+        response = toResponse(iq, u'result')
+        response.addElement((NS_DISCO_ITEMS, u'query'))
+        self.stub.send(response)
+
+        return d
+
+
     def test_requestInfo(self):
         """
         Test request sent out by C{requestInfo} and parsing of response.
@@ -549,6 +566,23 @@ class DiscoClientProtocolTest(unittest.TestCase):
         element[u'var'] = u'http://jabber.org/protocol/muc'
 
         self.stub.send(response)
+        return d
+
+
+    def test_requestInfoFrom(self):
+        """
+        A disco info request can be sent with an explicit sender address.
+        """
+        d = self.protocol.requestInfo(JID(u'example.org'),
+                                       sender=JID(u'test.example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEqual(u'test.example.org', iq.getAttribute(u'from'))
+
+        response = toResponse(iq, u'result')
+        response.addElement((NS_DISCO_INFO, u'query'))
+        self.stub.send(response)
+
         return d
 
 
@@ -716,6 +750,33 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
+    def test_infoNotDeferred(self):
+        """
+        C{info} should gather disco info from sibling handlers.
+        """
+        discoItems = [disco.DiscoIdentity('dummy', 'generic',
+                                          'Generic Dummy Entity'),
+                      disco.DiscoFeature('jabber:iq:version')
+        ]
+
+        class DiscoResponder(XMPPHandler):
+            implements(disco.IDisco)
+
+            def getDiscoInfo(self, requestor, target, nodeIdentifier):
+                if not nodeIdentifier:
+                    return discoItems
+                else:
+                    return []
+
+        def cb(result):
+            self.assertEquals(discoItems, result)
+
+        self.service.parent = [self.service, DiscoResponder()]
+        d = self.service.info(JID('test@example.com'), JID('example.com'), '')
+        d.addCallback(cb)
+        return d
+
+
     def test_items(self):
         """
         C{info} should gather disco items from sibling handlers.
@@ -730,6 +791,30 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
                     return defer.succeed(discoItems)
                 else:
                     return defer.succeed([])
+
+        def cb(result):
+            self.assertEquals(discoItems, result)
+
+        self.service.parent = [self.service, DiscoResponder()]
+        d = self.service.items(JID('test@example.com'), JID('example.com'), '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_itemsNotDeferred(self):
+        """
+        C{info} should also collect results not returned via a deferred.
+        """
+        discoItems = [disco.DiscoItem(JID('example.com'), 'test', 'Test node')]
+
+        class DiscoResponder(XMPPHandler):
+            implements(disco.IDisco)
+
+            def getDiscoItems(self, requestor, target, nodeIdentifier):
+                if not nodeIdentifier:
+                    return discoItems
+                else:
+                    return []
 
         def cb(result):
             self.assertEquals(discoItems, result)
