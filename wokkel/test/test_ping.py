@@ -133,6 +133,19 @@ class PingHandlerTest(unittest.TestCase):
         self.assertEquals('result', response.getAttribute('type'))
 
 
+    def test_onPingHandled(self):
+        """
+        The ping handler should mark the stanza as handled.
+        """
+        xml = """<iq from='test@example.com' to='example.com' type='get'>
+                   <ping xmlns='urn:xmpp:ping'/>
+                 </iq>"""
+        iq = parseXml(xml)
+        self.stub.send(iq)
+
+        self.assertTrue(iq.handled)
+
+
     def test_interfaceIDisco(self):
         """
         The ping handler should provice Service Discovery information.

@@ -94,6 +94,7 @@ class PingHandler(XMPPHandler):
         """
         response = toResponse(iq, 'result')
         self.xmlstream.send(response)
+        iq.handled = True
 
 
     def getDiscoInfo(self, requestor, target, nodeIdentifier=''):
