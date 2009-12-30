@@ -119,7 +119,7 @@ class DiscoInfo(object):
     @ivar nodeIdentifier: The optional node this info applies to.
     @type nodeIdentifier: C{unicode}
     @ivar features: Features as L{DiscoFeature}.
-    @type features: C{set)
+    @type features: C{set}
     @ivar identities: Identities as a mapping from (category, type) to name,
                       all C{unicode}.
     @type identities: C{dict}
