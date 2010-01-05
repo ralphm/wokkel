@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_pubsub -*-
 #
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) 2003-2010 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -1012,29 +1012,11 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             return None
 
 
-    def _makeFields(self, options, values):
-        fields = []
-        for name, value in values.iteritems():
-            if name not in options:
-                continue
-
-            option = {'var': name}
-            option.update(options[name])
-            if isinstance(value, list):
-                option['values'] = value
-            else:
-                option['value'] = value
-            fields.append(data_form.Field.fromDict(option))
-        return fields
-
-
     def _formFromConfiguration(self, resource, values):
-        options = resource.getConfigurationOptions()
-        fields = self._makeFields(options, values)
+        fieldDefs = resource.getConfigurationOptions()
         form = data_form.Form(formType="form",
-                              formNamespace=NS_PUBSUB_NODE_CONFIG,
-                              fields=fields)
-
+                              formNamespace=NS_PUBSUB_NODE_CONFIG)
+        form.makeFields(values, fieldDefs)
         return form
 
 

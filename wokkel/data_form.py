@@ -76,6 +76,7 @@ class Option(object):
             option['label'] = self.label
         return option
 
+
     @staticmethod
     def fromElement(element):
         valueElements = list(domish.generateElementsQNamed(element.children,
@@ -212,7 +213,7 @@ class Field(object):
 
         if self.values:
             if (self.fieldType not in ('hidden', 'jid-multi', 'list-multi',
-                                 'text-multi') and
+                                       'text-multi', None) and
                 len(self.values) > 1):
                 raise TooManyValuesError()
 
@@ -233,6 +234,7 @@ class Field(object):
 
             self.values = newValues
 
+
     def toElement(self, asForm=False):
         """
         Return the DOM representation of this Field.
@@ -244,7 +246,7 @@ class Field(object):
 
         field = domish.Element((NS_X_DATA, 'field'))
 
-        if asForm or self.fieldType != 'text-single':
+        if self.fieldType:
             field['type'] = self.fieldType
 
         if self.var is not None:
@@ -322,16 +324,24 @@ class Field(object):
 
 
     @staticmethod
-    def fromDict(dictionary):
-        kwargs = dictionary.copy()
+    def fromDict(fieldDict):
+        """
+        Create a field from a dictionary.
 
-        if 'type' in dictionary:
-            kwargs['fieldType'] = dictionary['type']
+        This is a short hand for passing arguments directly on Field object
+        creation. The field type is represented by the C{'type'} key. For
+        C{'options'} the value is not a list of L{Option}s, but a dictionary
+        keyed by value, with an optional label as value.
+        """
+        kwargs = fieldDict.copy()
+
+        if 'type' in fieldDict:
+            kwargs['fieldType'] = fieldDict['type']
             del kwargs['type']
 
-        if 'options' in dictionary:
+        if 'options' in fieldDict:
             options = []
-            for value, label in dictionary['options'].iteritems():
+            for value, label in fieldDict['options'].iteritems():
                 options.append(Option(value, label))
             kwargs['options'] = options
 
@@ -415,7 +425,7 @@ class Form(object):
         """
         Add a field to this form.
 
-        Fields are added in order, and L{fields} is a dictionary of the
+        Fields are added in order, and C{fields} is a dictionary of the
         named fields, that is kept in sync only if this method is used for
         adding new fields. Multiple fields with the same name are disallowed.
         """
@@ -428,7 +438,72 @@ class Form(object):
         self.fieldList.append(field)
 
 
+    def removeField(self, field):
+        """
+        Remove a field from this form.
+        """
+        self.fieldList.remove(field)
+
+        if field.var is not None:
+            del self.fields[field.var]
+
+
+    def makeFields(self, values, fieldDefs=None, filterUnknown=True):
+        """
+        Create fields from values and add them to this form.
+
+        This creates fields from a mapping of name to value(s) and adds them to
+        this form. It is typically used for generating outgoing forms.
+
+        If C{fieldDefs} is not C{None}, this is used to fill in
+        additional properties of fields, like the field types, labels and
+        possible options.
+
+        If C{filterUnknown} is C{True} and C{fieldDefs} is not C{None}, fields
+        will only be created from C{values} with a corresponding entry in
+        C{fieldDefs}.
+
+        If the field type is unknown, the field type is C{None}. When the form
+        is rendered using L{toElement}, these fields will have no C{'type'}
+        attribute, and it is up to the receiving party to interpret the values
+        properly (e.g. by knowing about the FORM_TYPE in L{formNamespace} and
+        the field name).
+
+        @param values: Values to create fields from.
+        @type values: C{dict}
+
+        @param fieldDefs: Field definitions as a dictionary. See
+            L{wokkel.iwokkel.IPubSubService.getConfigurationOptions}
+        @type fieldDefs: C{dict}
+
+        @param filterUnknown: If C{True}, ignore fields that are not in
+            C{fieldDefs}.
+        @type filterUnknown: C{bool}
+        """
+        for name, value in values.iteritems():
+            fieldDict = {'var': name,
+                         'type': None}
+
+            if fieldDefs is not None:
+                if name in fieldDefs:
+                    fieldDict.update(fieldDefs[name])
+                elif filterUnknown:
+                    continue
+
+            if isinstance(value, list):
+                fieldDict['values'] = value
+            else:
+                fieldDict['value'] = value
+
+            self.addField(Field.fromDict(fieldDict))
+
+
     def toElement(self):
+        """
+        Return the DOM representation of this Form.
+
+        @rtype: L{domish.Element}
+        """
         form = domish.Element((NS_X_DATA, 'x'))
         form['type'] = self.formType
 
@@ -516,3 +591,65 @@ class Form(object):
             values[name] = value
 
         return values
+
+
+    def typeCheck(self, fieldDefs=None, filterUnknown=False):
+        """
+        Check values of fields according to the field definition.
+
+        This method walks all named fields to check their values against their
+        type, and is typically used for forms received from other entities. The
+        field definition in C{fieldDefs} is used to check the field type.
+
+        If C{filterUnknown} is C{True}, fields that are not present in
+        C{fieldDefs} are removed from the form.
+
+        If the field type is C{None} (when not set by the sending entity),
+        the type from the field definitition is used, or C{'text-single'} if
+        that is not set.
+
+        If C{fieldDefs} is None, an empty dictionary is assumed. This is
+        useful for coercing boolean and JID values on forms with type
+        C{'form'}.
+
+        @param fieldDefs: Field definitions as a dictionary. See
+            L{wokkel.iwokkel.IPubSubService.getConfigurationOptions}
+        @type fieldDefs: C{dict}
+
+        @param filterUnknown: If C{True}, remove fields that are not in
+            C{fieldDefs}.
+        @type filterUnknown: C{bool}
+        """
+
+        if fieldDefs is None:
+            fieldDefs = {}
+
+        filtered = []
+
+        for name, field in self.fields.iteritems():
+            if name in fieldDefs:
+                fieldDef = fieldDefs[name]
+                if 'type' not in fieldDef:
+                    fieldDef['type'] = 'text-single'
+
+                if field.fieldType is None:
+                    field.fieldType = fieldDef['type']
+                elif field.fieldType != fieldDef['type']:
+                    raise TypeError("Field type for %r is %r, expected %r" %
+                                    (name,
+                                     field.fieldType,
+                                     fieldDef['type']))
+                else:
+                    # Field type is correct
+                    pass
+                field.typeCheck()
+            elif filterUnknown:
+                filtered.append(field)
+            elif field.fieldType is not None:
+                field.typeCheck()
+            else:
+                # Unknown field without type, no checking, no filtering
+                pass
+
+        for field in filtered:
+            self.removeField(field)

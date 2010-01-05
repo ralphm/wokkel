@@ -134,14 +134,37 @@ class FieldTest(unittest.TestCase):
         self.assertEquals([], element.children)
 
 
-    def test_toElementTypeNotListSingle(self):
+    def test_toElementTypeNotTextSingle(self):
         """
-        Always render the field type, if different from list-single.
+        Always render the field type, if different from text-single.
         """
         field = data_form.Field('hidden', var='test')
         element = field.toElement()
 
         self.assertEquals('hidden', element.getAttribute('type'))
+
+
+    def test_toElementSingleValue(self):
+        """
+        A single value should yield only one value element.
+        """
+        field = data_form.Field('list-multi', var='test', value='test')
+        element = field.toElement()
+
+        children = list(element.elements())
+        self.assertEqual(1, len(children))
+
+
+    def test_toElementMultipleValues(self):
+        """
+        A field with no type and multiple values should render all values.
+        """
+        field = data_form.Field('list-multi', var='test',
+                                values=['test', 'test2'])
+        element = field.toElement()
+
+        children = list(element.elements())
+        self.assertEqual(2, len(children))
 
 
     def test_toElementAsForm(self):
@@ -240,6 +263,27 @@ class FieldTest(unittest.TestCase):
         field = data_form.Field(var='test', value=True)
         element = field.toElement()
         self.assertEqual(u'true', unicode(element.value))
+
+
+    def test_toElementNoType(self):
+        """
+        A field with no type should not have a type attribute.
+        """
+        field = data_form.Field(None, var='test', value='test')
+        element = field.toElement()
+        self.assertFalse(element.hasAttribute('type'))
+
+
+    def test_toElementNoTypeMultipleValues(self):
+        """
+        A field with no type and multiple values should render all values.
+        """
+        field = data_form.Field(None, var='test', values=['test', 'test2'])
+        element = field.toElement()
+
+        self.assertFalse(element.hasAttribute('type'))
+        children = list(element.elements())
+        self.assertEqual(2, len(children))
 
 
     def test_typeCheckNoFieldName(self):
@@ -787,6 +831,154 @@ class FormTest(unittest.TestCase):
         self.assertRaises(data_form.Error, form.addField, field2)
 
 
+    def test_removeField(self):
+        """
+        A removed field should not occur in fieldList.
+        """
+        form = data_form.Form('result')
+        field = data_form.Field('fixed', value='Section 1')
+        form.addField(field)
+        form.removeField(field)
+        self.assertNotIn(field, form.fieldList)
+
+
+    def test_removeFieldNamed(self):
+        """
+        A removed named field should not occur in fields.
+        """
+        form = data_form.Form('result')
+        field = data_form.Field(var='test', value='test1')
+        form.addField(field)
+        form.removeField(field)
+        self.assertNotIn('test', form.fields)
+
+
+    def test_makeField(self):
+        """
+        Fields can be created from a dict of values and a dict of field defs.
+        """
+        fieldDefs = {
+                "pubsub#persist_items":
+                    {"type": "boolean",
+                     "label": "Persist items to storage"},
+                "pubsub#deliver_payloads":
+                    {"type": "boolean",
+                     "label": "Deliver payloads with event notifications"},
+                "pubsub#creator":
+                    {"type": "jid-single",
+                     "label": "The JID of the node creator"},
+                "pubsub#description":
+                    {"type": "text-single",
+                     "label": "A description of the node"},
+                "pubsub#owner":
+                    {"type": "jid-single",
+                     "label": "Owner of the node"},
+                }
+        values = {'pubsub#deliver_payloads': '0',
+                  'pubsub#persist_items': True,
+                  'pubsub#description': 'a great node',
+                  'pubsub#owner': jid.JID('user@example.org'),
+                  'x-myfield': ['a', 'b']}
+
+        form = data_form.Form('submit')
+        form.makeFields(values, fieldDefs)
+
+        # Check that the expected fields have been created
+        self.assertIn('pubsub#deliver_payloads', form.fields)
+        self.assertIn('pubsub#persist_items', form.fields)
+        self.assertIn('pubsub#description', form.fields)
+        self.assertIn('pubsub#owner', form.fields)
+
+        # This field is not created because there is no value for it.
+        self.assertNotIn('pubsub#creator', form.fields)
+
+        # This field is not created because it does not appear in fieldDefs
+        # and filterUnknown defaults to True
+        self.assertNotIn('x-myfield', form.fields)
+
+        # Check properties the created fields
+        self.assertEqual('boolean',
+                         form.fields['pubsub#deliver_payloads'].fieldType)
+        self.assertEqual('0',
+                         form.fields['pubsub#deliver_payloads'].value)
+        self.assertEqual('Deliver payloads with event notifications',
+                         form.fields['pubsub#deliver_payloads'].label)
+        self.assertEqual(True,
+                         form.fields['pubsub#persist_items'].value)
+
+
+    def test_makeFieldNotFilterUnknown(self):
+        """
+        Fields can be created from a dict of values and a dict of field defs.
+        """
+        fieldDefs = {
+                "pubsub#persist_items":
+                    {"type": "boolean",
+                     "label": "Persist items to storage"},
+                }
+        values = {'x-myfield': ['a', 'b']}
+
+        form = data_form.Form('submit')
+        form.makeFields(values, fieldDefs, filterUnknown=False)
+
+        field = form.fields['x-myfield']
+        self.assertEqual(None, field.fieldType)
+        self.assertEqual(values, form.getValues())
+
+
+    def test_makeFieldsUnknownTypeJID(self):
+        """
+        Without type, a single JID value sets field type jid-single.
+        """
+        values = {'pubsub#creator': jid.JID('user@example.org')}
+        form = data_form.Form('result')
+        form.makeFields(values)
+
+        field = form.fields['pubsub#creator']
+        self.assertEqual(None, field.fieldType)
+        self.assertEqual(values, form.getValues())
+
+
+    def test_makeFieldsUnknownTypeJIDMulti(self):
+        """
+        Without type, multiple JID values sets field type jid-multi.
+        """
+        values = {'pubsub#contact': [jid.JID('user@example.org'),
+                                     jid.JID('other@example.org')]}
+        form = data_form.Form('result')
+        form.makeFields(values)
+
+        field = form.fields['pubsub#contact']
+        self.assertEqual(None, field.fieldType)
+        self.assertEqual(values, form.getValues())
+
+
+    def test_makeFieldsUnknownTypeBoolean(self):
+        """
+        Without type, a boolean value sets field type boolean.
+        """
+        values = {'pubsub#persist_items': True}
+        form = data_form.Form('result')
+        form.makeFields(values)
+
+        field = form.fields['pubsub#persist_items']
+        self.assertEqual(None, field.fieldType)
+        self.assertEqual(values, form.getValues())
+
+
+    def test_makeFieldsUnknownTypeListMulti(self):
+        """
+        Without type, multiple values sets field type list-multi.
+        """
+        values = {'pubsub#show-values': ['chat', 'online', 'away']}
+        form = data_form.Form('result')
+        form.makeFields(values)
+
+        field = form.fields['pubsub#show-values']
+        self.assertEqual(None, field.fieldType)
+        self.assertEqual(values, form.getValues())
+
+
     def test_getValues(self):
         """
         Each named field is represented in the values, keyed by name.
@@ -834,3 +1026,142 @@ class FormTest(unittest.TestCase):
         form = data_form.Form('submit', fields=fields)
         values = form.getValues()
         self.assertEqual({'features': 'news'}, values)
+
+
+    def test_typeCheckKnownFieldChecked(self):
+        """
+        Known fields are type checked.
+        """
+        checked = []
+        fieldDefs = {"pubsub#description":
+                        {"type": "text-single",
+                         "label": "A description of the node"}}
+        form = data_form.Form('submit')
+        form.addField(data_form.Field(var='pubsub#description',
+                                      value='a node'))
+        field = form.fields['pubsub#description']
+        field.typeCheck = lambda : checked.append(None)
+        form.typeCheck(fieldDefs)
+
+        self.assertEqual([None], checked)
+
+
+    def test_typeCheckKnownFieldNoType(self):
+        """
+        Known fields without a type get the type of the field definition.
+        """
+        checked = []
+        fieldDefs = {"pubsub#description":
+                        {"type": "text-single",
+                         "label": "A description of the node"}}
+        form = data_form.Form('submit')
+        form.addField(data_form.Field(None, var='pubsub#description',
+                                            value='a node'))
+        field = form.fields['pubsub#description']
+        field.typeCheck = lambda : checked.append(None)
+        form.typeCheck(fieldDefs)
+
+        self.assertEqual('text-single', field.fieldType)
+        self.assertEqual([None], checked)
+
+
+    def test_typeCheckWrongFieldType(self):
+        """
+        A field should have the same type as the field definition.
+        """
+        checked = []
+        fieldDefs = {"pubsub#description":
+                        {"type": "text-single",
+                         "label": "A description of the node"}}
+        form = data_form.Form('submit')
+        form.addField(data_form.Field('list-single', var='pubsub#description',
+                                                     value='a node'))
+        field = form.fields['pubsub#description']
+        field.typeCheck = lambda : checked.append(None)
+
+        self.assertRaises(TypeError, form.typeCheck, fieldDefs)
+        self.assertEqual([], checked)
+
+
+    def test_typeCheckDefaultTextSingle(self):
+        """
+        If a field definition has no type, use text-single.
+        """
+        checked = []
+        fieldDefs = {"pubsub#description":
+                        {"label": "A description of the node"}}
+        form = data_form.Form('submit')
+        form.addField(data_form.Field('text-single', var='pubsub#description',
+                                                     value='a node'))
+        field = form.fields['pubsub#description']
+        field.typeCheck = lambda : checked.append(None)
+        form.typeCheck(fieldDefs)
+
+        self.assertEqual([None], checked)
+
+
+    def test_typeCheckUnknown(self):
+        """
+        Unknown fields are checked, not removed if filterUnknown False.
+        """
+        checked = []
+        fieldDefs = {}
+        form = data_form.Form('submit')
+        form.addField(data_form.Field('list-single', var='pubsub#description',
+                                                     value='a node'))
+        field = form.fields['pubsub#description']
+        field.typeCheck = lambda : checked.append(None)
+        form.typeCheck(fieldDefs, filterUnknown=False)
+
+        self.assertIn('pubsub#description', form.fields)
+        self.assertEqual([None], checked)
+
+
+    def test_typeCheckUnknownNoType(self):
+        """
+        Unknown fields without type are not checked.
+        """
+        checked = []
+        fieldDefs = {}
+        form = data_form.Form('submit')
+        form.addField(data_form.Field(None, var='pubsub#description',
+                                            value='a node'))
+        field = form.fields['pubsub#description']
+        field.typeCheck = lambda : checked.append(None)
+        form.typeCheck(fieldDefs, filterUnknown=False)
+
+        self.assertIn('pubsub#description', form.fields)
+        self.assertEqual([], checked)
+
+
+    def test_typeCheckUnknownRemoved(self):
+        """
+        Unknown fields are not checked, and removed if filterUnknown True.
+        """
+        checked = []
+        fieldDefs = {}
+        form = data_form.Form('submit')
+        form.addField(data_form.Field('list-single', var='pubsub#description',
+                                                     value='a node'))
+        field = form.fields['pubsub#description']
+        field.typeCheck = lambda : checked.append(None)
+        form.typeCheck(fieldDefs, filterUnknown=True)
+
+        self.assertNotIn('pubsub#description', form.fields)
+        self.assertEqual([], checked)
+
+
+    def test_typeCheckNoFieldDefs(self):
+        """
+        If there are no field defs, an empty dictionary is assumed.
+        """
+        checked = []
+        form = data_form.Form('submit')
+        form.addField(data_form.Field('list-single', var='pubsub#description',
+                                                     value='a node'))
+        field = form.fields['pubsub#description']
+        field.typeCheck = lambda : checked.append(None)
+        form.typeCheck()
+
+        self.assertIn('pubsub#description', form.fields)
+        self.assertEqual([None], checked)
