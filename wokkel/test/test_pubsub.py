@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) 2003-2010 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -805,7 +805,7 @@ class PubSubRequestTest(unittest.TestCase):
         self.assertEqual(JID('pubsub.example.org'), request.recipient)
         self.assertEqual('test', request.nodeIdentifier)
         self.assertEqual(JID('user@example.org/Home'), request.subscriber)
-        self.assertEqual({'pubsub#deliver': '1'}, request.options)
+        self.assertEqual({'pubsub#deliver': '1'}, request.options.getValues())
 
 
     def test_fromElementOptionsSetCancel(self):
@@ -825,7 +825,7 @@ class PubSubRequestTest(unittest.TestCase):
         """
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
-        self.assertEqual({}, request.options)
+        self.assertEqual('cancel', request.options.formType)
 
 
     def test_fromElementOptionsSetBadFormType(self):
@@ -840,7 +840,7 @@ class PubSubRequestTest(unittest.TestCase):
             <options node='test' jid='user@example.org/Home'>
               <x xmlns='jabber:x:data' type='result'>
                 <field var='FORM_TYPE' type='hidden'>
-                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                  <value>http://jabber.org/protocol/pubsub#subscribe_options</value>
                 </field>
                 <field var='pubsub#deliver'><value>1</value></field>
               </x>
@@ -853,6 +853,7 @@ class PubSubRequestTest(unittest.TestCase):
                                 pubsub.PubSubRequest.fromElement,
                                 parseXml(xml))
         self.assertEqual('bad-request', err.condition)
+        self.assertEqual("Unexpected form type 'result'", err.text)
         self.assertEqual(None, err.appCondition)
 
 
@@ -1053,7 +1054,8 @@ class PubSubRequestTest(unittest.TestCase):
         self.assertEqual(JID('pubsub.example.org'), request.recipient)
         self.assertEqual('test', request.nodeIdentifier)
         self.assertEqual({'pubsub#deliver_payloads': '0',
-                          'pubsub#persist_items': '1'}, request.options)
+                          'pubsub#persist_items': '1'},
+                         request.options.getValues())
 
 
     def test_fromElementConfigureSetCancel(self):
@@ -1073,7 +1075,7 @@ class PubSubRequestTest(unittest.TestCase):
         """
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
-        self.assertEqual({}, request.options)
+        self.assertEqual('cancel', request.options.formType)
 
 
     def test_fromElementConfigureSetBadFormType(self):
@@ -1102,6 +1104,7 @@ class PubSubRequestTest(unittest.TestCase):
                                 pubsub.PubSubRequest.fromElement,
                                 parseXml(xml))
         self.assertEqual('bad-request', err.condition)
+        self.assertEqual("Unexpected form type 'result'", err.text)
         self.assertEqual(None, err.appCondition)
 
 
@@ -1895,7 +1898,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             return defer.succeed({'pubsub#deliver_payloads': '0',
                                   'pubsub#persist_items': '1',
                                   'pubsub#owner': JID('user@example.org'),
-                                  'x-myfield': ['a', 'b']})
+                                  'x-myfield': 'a'})
 
         def cb(element):
             self.assertEqual('pubsub', element.name)
@@ -1968,7 +1971,8 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         def configureSet(request):
             self.assertEqual({'pubsub#deliver_payloads': False,
-                              'pubsub#persist_items': True}, request.options)
+                              'pubsub#persist_items': True},
+                             request.options.getValues())
             return defer.succeed(None)
 
         self.resource.getConfigurationOptions = getConfigurationOptions
@@ -2040,7 +2044,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         def configureSet(request):
             self.assertEquals(['pubsub#deliver_payloads'],
-                              request.options.keys())
+                              request.options.fields.keys())
 
         self.resource.getConfigurationOptions = getConfigurationOptions
         self.resource.configureSet = configureSet
@@ -2072,6 +2076,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         def cb(result):
             self.assertEquals('bad-request', result.condition)
+            self.assertEqual("Unexpected form type 'result'", result.text)
 
         d = self.handleRequest(xml)
         self.assertFailure(d, error.StanzaError)
@@ -2593,6 +2598,48 @@ class PubSubServiceWithoutResourceTest(unittest.TestCase, TestableRequestHandler
         self.assertFailure(d, error.StanzaError)
         d.addCallback(cb)
         return d
+
+
+    def test_setConfigurationOptionsDict(self):
+        """
+        Options should be passed as a dictionary, not a form.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <configure node='test'>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver_payloads'><value>0</value></field>
+                <field var='pubsub#persist_items'><value>1</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        def getConfigurationOptions():
+            return {
+                "pubsub#persist_items":
+                    {"type": "boolean",
+                     "label": "Persist items to storage"},
+                "pubsub#deliver_payloads":
+                    {"type": "boolean",
+                     "label": "Deliver payloads with event notifications"}
+                }
+
+        def setConfiguration(requestor, service, nodeIdentifier, options):
+            self.assertEquals({'pubsub#deliver_payloads': False,
+                               'pubsub#persist_items': True}, options)
+
+
+        self.service.getConfigurationOptions = getConfigurationOptions
+        self.service.setConfiguration = setConfiguration
+        return self.handleRequest(xml)
 
 
     def test_items(self):

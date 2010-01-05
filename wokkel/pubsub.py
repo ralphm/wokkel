@@ -356,12 +356,10 @@ class PubSubRequest(generic.Stanza):
         """
         form = data_form.findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
         if form:
-            if form.formType == 'submit':
-                self.options = form.getValues()
-            elif form.formType == 'cancel':
-                self.options = {}
+            if form.formType in ('submit', 'cancel'):
+                self.options = form
             else:
-                raise BadRequest(text="Unexpected form type %r" % form.formType)
+                raise BadRequest(text=u"Unexpected form type '%s'" % form.formType)
         else:
             raise BadRequest(text="Missing configuration form")
 
@@ -413,16 +411,18 @@ class PubSubRequest(generic.Stanza):
 
 
     def _parse_options(self, verbElement):
+        """
+        Parse options form out of a subscription options request.
+        """
         form = data_form.findForm(verbElement, NS_PUBSUB_SUBSCRIBE_OPTIONS)
         if form:
-            if form.formType == 'submit':
-                self.options = form.getValues()
-            elif form.formType == 'cancel':
-                self.options = {}
+            if form.formType in ('submit', 'cancel'):
+                self.options = form
             else:
-                raise BadRequest(text="Unexpected form type %r" % form.formType)
+                raise BadRequest(text=u"Unexpected form type '%s'" % form.formType)
         else:
             raise BadRequest(text="Missing options form")
+
 
     def parseElement(self, element):
         """
@@ -892,8 +892,6 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             d = self.getNodes(requestor, target)
         else:
             d = defer.succeed([])
-            
-
 
         d.addCallback(lambda nodes: [disco.DiscoItem(target, node)
                                      for node in nodes])
@@ -932,6 +930,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             handlerName, argNames = self._legacyHandlers[request.verb]
             handler = getattr(self, handlerName)
             args = [getattr(request, arg) for arg in argNames]
+            if 'options' in argNames:
+                args[argNames.index('options')] = request.options.getValues()
             d = handler(*args)
 
         # If needed, translate the result into a response
@@ -996,29 +996,9 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         return form
 
 
-    def _checkConfiguration(self, resource, values):
-        options = resource.getConfigurationOptions()
-        processedValues = {}
-
-        for key, value in values.iteritems():
-            if key not in options:
-                continue
-
-            option = {'var': key}
-            option.update(options[key])
-            field = data_form.Field.fromDict(option)
-            if isinstance(value, list):
-                field.values = value
-            else:
-                field.value = value
-            field.typeCheck()
-
-            if isinstance(value, list):
-                processedValues[key] = field.values
-            else:
-                processedValues[key] = field.value
-
-        return processedValues
+    def _checkConfiguration(self, resource, form):
+        fieldDefs = resource.getConfigurationOptions()
+        form.typeCheck(fieldDefs, filterUnknown=True)
 
 
     def _preProcess_default(self, resource, request):
@@ -1049,12 +1029,11 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _preProcess_configureSet(self, resource, request):
-        if request.options:
-            request.options = self._checkConfiguration(resource,
-                                                       request.options)
-            return request
-        else:
+        if request.options.formType == 'cancel':
             return None
+        else:
+            self._checkConfiguration(resource, request.options)
+            return request
 
 
     def _toResponse_items(self, result, resource, request):
