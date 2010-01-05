@@ -19,7 +19,7 @@ from wokkel.generic import parseXml
 from wokkel.test.helpers import TestableRequestHandlerMixin, XmlStreamStub
 
 NS_PUBSUB = 'http://jabber.org/protocol/pubsub'
-NS_PUBSUB_CONFIG = 'http://jabber.org/protocol/pubsub#node_config'
+NS_PUBSUB_NODE_CONFIG = 'http://jabber.org/protocol/pubsub#node_config'
 NS_PUBSUB_ERRORS = 'http://jabber.org/protocol/pubsub#errors'
 NS_PUBSUB_EVENT = 'http://jabber.org/protocol/pubsub#event'
 NS_PUBSUB_OWNER = 'http://jabber.org/protocol/pubsub#owner'
@@ -265,6 +265,41 @@ class PubSubClientTest(unittest.TestCase):
 
         iq = self.stub.output[-1]
         self.assertEquals('user@example.org', iq['from'])
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_createNodeWithConfig(self):
+        """
+        Test sending create request with configuration options
+        """
+
+        options = {
+            'pubsub#title': 'Princely Musings (Atom)',
+            'pubsub#deliver_payloads': True,
+            'pubsub#persist_items': '1',
+            'pubsub#max_items': '10',
+            'pubsub#access_model': 'open',
+            'pubsub#type': 'http://www.w3.org/2005/Atom',
+        }
+
+        d = self.protocol.createNode(JID('pubsub.example.org'), 'test',
+                                     sender=JID('user@example.org'),
+                                     options=options)
+
+        iq = self.stub.output[-1]
+
+        # check if there is exactly one configure element
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'configure', NS_PUBSUB))
+        self.assertEqual(1, len(children))
+
+        # check that it has a configuration form
+        form = data_form.findForm(children[0], NS_PUBSUB_NODE_CONFIG)
+        self.assertEqual('submit', form.formType)
+
 
         response = toResponse(iq, 'result')
         self.stub.send(response)
@@ -936,6 +971,7 @@ class PubSubRequestTest(unittest.TestCase):
         self.assertEqual(JID('user@example.org'), request.sender)
         self.assertEqual(JID('pubsub.example.org'), request.recipient)
         self.assertEqual('mynode', request.nodeIdentifier)
+        self.assertIdentical(None, request.options)
 
 
     def test_fromElementCreateInstant(self):
@@ -954,6 +990,109 @@ class PubSubRequestTest(unittest.TestCase):
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
         self.assertIdentical(None, request.nodeIdentifier)
+
+
+    def test_fromElementCreateConfigureEmpty(self):
+        """
+        Test parsing a request to create a node with an empty configuration.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create node='mynode'/>
+            <configure/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual({}, request.options.getValues())
+
+
+    def test_fromElementCreateConfigureEmptyWrongOrder(self):
+        """
+        Test parsing a request to create a node and configure, wrong order.
+
+        The C{configure} element should come after the C{create} request,
+        but we should accept both orders.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <configure/>
+            <create node='mynode'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual({}, request.options.getValues())
+
+
+    def test_fromElementCreateConfigure(self):
+        """
+        Test parsing a request to create a node.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create node='mynode'/>
+            <configure>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#access_model'><value>open</value></field>
+                <field var='pubsub#persist_items'><value>0</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        values = request.options.getValues()
+        self.assertIn('pubsub#access_model', values)
+        self.assertEqual(u'open', values['pubsub#access_model'])
+        self.assertIn('pubsub#persist_items', values)
+        self.assertEqual(u'0', values['pubsub#persist_items'])
+
+
+    def test_fromElementCreateConfigureBadFormType(self):
+        """
+        The form of a node creation request should have the right type.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create node='mynode'/>
+            <configure>
+              <x xmlns='jabber:x:data' type='result'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#access_model'><value>open</value></field>
+                <field var='pubsub#persist_items'><value>0</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual("Unexpected form type 'result'", err.text)
+        self.assertEqual(None, err.appCondition)
 
 
     def test_fromElementDefault(self):
@@ -1080,7 +1219,7 @@ class PubSubRequestTest(unittest.TestCase):
 
     def test_fromElementConfigureSetBadFormType(self):
         """
-        On a node configuration set request unknown fields should be ignored.
+        The form of a node configuraton set request should have the right type.
         """
 
         xml = """
@@ -1743,6 +1882,52 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
+    def test_on_createWithConfig(self):
+        """
+        On a node create with configuration request the Data Form is parsed and
+        L{PubSubResource.create} is called with the passed options.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <create node='mynode'/>
+            <configure>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#node_config</value>
+                </field>
+                <field var='pubsub#deliver_payloads'><value>0</value></field>
+                <field var='pubsub#persist_items'><value>1</value></field>
+              </x>
+            </configure>
+          </pubsub>
+        </iq>
+        """
+
+        def getConfigurationOptions():
+            return {
+                "pubsub#persist_items":
+                    {"type": "boolean",
+                     "label": "Persist items to storage"},
+                "pubsub#deliver_payloads":
+                    {"type": "boolean",
+                     "label": "Deliver payloads with event notifications"}
+                }
+
+        def create(request):
+            self.assertEqual({'pubsub#deliver_payloads': False,
+                              'pubsub#persist_items': True},
+                             request.options.getValues())
+            return defer.succeed(None)
+
+        self.resource.getConfigurationOptions = getConfigurationOptions
+        self.resource.create = create
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
+        return self.handleRequest(xml)
+
+
     def test_on_default(self):
         """
         A default request should result in
@@ -1776,7 +1961,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual(NS_PUBSUB_OWNER, element.uri)
             self.assertEqual(NS_PUBSUB_OWNER, element.default.uri)
             form = data_form.Form.fromElement(element.default.x)
-            self.assertEqual(NS_PUBSUB_CONFIG, form.formNamespace)
+            self.assertEqual(NS_PUBSUB_NODE_CONFIG, form.formNamespace)
 
         self.resource.getConfigurationOptions = getConfigurationOptions
         self.resource.default = default
@@ -1905,7 +2090,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual(NS_PUBSUB_OWNER, element.uri)
             self.assertEqual(NS_PUBSUB_OWNER, element.configure.uri)
             form = data_form.Form.fromElement(element.configure.x)
-            self.assertEqual(NS_PUBSUB_CONFIG, form.formNamespace)
+            self.assertEqual(NS_PUBSUB_NODE_CONFIG, form.formNamespace)
             fields = form.fields
 
             self.assertIn('pubsub#deliver_payloads', fields)

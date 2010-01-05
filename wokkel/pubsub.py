@@ -234,7 +234,7 @@ class PubSubRequest(generic.Stanza):
         'optionsSet': ['nodeOrEmpty', 'jid', 'options'],
         'subscriptions': [],
         'affiliations': [],
-        'create': ['nodeOrNone'],
+        'create': ['nodeOrNone', 'configureOrNone'],
         'default': ['default'],
         'configureGet': ['nodeOrEmpty'],
         'configureSet': ['nodeOrEmpty', 'configure'],
@@ -363,6 +363,33 @@ class PubSubRequest(generic.Stanza):
         else:
             raise BadRequest(text="Missing configuration form")
 
+
+    def _parse_configureOrNone(self, verbElement):
+        """
+        Parse optional node configuration form in create request.
+        """
+        for element in verbElement.parent.elements():
+            if element.uri == NS_PUBSUB and element.name == 'configure':
+                form = data_form.findForm(element, NS_PUBSUB_NODE_CONFIG)
+                if form:
+                    if form.formType == 'submit':
+                        self.options = form
+                    else:
+                        raise BadRequest(text=u"Unexpected form type '%s'" %
+                                              form.formType)
+                else:
+                    form = data_form.Form('submit',
+                                          formNamespace=NS_PUBSUB_NODE_CONFIG)
+                    self.options = form
+
+
+    def _render_configureOrNone(self, verbElement):
+        """
+        Render optional node configuration form in create request.
+        """
+        if self.options is not None:
+            configure = verbElement.parent.addElement('configure')
+            configure.addChild(self.options.toElement())
 
 
     def _parse_itemIdentifiers(self, verbElement):
@@ -607,7 +634,8 @@ class PubSubClient(XMPPHandler):
         pass
 
 
-    def createNode(self, service, nodeIdentifier=None, sender=None):
+    def createNode(self, service, nodeIdentifier=None, options=None,
+                         sender=None):
         """
         Create a publish subscribe node.
 
@@ -615,11 +643,19 @@ class PubSubClient(XMPPHandler):
         @type service: L{JID}
         @param nodeIdentifier: Optional suggestion for the id of the node.
         @type nodeIdentifier: C{unicode}
+        @param options: Optional node configuration options.
+        @type options: C{dict}
         """
         request = PubSubRequest('create')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.sender = sender
+
+        if options:
+            form = data_form.Form(formType='submit',
+                                  formNamespace=NS_PUBSUB_NODE_CONFIG)
+            form.makeFields(options)
+            request.options = form
 
         def cb(iq):
             try:
@@ -999,6 +1035,12 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
     def _checkConfiguration(self, resource, form):
         fieldDefs = resource.getConfigurationOptions()
         form.typeCheck(fieldDefs, filterUnknown=True)
+
+
+    def _preProcess_create(self, resource, request):
+        if request.options:
+            self._checkConfiguration(resource, request.options)
+        return request
 
 
     def _preProcess_default(self, resource, request):
