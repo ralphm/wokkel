@@ -228,7 +228,7 @@ class PubSubRequest(generic.Stanza):
     # Map request verb to parameter handler names
     _parameters = {
         'publish': ['node', 'items'],
-        'subscribe': ['nodeOrEmpty', 'jid'],
+        'subscribe': ['nodeOrEmpty', 'jid', 'optionsWithSubscribe'],
         'unsubscribe': ['nodeOrEmpty', 'jid'],
         'optionsGet': ['nodeOrEmpty', 'jid'],
         'optionsSet': ['nodeOrEmpty', 'jid', 'options'],
@@ -372,15 +372,13 @@ class PubSubRequest(generic.Stanza):
             if element.uri == NS_PUBSUB and element.name == 'configure':
                 form = data_form.findForm(element, NS_PUBSUB_NODE_CONFIG)
                 if form:
-                    if form.formType == 'submit':
-                        self.options = form
-                    else:
+                    if form.formType != 'submit':
                         raise BadRequest(text=u"Unexpected form type '%s'" %
                                               form.formType)
                 else:
                     form = data_form.Form('submit',
                                           formNamespace=NS_PUBSUB_NODE_CONFIG)
-                    self.options = form
+                self.options = form
 
 
     def _render_configureOrNone(self, verbElement):
@@ -451,27 +449,65 @@ class PubSubRequest(generic.Stanza):
             raise BadRequest(text="Missing options form")
 
 
+
+    def _render_options(self, verbElement):
+        verbElement.addChild(self.options.toElement())
+
+
+    def _parse_optionsWithSubscribe(self, verbElement):
+        for element in verbElement.parent.elements():
+            if element.name == 'options' and element.uri == NS_PUBSUB:
+                form = data_form.findForm(element,
+                                          NS_PUBSUB_SUBSCRIBE_OPTIONS)
+                if form:
+                    if form.formType != 'submit':
+                        raise BadRequest(text=u"Unexpected form type '%s'" %
+                                              form.formType)
+                else:
+                    form = data_form.Form('submit',
+                                          formNamespace=NS_PUBSUB_SUBSCRIBE_OPTIONS)
+                self.options = form
+
+
+    def _render_optionsWithSubscribe(self, verbElement):
+        if self.options:
+            optionsElement = verbElement.parent.addElement('options')
+            self._render_options(optionsElement)
+
+
     def parseElement(self, element):
         """
         Parse the publish-subscribe verb and parameters out of a request.
         """
         generic.Stanza.parseElement(self, element)
 
+        verbs = []
+        children = []
         for child in element.pubsub.elements():
             key = (self.stanzaType, child.uri, child.name)
             try:
                 verb = self._requestVerbMap[key]
             except KeyError:
                 continue
-            else:
-                self.verb = verb
-                break
 
-        if not self.verb:
+            verbs.append(verb)
+            children.append(child)
+
+        if not verbs:
             raise NotImplementedError()
 
-        for parameter in self._parameters[verb]:
+        if len(verbs) > 1:
+            if 'optionsSet' in verbs and 'subscribe' in verbs:
+                self.verb = 'subscribe'
+                child = children[verbs.index('subscribe')]
+            else:
+                raise NotImplementedError()
+        else:
+            self.verb = verbs[0]
+
+        for parameter in self._parameters[self.verb]:
             getattr(self, '_parse_%s' % parameter)(child)
+
 
 
     def send(self, xs):
@@ -686,7 +722,8 @@ class PubSubClient(XMPPHandler):
         return request.send(self.xmlstream)
 
 
-    def subscribe(self, service, nodeIdentifier, subscriber, sender=None):
+    def subscribe(self, service, nodeIdentifier, subscriber,
+                        options=None, sender=None):
         """
         Subscribe to a publish subscribe node.
 
@@ -697,12 +734,20 @@ class PubSubClient(XMPPHandler):
         @param subscriber: The entity to subscribe to the node. This entity
                            will get notifications of new published items.
         @type subscriber: L{JID}
+        @param options: Subscription options.
+        @type options: C{dict}.
         """
         request = PubSubRequest('subscribe')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.subscriber = subscriber
         request.sender = sender
+
+        if options:
+            form = data_form.Form(formType='submit',
+                                  formNamespace=NS_PUBSUB_SUBSCRIBE_OPTIONS)
+            form.makeFields(options)
+            request.options = form
 
         def cb(iq):
             subscription = iq.pubsub.subscription["subscription"]
@@ -787,6 +832,70 @@ class PubSubClient(XMPPHandler):
 
         d = request.send(self.xmlstream)
         d.addCallback(cb)
+        return d
+
+
+    def getOptions(self, service, nodeIdentifier, subscriber, sender=None):
+        """
+        Get subscription options.
+
+        @param service: The publish subscribe service that keeps the node.
+        @type service: L{JID}
+
+        @param nodeIdentifier: The identifier of the node.
+        @type nodeIdentifier: C{unicode}
+
+        @param subscriber: The entity subscribed to the node.
+        @type subscriber: L{JID}
+
+        @rtype: L{data_form.Form}
+        """
+        request = PubSubRequest('optionsGet')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
+        request.subscriber = subscriber
+        request.sender = sender
+
+        def cb(iq):
+            form = data_form.findForm(iq.pubsub.options,
+                                      NS_PUBSUB_SUBSCRIBE_OPTIONS)
+            form.typeCheck()
+            return form
+
+        d = request.send(self.xmlstream)
+        d.addCallback(cb)
+        return d
+
+
+    def setOptions(self, service, nodeIdentifier, subscriber,
+                         options, sender=None):
+        """
+        Set subscription options.
+
+        @param service: The publish subscribe service that keeps the node.
+        @type service: L{JID}
+
+        @param nodeIdentifier: The identifier of the node.
+        @type nodeIdentifier: C{unicode}
+
+        @param subscriber: The entity subscribed to the node.
+        @type subscriber: L{JID}
+
+        @param options: Subscription options.
+        @type options: C{dict}.
+        """
+        request = PubSubRequest('optionsSet')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
+        request.subscriber = subscriber
+        request.sender = sender
+
+        form = data_form.Form(formType='submit',
+                              formNamespace=NS_PUBSUB_SUBSCRIBE_OPTIONS)
+        form.makeFields(options)
+        request.options = form
+
+        d = request.send(self.xmlstream)
         return d
 
 

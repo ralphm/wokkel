@@ -24,6 +24,7 @@ NS_PUBSUB_ERRORS = 'http://jabber.org/protocol/pubsub#errors'
 NS_PUBSUB_EVENT = 'http://jabber.org/protocol/pubsub#event'
 NS_PUBSUB_OWNER = 'http://jabber.org/protocol/pubsub#owner'
 NS_PUBSUB_META_DATA = 'http://jabber.org/protocol/pubsub#meta-data'
+NS_PUBSUB_SUBSCRIBE_OPTIONS = 'http://jabber.org/protocol/pubsub#subscribe_options'
 
 def calledAsync(fn):
     """
@@ -482,6 +483,39 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_subscribeWithOptions(self):
+        options = {'pubsub#deliver': False}
+
+        d = self.protocol.subscribe(JID('pubsub.example.org'), 'test',
+                                    JID('user@example.org'),
+                                    options=options)
+        iq = self.stub.output[-1]
+
+        # Check options present
+        childNames = []
+        for element in iq.pubsub.elements():
+            if element.uri == NS_PUBSUB:
+                childNames.append(element.name)
+
+        self.assertEqual(['subscribe', 'options'], childNames)
+        form = data_form.findForm(iq.pubsub.options,
+                                  NS_PUBSUB_SUBSCRIBE_OPTIONS)
+        self.assertEqual('submit', form.formType)
+        form.typeCheck({'pubsub#deliver': {'type': 'boolean'}})
+        self.assertEqual(options, form.getValues())
+
+        # Send response
+        response = toResponse(iq, 'result')
+        pubsub = response.addElement((NS_PUBSUB, 'pubsub'))
+        subscription = pubsub.addElement('subscription')
+        subscription['node'] = 'test'
+        subscription['jid'] = 'user@example.org'
+        subscription['subscription'] = 'subscribed'
+        self.stub.send(response)
+
+        return d
+
+
     def test_subscribeWithSender(self):
         """
         Test sending subscription request from a specific JID.
@@ -625,8 +659,117 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_getOptions(self):
+        def cb(form):
+            self.assertEqual('form', form.formType)
+            self.assertEqual(NS_PUBSUB_SUBSCRIBE_OPTIONS, form.formNamespace)
+            field = form.fields['pubsub#deliver']
+            self.assertEqual('boolean', field.fieldType)
+            self.assertIdentical(True, field.value)
+            self.assertEqual('Enable delivery?', field.label)
+
+        d = self.protocol.getOptions(JID('pubsub.example.org'), 'test',
+                                     JID('user@example.org'),
+                                     sender=JID('user@example.org'))
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.assertEqual('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEqual('get', iq.getAttribute('type'))
+        self.assertEqual('pubsub', iq.pubsub.name)
+        self.assertEqual(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'options', NS_PUBSUB))
+        self.assertEqual(1, len(children))
+        child = children[0]
+        self.assertEqual('test', child['node'])
+
+        self.assertEqual(0, len(child.children))
+
+        # Send response
+        form = data_form.Form('form', formNamespace=NS_PUBSUB_SUBSCRIBE_OPTIONS)
+        form.addField(data_form.Field('boolean', var='pubsub#deliver',
+                                                 label='Enable delivery?',
+                                                 value=True))
+        response = toResponse(iq, 'result')
+        response.addElement((NS_PUBSUB, 'pubsub'))
+        response.pubsub.addElement('options')
+        response.pubsub.options.addChild(form.toElement())
+        self.stub.send(response)
+
+        return d
+
+
+    def test_setOptions(self):
+        """
+        setOptions should send out a options-set request.
+        """
+        options = {'pubsub#deliver': False}
+
+        d = self.protocol.setOptions(JID('pubsub.example.org'), 'test',
+                                     JID('user@example.org'),
+                                     options,
+                                     sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEqual('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEqual('set', iq.getAttribute('type'))
+        self.assertEqual('pubsub', iq.pubsub.name)
+        self.assertEqual(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'options', NS_PUBSUB))
+        self.assertEqual(1, len(children))
+        child = children[0]
+        self.assertEqual('test', child['node'])
+
+        form = data_form.findForm(child, NS_PUBSUB_SUBSCRIBE_OPTIONS)
+        self.assertEqual('submit', form.formType)
+        form.typeCheck({'pubsub#deliver': {'type': 'boolean'}})
+        self.assertEqual(options, form.getValues())
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+
+        return d
+
 
 class PubSubRequestTest(unittest.TestCase):
+
+    def test_fromElementUnknown(self):
+        """
+        An unknown verb raises NotImplementedError.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <non-existing-verb/>
+          </pubsub>
+        </iq>
+        """
+
+        self.assertRaises(NotImplementedError,
+                          pubsub.PubSubRequest.fromElement, parseXml(xml))
+
+
+    def test_fromElementKnownBadCombination(self):
+        """
+        Multiple verbs in an unknown configuration raises NotImplementedError.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+             <publish/>
+             <create/>
+          </pubsub>
+        </iq>
+        """
+
+        self.assertRaises(NotImplementedError,
+                          pubsub.PubSubRequest.fromElement, parseXml(xml))
 
     def test_fromElementPublish(self):
         """
@@ -752,6 +895,91 @@ class PubSubRequestTest(unittest.TestCase):
         self.assertEqual('bad-request', err.condition)
         self.assertEqual(NS_PUBSUB_ERRORS, err.appCondition.uri)
         self.assertEqual('jid-required', err.appCondition.name)
+
+
+    def test_fromElementSubscribeWithOptions(self):
+        """
+        Test parsing a subscription request.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe node='test' jid='user@example.org/Home'/>
+            <options>
+              <x xmlns="jabber:x:data" type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#subscribe_options</value>
+                </field>
+                <field var='pubsub#deliver' type='boolean'
+                       label='Enable delivery?'>
+                  <value>1</value>
+                </field>
+              </x>
+            </options>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('subscribe', request.verb)
+        request.options.typeCheck({'pubsub#deliver': {'type': 'boolean'}})
+        self.assertEqual({'pubsub#deliver': True}, request.options.getValues())
+
+
+    def test_fromElementSubscribeWithOptionsBadFormType(self):
+        """
+        The options form should have the right type.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe node='test' jid='user@example.org/Home'/>
+            <options>
+              <x xmlns="jabber:x:data" type='result'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#subscribe_options</value>
+                </field>
+                <field var='pubsub#deliver' type='boolean'
+                       label='Enable delivery?'>
+                  <value>1</value>
+                </field>
+              </x>
+            </options>
+          </pubsub>
+        </iq>
+        """
+
+        err = self.assertRaises(error.StanzaError,
+                                pubsub.PubSubRequest.fromElement,
+                                parseXml(xml))
+        self.assertEqual('bad-request', err.condition)
+        self.assertEqual("Unexpected form type 'result'", err.text)
+        self.assertEqual(None, err.appCondition)
+
+
+    def test_fromElementSubscribeWithOptionsEmpty(self):
+        """
+        When no (suitable) form is found, the options are empty.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe node='test' jid='user@example.org/Home'/>
+            <options/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('subscribe', request.verb)
+        self.assertEqual({}, request.options.getValues())
+
 
     def test_fromElementUnsubscribe(self):
         """
