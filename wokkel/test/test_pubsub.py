@@ -43,6 +43,78 @@ def calledAsync(fn):
     return d, func
 
 
+class SubscriptionTest(unittest.TestCase):
+    """
+    Tests for L{pubsub.Subscription}.
+    """
+
+    def test_fromElement(self):
+        """
+        fromElement parses a subscription from XML DOM.
+        """
+        xml = """
+        <subscription node='test' jid='user@example.org/Home'
+                      subscription='pending'/>
+        """
+        subscription = pubsub.Subscription.fromElement(parseXml(xml))
+        self.assertEqual('test', subscription.nodeIdentifier)
+        self.assertEqual(JID('user@example.org/Home'), subscription.subscriber)
+        self.assertEqual('pending', subscription.state)
+        self.assertIdentical(None, subscription.subscriptionIdentifier)
+
+
+    def test_fromElementWithSubscriptionIdentifier(self):
+        """
+        A subscription identifier in the subscription should be parsed, too.
+        """
+        xml = """
+        <subscription node='test' jid='user@example.org/Home' subid='1234'
+                      subscription='pending'/>
+        """
+        subscription = pubsub.Subscription.fromElement(parseXml(xml))
+        self.assertEqual('1234', subscription.subscriptionIdentifier)
+
+
+    def test_toElement(self):
+        """
+        Rendering a Subscription should yield the proper attributes.
+        """
+        subscription = pubsub.Subscription('test',
+                                           JID('user@example.org/Home'),
+                                           'pending')
+        element = subscription.toElement()
+        self.assertEqual('subscription', element.name)
+        self.assertEqual(None, element.uri)
+        self.assertEqual('test', element.getAttribute('node'))
+        self.assertEqual('user@example.org/Home', element.getAttribute('jid'))
+        self.assertEqual('pending', element.getAttribute('subscription'))
+        self.assertFalse(element.hasAttribute('subid'))
+
+
+    def test_toElementEmptyNodeIdentifier(self):
+        """
+        The empty node identifier should not yield a node attribute.
+        """
+        subscription = pubsub.Subscription('',
+                                           JID('user@example.org/Home'),
+                                           'pending')
+        element = subscription.toElement()
+        self.assertFalse(element.hasAttribute('node'))
+
+
+    def test_toElementWithSubscriptionIdentifier(self):
+        """
+        The subscription identifier, if set, is in the subid attribute.
+        """
+        subscription = pubsub.Subscription('test',
+                                           JID('user@example.org/Home'),
+                                           'pending',
+                                           subscriptionIdentifier='1234')
+        element = subscription.toElement()
+        self.assertEqual('1234', element.getAttribute('subid'))
+
+
+
 class PubSubClientTest(unittest.TestCase):
     timeout = 2
 
@@ -443,6 +515,29 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_subscribeReturnsSubscription(self):
+        """
+        A successful subscription should return a Subscription instance.
+        """
+        def cb(subscription):
+            self.assertEqual(JID('user@example.org'), subscription.subscriber)
+
+        d = self.protocol.subscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'))
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+
+        response = toResponse(iq, 'result')
+        pubsub = response.addElement((NS_PUBSUB, 'pubsub'))
+        subscription = pubsub.addElement('subscription')
+        subscription['node'] = 'test'
+        subscription['jid'] = 'user@example.org'
+        subscription['subscription'] = 'subscribed'
+        self.stub.send(response)
+        return d
+
+
     def test_subscribePending(self):
         """
         Test sending subscription request that results in a pending
@@ -537,6 +632,30 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_subscribeReturningSubscriptionIdentifier(self):
+        """
+        Test sending subscription request with subscription identifier.
+        """
+        def cb(subscription):
+            self.assertEqual('1234', subscription.subscriptionIdentifier)
+
+        d = self.protocol.subscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'))
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+
+        response = toResponse(iq, 'result')
+        pubsub = response.addElement((NS_PUBSUB, 'pubsub'))
+        subscription = pubsub.addElement('subscription')
+        subscription['node'] = 'test'
+        subscription['jid'] = 'user@example.org'
+        subscription['subscription'] = 'subscribed'
+        subscription['subid'] = '1234'
+        self.stub.send(response)
+        return d
+
+
     def test_unsubscribe(self):
         """
         Test sending unsubscription request.
@@ -570,6 +689,22 @@ class PubSubClientTest(unittest.TestCase):
 
         iq = self.stub.output[-1]
         self.assertEquals('user@example.org', iq['from'])
+        self.stub.send(toResponse(iq, 'result'))
+        return d
+
+
+    def test_unsubscribeWithSubscriptionIdentifier(self):
+        """
+        Test sending unsubscription request with subscription identifier.
+        """
+        d = self.protocol.unsubscribe(JID('pubsub.example.org'), 'test',
+                                      JID('user@example.org'),
+                                      subscriptionIdentifier='1234')
+
+        iq = self.stub.output[-1]
+        child = iq.pubsub.unsubscribe
+        self.assertEquals('1234', child['subid'])
+
         self.stub.send(toResponse(iq, 'result'))
         return d
 
@@ -640,6 +775,26 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_itemsWithSubscriptionIdentifier(self):
+        """
+        Test sending items request with a subscription identifier.
+        """
+
+        d = self.protocol.items(JID('pubsub.example.org'), 'test',
+                               subscriptionIdentifier='1234')
+
+        iq = self.stub.output[-1]
+        child = iq.pubsub.items
+        self.assertEquals('1234', child['subid'])
+
+        response = toResponse(iq, 'result')
+        items = response.addElement((NS_PUBSUB, 'pubsub')).addElement('items')
+        items['node'] = 'test'
+
+        self.stub.send(response)
+        return d
+
+
     def test_itemsWithSender(self):
         """
         Test sending items request from a specific JID.
@@ -700,6 +855,34 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_getOptionsWithSubscriptionIdentifier(self):
+        """
+        Getting options with a subid should have the subid in the request.
+        """
+
+        d = self.protocol.getOptions(JID('pubsub.example.org'), 'test',
+                                     JID('user@example.org'),
+                                     sender=JID('user@example.org'),
+                                     subscriptionIdentifier='1234')
+
+        iq = self.stub.output[-1]
+        child = iq.pubsub.options
+        self.assertEqual('1234', child['subid'])
+
+        # Send response
+        form = data_form.Form('form', formNamespace=NS_PUBSUB_SUBSCRIBE_OPTIONS)
+        form.addField(data_form.Field('boolean', var='pubsub#deliver',
+                                                 label='Enable delivery?',
+                                                 value=True))
+        response = toResponse(iq, 'result')
+        response.addElement((NS_PUBSUB, 'pubsub'))
+        response.pubsub.addElement('options')
+        response.pubsub.options.addChild(form.toElement())
+        self.stub.send(response)
+
+        return d
+
+
     def test_setOptions(self):
         """
         setOptions should send out a options-set request.
@@ -721,6 +904,33 @@ class PubSubClientTest(unittest.TestCase):
         self.assertEqual(1, len(children))
         child = children[0]
         self.assertEqual('test', child['node'])
+
+        form = data_form.findForm(child, NS_PUBSUB_SUBSCRIBE_OPTIONS)
+        self.assertEqual('submit', form.formType)
+        form.typeCheck({'pubsub#deliver': {'type': 'boolean'}})
+        self.assertEqual(options, form.getValues())
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+
+        return d
+
+
+    def test_setOptionsWithSubscriptionIdentifier(self):
+        """
+        setOptions should send out a options-set request with subid.
+        """
+        options = {'pubsub#deliver': False}
+
+        d = self.protocol.setOptions(JID('pubsub.example.org'), 'test',
+                                     JID('user@example.org'),
+                                     options,
+                                     subscriptionIdentifier='1234',
+                                     sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        child = iq.pubsub.options
+        self.assertEqual('1234', child['subid'])
 
         form = data_form.findForm(child, NS_PUBSUB_SUBSCRIBE_OPTIONS)
         self.assertEqual('submit', form.formType)
@@ -1003,6 +1213,25 @@ class PubSubRequestTest(unittest.TestCase):
         self.assertEqual(JID('user@example.org/Home'), request.subscriber)
 
 
+    def test_fromElementUnsubscribeWithSubscriptionIdentifier(self):
+        """
+        Test parsing an unsubscription request with subscription identifier.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <unsubscribe node='test' jid='user@example.org/Home'
+                         subid='1234'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('1234', request.subscriptionIdentifier)
+
+
     def test_fromElementUnsubscribeNoJID(self):
         """
         Unsubscribe requests without a JID should raise a bad-request exception.
@@ -1039,6 +1268,29 @@ class PubSubRequestTest(unittest.TestCase):
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
         self.assertEqual('optionsGet', request.verb)
+        self.assertEqual(JID('user@example.org'), request.sender)
+        self.assertEqual(JID('pubsub.example.org'), request.recipient)
+        self.assertEqual('test', request.nodeIdentifier)
+        self.assertEqual(JID('user@example.org/Home'), request.subscriber)
+
+
+    def test_fromElementOptionsGetWithSubscriptionIdentifier(self):
+        """
+        Test parsing a request for getting subscription options with subid.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options node='test' jid='user@example.org/Home'
+                     subid='1234'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('1234', request.subscriptionIdentifier)
 
 
     def test_fromElementOptionsSet(self):
@@ -1069,6 +1321,32 @@ class PubSubRequestTest(unittest.TestCase):
         self.assertEqual('test', request.nodeIdentifier)
         self.assertEqual(JID('user@example.org/Home'), request.subscriber)
         self.assertEqual({'pubsub#deliver': '1'}, request.options.getValues())
+
+
+    def test_fromElementOptionsSetWithSubscriptionIdentifier(self):
+        """
+        Test parsing a request for setting subscription options with subid.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <options node='test' jid='user@example.org/Home'
+                     subid='1234'>
+              <x xmlns='jabber:x:data' type='submit'>
+                <field var='FORM_TYPE' type='hidden'>
+                  <value>http://jabber.org/protocol/pubsub#subscribe_options</value>
+                </field>
+                <field var='pubsub#deliver'><value>1</value></field>
+              </x>
+            </options>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('1234', request.subscriptionIdentifier)
 
 
     def test_fromElementOptionsSetCancel(self):
@@ -1514,7 +1792,25 @@ class PubSubRequestTest(unittest.TestCase):
         self.assertEqual(JID('pubsub.example.org'), request.recipient)
         self.assertEqual('test', request.nodeIdentifier)
         self.assertIdentical(None, request.maxItems)
+        self.assertIdentical(None, request.subscriptionIdentifier)
         self.assertEqual([], request.itemIdentifiers)
+
+
+    def test_fromElementItemsSubscriptionIdentifier(self):
+        """
+        Test parsing an items request with subscription identifier.
+        """
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <items node='test' subid='1234'/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual('1234', request.subscriptionIdentifier)
 
 
     def test_fromElementRetract(self):
@@ -1817,7 +2113,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual('pubsub', element.name)
             self.assertEqual(NS_PUBSUB, element.uri)
             subscription = element.subscription
-            self.assertEqual(NS_PUBSUB, subscription.uri)
+            self.assertIn(subscription.uri, (None, NS_PUBSUB))
             self.assertEqual('test', subscription['node'])
             self.assertEqual('user@example.org/Home', subscription['jid'])
             self.assertEqual('subscribed', subscription['subscription'])
@@ -1858,6 +2154,37 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
+    def test_on_subscribeSubscriptionIdentifier(self):
+        """
+        If a subscription returns a subid, this should be available.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscribe node='test' jid='user@example.org/Home'/>
+          </pubsub>
+        </iq>
+        """
+
+        def subscribe(request):
+            subscription = pubsub.Subscription(request.nodeIdentifier,
+                                               request.subscriber,
+                                               'subscribed',
+                                               subscriptionIdentifier='1234')
+            return defer.succeed(subscription)
+
+        def cb(element):
+            self.assertEqual('1234', element.subscription.getAttribute('subid'))
+
+        self.resource.subscribe = subscribe
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
     def test_on_unsubscribe(self):
         """
         A successful unsubscription should return an empty response.
@@ -1873,6 +2200,34 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
 
         def unsubscribe(request):
+            return defer.succeed(None)
+
+        def cb(element):
+            self.assertIdentical(None, element)
+
+        self.resource.unsubscribe = unsubscribe
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_on_unsubscribe(self):
+        """
+        A successful unsubscription with subid should return an empty response.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <unsubscribe node='test' jid='user@example.org/Home' subid='1234'/>
+          </pubsub>
+        </iq>
+        """
+
+        def unsubscribe(request):
+            self.assertEqual('1234', request.subscriptionIdentifier)
             return defer.succeed(None)
 
         def cb(element):
@@ -1971,10 +2326,41 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual(1, len(children))
             subscription = children[0]
             self.assertEqual('subscription', subscription.name)
-            self.assertEqual(NS_PUBSUB, subscription.uri)
+            self.assertIn(subscription.uri, (None, NS_PUBSUB))
             self.assertEqual('user@example.org', subscription['jid'])
             self.assertEqual('test', subscription['node'])
             self.assertEqual('subscribed', subscription['subscription'])
+
+        self.resource.subscriptions = subscriptions
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_on_subscriptionsWithSubscriptionIdentifier(self):
+        """
+        A subscriptions request response should include subids, if set.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <subscriptions/>
+          </pubsub>
+        </iq>
+        """
+
+        def subscriptions(request):
+            subscription = pubsub.Subscription('test', JID('user@example.org'),
+                                               'subscribed',
+                                               subscriptionIdentifier='1234')
+            return defer.succeed([subscription])
+
+        def cb(element):
+            subscription = element.subscriptions.subscription
+            self.assertEqual('1234', subscription['subid'])
 
         self.resource.subscriptions = subscriptions
         verify.verifyObject(iwokkel.IPubSubResource, self.resource)
