@@ -103,6 +103,15 @@ class FieldTest(unittest.TestCase):
         self.assertEqual('test', field.var)
 
 
+    def test_labelAndOptions(self):
+        """
+        The label should be set, even if there are options with labels as dict.
+        """
+        field = data_form.Field(label='test',
+                                options={'test2': 'test 2', 'test3': 'test 3'})
+        self.assertEqual('test', field.label)
+
+
     def test_repr(self):
         """
         The repr of a field should be equal to its initialization.

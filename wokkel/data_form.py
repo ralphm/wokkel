@@ -130,10 +130,13 @@ class Field(object):
 
         self.fieldType = fieldType
         self.var = var
+
         if value is not None:
             self.value = value
         else:
             self.values = values or []
+
+        self.label = label
 
         try:
             self.options = [Option(value, label)
@@ -141,7 +144,6 @@ class Field(object):
         except AttributeError:
             self.options = options or []
 
-        self.label = label
         self.desc = desc
         self.required = required
 
