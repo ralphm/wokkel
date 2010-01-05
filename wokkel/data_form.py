@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_data_form -*-
 #
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) 2003-2010 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -251,10 +251,10 @@ class Field(object):
             field['var'] = self.var
 
         for value in self.values:
-            if self.fieldType == 'boolean':
+            if isinstance(value, bool):
                 value = unicode(value).lower()
-            elif self.fieldType in ('jid-single', 'jid-multi'):
-                value = value.full()
+            else:
+                value = unicode(value)
 
             field.addElement('value', content=value)
 
@@ -343,7 +343,7 @@ class Form(object):
     """
     Data Form.
 
-    There are two similarly named properties of forms. The L{formType} is the
+    There are two similarly named properties of forms. The C{formType} is the
     the so-called type of the form, and is set as the C{'type'} attribute
     on the form's root element.
 
@@ -351,19 +351,31 @@ class Form(object):
     provide a context for the field names used in this form, by setting a
     special hidden field named C{'FORM_TYPE'}, to put the names of all
     other fields in the namespace of the value of that field. This namespace
-    is recorded in the L{formNamespace} instance variable.
+    is recorded in the C{formNamespace} instance variable.
 
     @ivar formType: Type of form. One of C{'form'}, C{'submit'}, {'cancel'},
                     or {'result'}.
-    @type formType: C{str}.
+    @type formType: C{str}
+
+    @ivar title: Natural language title of the form.
+    @type title: C{unicode}
+
+    @ivar instructions: Natural language instructions as a list of C{unicode}
+        strings without line breaks.
+    @type instructions: C{list}
+
     @ivar formNamespace: The optional namespace of the field names for this
-                         form. This goes in the special field named
-                         C{'FORM_TYPE'}, if set.
+        form. This goes in the special field named C{'FORM_TYPE'}, if set.
     @type formNamespace: C{str}.
-    @ivar fields: Dictionary of fields that have a name. Note that this is
-                  meant to be used for reading, only. One should use
-                  L{addField} for adding fields.
+
+    @ivar fields: Dictionary of named fields. Note that this is meant to be
+        used for reading, only. One should use L{addField} or L{makeFields} and
+        L{removeField} for adding and removing fields.
     @type fields: C{dict}
+
+    @ivar fieldList: List of all fields, in the order they are added. Like
+        C{fields}, this is meant to be used for reading, only.
+    @type fieldList: C{list}
     """
 
     def __init__(self, formType, title=None, instructions=None,
@@ -392,7 +404,7 @@ class Form(object):
         if self.formNamespace:
             r.append(", formNamespace=")
             r.append(repr(self.formNamespace))
-        if self.fields:
+        if self.fieldList:
             r.append(", fields=")
             r.append(repr(self.fieldList))
         r.append(")")
@@ -424,7 +436,7 @@ class Form(object):
             form.addElement('title', content=self.title)
 
         for instruction in self.instructions:
-            form.addElement('instruction', content=instruction)
+            form.addElement('instructions', content=instruction)
 
         if self.formNamespace is not None:
             field = Field('hidden', 'FORM_TYPE', self.formNamespace)
@@ -477,11 +489,26 @@ class Form(object):
 
         return form
 
+
     def getValues(self):
+        """
+        Extract values from the named form fields.
+
+        For all named fields, the corresponding value or values are
+        returned in a dictionary keyed by the field name. For multi-value
+        fields, the dictionary value is a list, otherwise a single value.
+
+        If a field has no type, and the field has multiple values, the value of
+        the dictionary entry is the list of values. Otherwise, it will be a
+        single value.
+
+        @rtype: C{dict}
+        """
         values = {}
 
         for name, field in self.fields.iteritems():
-            if len(field.values) > 1:
+            if (field.fieldType in ('jid-multi', 'list-multi', 'text-multi') or
+                (field.fieldType is None and len(field.values) > 1)):
                 value = field.values
             else:
                 value = field.value
