@@ -252,30 +252,6 @@ class PubSubRequest(generic.Stanza):
         self.verb = verb
 
 
-    @staticmethod
-    def _findForm(element, formNamespace):
-        """
-        Find a Data Form.
-
-        Look for an element that represents a Data Form with the specified
-        form namespace as a child element of the given element.
-        """
-        if not element:
-            return None
-
-        form = None
-        for child in element.elements():
-            try:
-                form = data_form.Form.fromElement(child)
-            except data_form.Error:
-                continue
-
-            if form.formNamespace != NS_PUBSUB_NODE_CONFIG:
-                continue
-
-        return form
-
-
     def _parse_node(self, verbElement):
         """
         Parse the required node identifier out of the verbElement.
@@ -366,7 +342,7 @@ class PubSubRequest(generic.Stanza):
         """
         Parse node type out of a request for the default node configuration.
         """
-        form = PubSubRequest._findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
+        form = data_form.findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
         if form and form.formType == 'submit':
             values = form.getValues()
             self.nodeType = values.get('pubsub#node_type', 'leaf')
@@ -378,7 +354,7 @@ class PubSubRequest(generic.Stanza):
         """
         Parse options out of a request for setting the node configuration.
         """
-        form = PubSubRequest._findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
+        form = data_form.findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
         if form:
             if form.formType == 'submit':
                 self.options = form.getValues()
@@ -437,7 +413,7 @@ class PubSubRequest(generic.Stanza):
 
 
     def _parse_options(self, verbElement):
-        form = PubSubRequest._findForm(verbElement, NS_PUBSUB_SUBSCRIBE_OPTIONS)
+        form = data_form.findForm(verbElement, NS_PUBSUB_SUBSCRIBE_OPTIONS)
         if form:
             if form.formType == 'submit':
                 self.options = form.getValues()

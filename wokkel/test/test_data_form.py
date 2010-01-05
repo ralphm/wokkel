@@ -1151,6 +1151,77 @@ class FormTest(unittest.TestCase):
         self.assertEqual([], checked)
 
 
+
+class FindFormTest(unittest.TestCase):
+    """
+    Tests for L{data_form.findForm}.
+    """
+
+    def test_findForm(self):
+        element = domish.Element((None, 'test'))
+        theForm = data_form.Form('submit', formNamespace='myns')
+        element.addChild(theForm.toElement())
+        form = data_form.findForm(element, 'myns')
+        self.assertEqual('myns', form.formNamespace)
+
+
+    def test_noFormType(self):
+        element = domish.Element((None, 'test'))
+        otherForm = data_form.Form('submit')
+        element.addChild(otherForm.toElement())
+        form = data_form.findForm(element, 'myns')
+        self.assertIdentical(None, form)
+
+
+    def test_noFormTypeCancel(self):
+        """
+        Cancelled forms don't have a FORM_TYPE field, the first is returned.
+        """
+        element = domish.Element((None, 'test'))
+        cancelledForm = data_form.Form('cancel')
+        element.addChild(cancelledForm.toElement())
+        form = data_form.findForm(element, 'myns')
+        self.assertEqual('cancel', form.formType)
+
+
+    def test_otherFormType(self):
+        """
+        Forms with other FORM_TYPEs are ignored.
+        """
+        element = domish.Element((None, 'test'))
+        otherForm = data_form.Form('submit', formNamespace='otherns')
+        element.addChild(otherForm.toElement())
+        form = data_form.findForm(element, 'myns')
+        self.assertIdentical(None, form)
+
+
+    def test_otherFormTypeCancel(self):
+        """
+        Cancelled forms with another FORM_TYPE are ignored.
+        """
+        element = domish.Element((None, 'test'))
+        cancelledForm = data_form.Form('cancel', formNamespace='otherns')
+        element.addChild(cancelledForm.toElement())
+        form = data_form.findForm(element, 'myns')
+        self.assertIdentical(None, form)
+
+
+    def test_noElement(self):
+        """
+        When None is passed as element, None is returned.
+        """
+        element = None
+        form = data_form.findForm(element, 'myns')
+        self.assertIdentical(None, form)
+
+
+    def test_noForm(self):
+        """
+        When no child element is a form, None is returned.
+        """
+        element = domish.Element((None, 'test'))
+        form = data_form.findForm(element, 'myns')
+        self.assertIdentical(None, form)
     def test_typeCheckNoFieldDefs(self):
         """
         If there are no field defs, an empty dictionary is assumed.

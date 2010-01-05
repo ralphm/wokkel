@@ -653,3 +653,25 @@ class Form(object):
 
         for field in filtered:
             self.removeField(field)
+
+
+
+def findForm(element, formNamespace):
+    """
+    Find a Data Form.
+
+    Look for an element that represents a Data Form with the specified
+    form namespace as a child element of the given element.
+    """
+    if not element:
+        return None
+
+    for child in element.elements():
+        if (child.uri, child.name) == ((NS_X_DATA, 'x')):
+            form = Form.fromElement(child)
+
+            if (form.formNamespace == formNamespace or
+                not form.formNamespace and form.formType=='cancel'):
+                return form
+
+    return None
