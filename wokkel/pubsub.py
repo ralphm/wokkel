@@ -1047,7 +1047,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
     def __init__(self, resource=None):
         self.resource = resource
         self.discoIdentity = {'category': 'pubsub',
-                              'type': 'generic',
+                              'type': 'service',
                               'name': 'Generic Publish-Subscribe Service'}
 
         self.pubSubFeatures = []
@@ -1092,7 +1092,9 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             features = resource.features
             getInfo = resource.getInfo
         else:
-            category, idType, name = self.discoIdentity
+            category = self.discoIdentity['category']
+            idType = self.discoIdentity['type']
+            name = self.discoIdentity['name']
             identity = disco.DiscoIdentity(category, idType, name)
             features = self.pubSubFeatures
             getInfo = self.getNodeInfo
@@ -1103,7 +1105,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             info.extend([disco.DiscoFeature("%s#%s" % (NS_PUBSUB, feature))
                          for feature in features])
 
-        d = getInfo(requestor, target, nodeIdentifier or '')
+        d = defer.maybeDeferred(getInfo, requestor, target, nodeIdentifier or '')
         d.addCallback(toInfo, info)
         d.addErrback(log.err)
         return d

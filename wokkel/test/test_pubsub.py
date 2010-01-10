@@ -3156,6 +3156,23 @@ class PubSubServiceWithoutResourceTest(unittest.TestCase, TestableRequestHandler
         self.service.send = self.stub.xmlstream.send
 
 
+    def test_getDiscoInfo(self):
+        """
+        Test getDiscoInfo calls getNodeInfo and returns some minimal info.
+        """
+        def cb(info):
+            discoInfo = disco.DiscoInfo()
+            for item in info:
+                discoInfo.append(item)
+            self.assertIn(('pubsub', 'service'), discoInfo.identities)
+            self.assertIn(disco.NS_DISCO_ITEMS, discoInfo.features)
+
+        d = self.service.getDiscoInfo(JID('user@example.org/home'),
+                                      JID('pubsub.example.org'), '')
+        d.addCallback(cb)
+        return d
+
+
     def test_publish(self):
         """
         Non-overridden L{PubSubService.publish} yields unsupported error.
