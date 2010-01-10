@@ -174,7 +174,7 @@ class Item(domish.Element):
         @type payload: object providing L{domish.IElement} or L{unicode}.
         """
 
-        domish.Element.__init__(self, (NS_PUBSUB, 'item'))
+        domish.Element.__init__(self, (None, 'item'))
         if id is not None:
             self['id'] = id
         if payload is not None:

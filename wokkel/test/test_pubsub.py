@@ -436,8 +436,12 @@ class PubSubClientTest(unittest.TestCase):
         self.assertEquals(1, len(children))
         child = children[0]
         self.assertEquals('test', child['node'])
-        items = list(domish.generateElementsQNamed(child.children,
-                                                   'item', NS_PUBSUB))
+
+        items = []
+        for element in child.elements():
+            if element.name == 'item' and element.uri in (NS_PUBSUB, None):
+                items.append(element)
+
         self.assertEquals(1, len(items))
         self.assertIdentical(item, items[0])
 
@@ -2906,7 +2910,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             item = element.items.children[-1]
             self.assertTrue(domish.IElement.providedBy(item))
             self.assertEqual('item', item.name)
-            self.assertEqual(NS_PUBSUB, item.uri)
+            self.assertIn(item.uri, (NS_PUBSUB, None))
             self.assertEqual('current', item['id'])
 
         self.resource.items = items
