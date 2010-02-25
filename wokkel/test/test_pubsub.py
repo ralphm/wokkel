@@ -1903,6 +1903,13 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         verify.verifyObject(iwokkel.IPubSubService, self.service)
 
 
+    def test_interfaceIDisco(self):
+        """
+        Do instances of L{pubsub.PubSubService} provide L{iwokkel.IDisco}?
+        """
+        verify.verifyObject(iwokkel.IDisco, self.service)
+
+
     def test_connectionMade(self):
         """
         Verify setup of observers in L{pubsub.connectionMade}.
@@ -2005,6 +2012,42 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.resource.features = ['publish']
         d = self.service.getDiscoInfo(JID('user@example.org/home'),
                                       JID('pubsub.example.org'), '')
+        d.addCallback(cb)
+        return d
+
+
+    def test_getDiscoInfoBadResponse(self):
+        """
+        If getInfo returns invalid response, it should be logged, then ignored.
+        """
+        def cb(info):
+            self.assertEquals([], info)
+            self.assertEqual(1, len(self.flushLoggedErrors(TypeError)))
+
+        def getInfo(requestor, target, nodeIdentifier):
+            return defer.succeed('bad response')
+
+        self.resource.getInfo = getInfo
+        d = self.service.getDiscoInfo(JID('user@example.org/home'),
+                                      JID('pubsub.example.org'), 'test')
+        d.addCallback(cb)
+        return d
+
+
+    def test_getDiscoInfoException(self):
+        """
+        If getInfo returns invalid response, it should be logged, then ignored.
+        """
+        def cb(info):
+            self.assertEquals([], info)
+            self.assertEqual(1, len(self.flushLoggedErrors(NotImplementedError)))
+
+        def getInfo(requestor, target, nodeIdentifier):
+            return defer.fail(NotImplementedError())
+
+        self.resource.getInfo = getInfo
+        d = self.service.getDiscoInfo(JID('user@example.org/home'),
+                                      JID('pubsub.example.org'), 'test')
         d.addCallback(cb)
         return d
 

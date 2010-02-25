@@ -1011,7 +1011,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
     @type pubSubFeatures: C{list} or C{None}
     """
 
-    implements(IPubSubService)
+    implements(IPubSubService, disco.IDisco)
 
     iqHandlers = {
             '/*': '_onPubSubRequest',
@@ -1057,10 +1057,10 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         self.xmlstream.addObserver(PUBSUB_REQUEST, self.handleRequest)
 
 
-    def getDiscoInfo(self, requestor, target, nodeIdentifier):
-        def toInfo(nodeInfo, info):
+    def getDiscoInfo(self, requestor, target, nodeIdentifier=''):
+        def toInfo(nodeInfo):
             if not nodeInfo:
-                return info
+                return
 
             (nodeType, metaData) = nodeInfo['type'], nodeInfo['meta-data']
             info.append(disco.DiscoIdentity('pubsub', nodeType))
@@ -1080,7 +1080,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
                 info.append(form)
 
-            return info
+            return
 
         info = []
 
@@ -1106,12 +1106,13 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                          for feature in features])
 
         d = defer.maybeDeferred(getInfo, requestor, target, nodeIdentifier or '')
-        d.addCallback(toInfo, info)
+        d.addCallback(toInfo)
         d.addErrback(log.err)
+        d.addCallback(lambda _: info)
         return d
 
 
-    def getDiscoItems(self, requestor, target, nodeIdentifier):
+    def getDiscoItems(self, requestor, target, nodeIdentifier=''):
         if self.hideNodes:
             d = defer.succeed([])
         elif self.resource is not None:
