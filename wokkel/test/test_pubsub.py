@@ -185,6 +185,32 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_eventItemsError(self):
+        """
+        An error message with embedded event should not be handled.
+
+        This test uses an items event, which should not result in itemsReceived
+        being called. In general message.handled should be False.
+        """
+        message = domish.Element((None, 'message'))
+        message['from'] = 'pubsub.example.org'
+        message['to'] = 'user@example.org/home'
+        message['type'] = 'error'
+        event = message.addElement((NS_PUBSUB_EVENT, 'event'))
+        items = event.addElement('items')
+        items['node'] = 'test'
+
+        class UnexpectedCall(Exception):
+            pass
+
+        def itemsReceived(event):
+            raise UnexpectedCall("Unexpected call to itemsReceived")
+
+        self.protocol.itemsReceived = itemsReceived
+        self.stub.send(message)
+        self.assertFalse(message.handled)
+
+
     def test_eventDelete(self):
         """
         Test receiving a delete event resulting in a call to deleteReceived.

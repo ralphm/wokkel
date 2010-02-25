@@ -663,6 +663,9 @@ class PubSubClient(XMPPHandler):
 
 
     def _onEvent(self, message):
+        if message.getAttribute('type') == 'error':
+            return
+
         try:
             sender = jid.JID(message["from"])
             recipient = jid.JID(message["to"])
