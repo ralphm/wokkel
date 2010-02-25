@@ -9,9 +9,10 @@ from zope.interface import implements
 
 from twisted.internet import defer
 from twisted.trial import unittest
+from twisted.words.protocols.jabber.error import StanzaError
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.xmlstream import toResponse
-from twisted.words.xish import domish
+from twisted.words.xish import domish, utility
 
 from wokkel import data_form, disco
 from wokkel.generic import parseXml
@@ -596,6 +597,46 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.service = disco.DiscoHandler()
 
 
+    def test_connectionInitializedObserveInfo(self):
+        """
+        An observer for Disco Info requests is setup on stream initialization.
+        """
+        xml = """<iq from='test@example.com' to='example.com'
+                     type='get'>
+                   <query xmlns='%s'/>
+                 </iq>""" % NS_DISCO_INFO
+
+        def handleRequest(iq):
+            called.append(iq)
+
+        called = []
+        self.service.xmlstream = utility.EventDispatcher()
+        self.service.handleRequest = handleRequest
+        self.service.connectionInitialized()
+        self.service.xmlstream.dispatch(parseXml(xml))
+        self.assertEqual(1, len(called))
+
+
+    def test_connectionInitializedObserveItems(self):
+        """
+        An observer for Disco Items requests is setup on stream initialization.
+        """
+        xml = """<iq from='test@example.com' to='example.com'
+                     type='get'>
+                   <query xmlns='%s'/>
+                 </iq>""" % NS_DISCO_ITEMS
+
+        def handleRequest(iq):
+            called.append(iq)
+
+        called = []
+        self.service.xmlstream = utility.EventDispatcher()
+        self.service.handleRequest = handleRequest
+        self.service.connectionInitialized()
+        self.service.xmlstream.dispatch(parseXml(xml))
+        self.assertEqual(1, len(called))
+
+
     def test_onDiscoInfo(self):
         """
         C{onDiscoInfo} should process an info request and return a response.
@@ -657,6 +698,30 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         self.service.info = info
         d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onDiscoInfoWithNodeNoResults(self):
+        """
+        An info request for a node with no results returns items-not-found.
+        """
+        xml = """<iq from='test@example.com' to='example.com'
+                     type='get'>
+                   <query xmlns='%s' node='test'/>
+                 </iq>""" % NS_DISCO_INFO
+
+        def cb(exc):
+            self.assertEquals('item-not-found', exc.condition)
+
+        def info(requestor, target, nodeIdentifier):
+            self.assertEqual('test', nodeIdentifier)
+
+            return defer.succeed([])
+
+        self.service.info = info
+        d = self.handleRequest(xml)
+        self.assertFailure(d, StanzaError)
         d.addCallback(cb)
         return d
 
