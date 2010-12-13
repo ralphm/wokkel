@@ -1,0 +1,15 @@
+#! /bin/sh
+
+set -e
+
+#DEBHELPER#
+
+case "$1" in
+    configure)
+        for p in $(pyversions -i); do
+            $p -c 'from twisted.plugin import IPlugin, getPlugins; list(getPlugins(IPlugin))' >/dev/null 2>&1 || true
+        done
+        ;;
+esac
+
+exit 0

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) 2003-2010 Ralph Meijer
 # See LICENSE for details.
 
 from setuptools import setup
@@ -17,5 +17,7 @@ setup(name='wokkel',
       packages=[
           'wokkel',
           'wokkel.test',
+          'twisted.plugins',
       ],
+      package_data={'twisted.plugins': ['twisted/plugins/server.py']},
 )
