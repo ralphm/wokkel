@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_pubsub -*-
 #
-# Copyright (c) 2003-2010 Ralph Meijer
+# Copyright (c) 2003-2011 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -533,7 +533,7 @@ class PubSubRequest(generic.Stanza):
         generic.Stanza.parseElement(self, element)
 
         verbs = []
-        children = []
+        verbElements = []
         for child in element.pubsub.elements():
             key = (self.stanzaType, child.uri, child.name)
             try:
@@ -542,7 +542,7 @@ class PubSubRequest(generic.Stanza):
                 continue
 
             verbs.append(verb)
-            children.append(child)
+            verbElements.append(child)
 
         if not verbs:
             raise NotImplementedError()
@@ -550,14 +550,15 @@ class PubSubRequest(generic.Stanza):
         if len(verbs) > 1:
             if 'optionsSet' in verbs and 'subscribe' in verbs:
                 self.verb = 'subscribe'
-                child = children[verbs.index('subscribe')]
+                verbElement = verbElements[verbs.index('subscribe')]
             else:
                 raise NotImplementedError()
         else:
             self.verb = verbs[0]
+            verbElement = verbElements[0]
 
         for parameter in self._parameters[self.verb]:
-            getattr(self, '_parse_%s' % parameter)(child)
+            getattr(self, '_parse_%s' % parameter)(verbElement)
 
 
 
@@ -1181,7 +1182,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     def _toResponse_subscribe(self, result, resource, request):
         response = domish.Element((NS_PUBSUB, "pubsub"))
-        subscription = response.addChild(result.toElement())
+        response.addChild(result.toElement())
         return response
 
 

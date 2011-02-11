@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2010 Ralph Meijer
+# Copyright (c) 2003-2011 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -1056,6 +1056,32 @@ class PubSubRequestTest(unittest.TestCase):
         self.assertEqual(u'item2', request.items[1]["id"])
 
 
+    def test_fromElementPublishItemsOptions(self):
+        """
+        Test parsing a publish request with items and options.
+
+        Note that publishing options are not supported, but passing them
+        shouldn't affect processing of the publish request itself.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+            <publish node='test'>
+              <item id="item1"/>
+              <item id="item2"/>
+            </publish>
+            <publish-options/>
+          </pubsub>
+        </iq>
+        """
+
+        request = pubsub.PubSubRequest.fromElement(parseXml(xml))
+        self.assertEqual(2, len(request.items))
+        self.assertEqual(u'item1', request.items[0]["id"])
+        self.assertEqual(u'item2', request.items[1]["id"])
+
     def test_fromElementPublishNoNode(self):
         """
         A publish request to the root node should raise an exception.
@@ -1545,6 +1571,7 @@ class PubSubRequestTest(unittest.TestCase):
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
         self.assertEqual({}, request.options.getValues())
+        self.assertEqual(u'mynode', request.nodeIdentifier)
 
 
     def test_fromElementCreateConfigureEmptyWrongOrder(self):
@@ -1567,6 +1594,7 @@ class PubSubRequestTest(unittest.TestCase):
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
         self.assertEqual({}, request.options.getValues())
+        self.assertEqual(u'mynode', request.nodeIdentifier)
 
 
     def test_fromElementCreateConfigure(self):
@@ -2285,7 +2313,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_on_unsubscribe(self):
+    def test_on_unsubscribeSubscriptionIdentifier(self):
         """
         A successful unsubscription with subid should return an empty response.
         """
