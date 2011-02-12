@@ -3192,7 +3192,45 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
     def test_on_affiliationsGet(self):
         """
-        Getting subscription options is not supported.
+        Getting node affiliations should have.
+        """
+
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <affiliations node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def affiliationsGet(request):
+            self.assertEquals('test', request.nodeIdentifier)
+            return defer.succeed({JID('user@example.org'): 'owner'})
+
+        def cb(element):
+            self.assertEquals(u'pubsub', element.name)
+            self.assertEquals(NS_PUBSUB_OWNER, element.uri)
+            self.assertEquals(NS_PUBSUB_OWNER, element.affiliations.uri)
+            self.assertEquals(u'test', element.affiliations[u'node'])
+            children = list(element.affiliations.elements())
+            self.assertEquals(1, len(children))
+            affiliation = children[0]
+            self.assertEquals(u'affiliation', affiliation.name)
+            self.assertEquals(NS_PUBSUB_OWNER, affiliation.uri)
+            self.assertEquals(u'user@example.org', affiliation[u'jid'])
+            self.assertEquals(u'owner', affiliation[u'affiliation'])
+
+        self.resource.affiliationsGet = affiliationsGet
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_on_affiliationsGetEmptyNode(self):
+        """
+        Getting node affiliations without node should assume empty node.
         """
 
         xml = """
@@ -3204,12 +3242,90 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
+        def affiliationsGet(request):
+            self.assertIdentical('', request.nodeIdentifier)
+            return defer.succeed({})
+
+        def cb(element):
+            self.assertFalse(element.affiliations.hasAttribute(u'node'))
+
+        self.resource.affiliationsGet = affiliationsGet
+        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
+        d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_on_affiliationsSet(self):
+        """
+        Setting node affiliations has the affiliations to be modified.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <affiliations node='test'>
+              <affiliation jid='other@example.org' affiliation='publisher'/>
+            </affiliations>
+          </pubsub>
+        </iq>
+        """
+
+        def affiliationsSet(request):
+            self.assertEquals(u'test', request.nodeIdentifier)
+            otherJID = JID(u'other@example.org')
+            self.assertIn(otherJID, request.affiliations)
+            self.assertEquals(u'publisher', request.affiliations[otherJID])
+
+        self.resource.affiliationsSet = affiliationsSet
+        return self.handleRequest(xml)
+
+
+    def test_on_affiliationsSetBareJID(self):
+        """
+        Affiliations are always on the bare JID.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <affiliations node='test'>
+              <affiliation jid='other@example.org/Home'
+                           affiliation='publisher'/>
+            </affiliations>
+          </pubsub>
+        </iq>
+        """
+
+        def affiliationsSet(request):
+            otherJID = JID(u'other@example.org')
+            self.assertIn(otherJID, request.affiliations)
+
+        self.resource.affiliationsSet = affiliationsSet
+        return self.handleRequest(xml)
+
+
+    def test_on_affiliationsSetMultipleForSameEntity(self):
+        """
+        Setting node affiliations can only have one item per entity.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <affiliations node='test'>
+              <affiliation jid='other@example.org' affiliation='publisher'/>
+              <affiliation jid='other@example.org' affiliation='owner'/>
+            </affiliations>
+          </pubsub>
+        </iq>
+        """
+
         def cb(result):
-            self.assertEquals('feature-not-implemented', result.condition)
-            self.assertEquals('unsupported', result.appCondition.name)
-            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
-            self.assertEquals('modify-affiliations',
-                              result.appCondition['feature'])
+            self.assertEquals('bad-request', result.condition)
 
         d = self.handleRequest(xml)
         self.assertFailure(d, error.StanzaError)
@@ -3217,26 +3333,49 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_on_affiliationsSet(self):
+    def test_on_affiliationsSetMissingJID(self):
         """
-        Setting subscription options is not supported.
+        Setting node affiliations must include a JID per affiliation.
         """
 
         xml = """
         <iq type='set' to='pubsub.example.org'
                        from='user@example.org'>
           <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
-            <affiliations/>
+            <affiliations node='test'>
+              <affiliation affiliation='publisher'/>
+            </affiliations>
           </pubsub>
         </iq>
         """
 
         def cb(result):
-            self.assertEquals('feature-not-implemented', result.condition)
-            self.assertEquals('unsupported', result.appCondition.name)
-            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
-            self.assertEquals('modify-affiliations',
-                              result.appCondition['feature'])
+            self.assertEquals('bad-request', result.condition)
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_on_affiliationsSetMissingAffiliation(self):
+        """
+        Setting node affiliations must include an affiliation.
+        """
+
+        xml = """
+        <iq type='set' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <affiliations node='test'>
+              <affiliation jid='other@example.org'/>
+            </affiliations>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('bad-request', result.condition)
 
         d = self.handleRequest(xml)
         self.assertFailure(d, error.StanzaError)
@@ -3911,6 +4050,42 @@ class PubSubResourceTest(unittest.TestCase):
             self.assertEquals('delete-nodes', result.appCondition['feature'])
 
         d = self.resource.delete(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_affiliationsGet(self):
+        """
+        Non-overridden owner affiliations get yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('modify-affiliations',
+                              result.appCondition['feature'])
+
+        d = self.resource.affiliationsGet(pubsub.PubSubRequest())
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
+    def test_affiliationsSet(self):
+        """
+        Non-overridden owner affiliations set yields unsupported error.
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+            self.assertEquals('modify-affiliations',
+                              result.appCondition['feature'])
+
+        d = self.resource.affiliationsSet(pubsub.PubSubRequest())
         self.assertFailure(d, error.StanzaError)
         d.addCallback(cb)
         return d

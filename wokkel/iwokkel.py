@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) 2003-2011 Ralph Meijer
 # See LICENSE for details.
 
 """
@@ -766,4 +766,37 @@ class IPubSubResource(Interface):
         @return: A deferred that fires with C{None} when the node has been
                  deleted.
         @rtype: L{defer.Deferred}
+        """
+
+
+    def affiliationsGet(request):
+        """
+        Called when a affiliations retrieval request (owner) has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with a C{dict} of affiliations with the
+            entity as key (L{JID}) and the affiliation state as value
+            (C{unicode}).  The affiliation can be C{u'owner'}, C{u'publisher'},
+            or C{u'outcast'}.
+        @rtype: L{defer.Deferred}
+
+        @note: Affiliations are always on the bare JID. An implementation of
+        this method MUST NOT return JIDs with a resource part.
+        """
+
+
+    def affiliationsSet(request):
+        """
+        Called when a affiliations modify request has been received.
+
+        @param request: The publish-subscribe request.
+        @type request: L{wokkel.pubsub.PubSubRequest}
+        @return: A deferred that fires with C{None} when the affiliation
+            changes were succesfully processed..
+        @rtype: L{defer.Deferred}
+
+        @note: Affiliations are always on the bare JID. The JIDs in
+        L{wokkel.pubsub.PubSubRequest.affiliations} are already stripped of
+        any resource.
         """

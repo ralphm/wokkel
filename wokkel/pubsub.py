@@ -220,6 +220,9 @@ class PubSubRequest(generic.Stanza):
     @ivar subscriptions: Subscriptions to be modified, as a set of
                          L{Subscription}.
     @type subscriptions: C{set}
+    @ivar affiliations: Affiliations to be modified, as a dictionary of entity
+                        (L{JID} to affiliation (C{unicode}).
+    @type affiliations: C{dict}
     """
 
     verb = None
@@ -234,6 +237,7 @@ class PubSubRequest(generic.Stanza):
     subscriber = None
     subscriptionIdentifier = None
     subscriptions = None
+    affiliations = None
 
     # Map request iq type and subelement name to request verb
     _requestVerbMap = {
@@ -279,7 +283,7 @@ class PubSubRequest(generic.Stanza):
         'purge': ['node'],
         'delete': ['node'],
         'affiliationsGet': ['nodeOrEmpty'],
-        'affiliationsSet': [],
+        'affiliationsSet': ['nodeOrEmpty', 'affiliations'],
         'subscriptionsGet': ['nodeOrEmpty'],
         'subscriptionsSet': [],
     }
@@ -524,6 +528,27 @@ class PubSubRequest(generic.Stanza):
         if self.options:
             optionsElement = verbElement.parent.addElement('options')
             self._render_options(optionsElement)
+
+
+    def _parse_affiliations(self, verbElement):
+        self.affiliations = {}
+        for element in verbElement.elements():
+            if (element.uri == NS_PUBSUB_OWNER and
+                element.name == 'affiliation'):
+                try:
+                    entity = jid.internJID(element['jid']).userhostJID()
+                except KeyError:
+                    raise BadRequest(text='Missing jid attribute')
+
+                if entity in self.affiliations:
+                    raise BadRequest(text='Multiple affiliations for an entity')
+
+                try:
+                    affiliation = element['affiliation']
+                except KeyError:
+                    raise BadRequest(text='Missing affiliation attribute')
+
+                self.affiliations[entity] = affiliation
 
 
     def parseElement(self, element):
@@ -1302,6 +1327,22 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             message.addChild(shim.Headers(headers))
 
         return message
+
+
+    def _toResponse_affiliationsGet(self, result, resource, request):
+        response = domish.Element((NS_PUBSUB_OWNER, 'pubsub'))
+        affiliations = response.addElement('affiliations')
+
+        if request.nodeIdentifier:
+            affiliations['node'] = request.nodeIdentifier
+
+        for entity, affiliation in result.iteritems():
+            item = affiliations.addElement('affiliation')
+            item['jid'] = entity.full()
+            item['affiliation'] = affiliation
+
+        return response
+
 
     # public methods
 
