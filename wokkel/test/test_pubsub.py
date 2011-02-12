@@ -3801,6 +3801,30 @@ class PubSubServiceWithoutResourceTest(unittest.TestCase, TestableRequestHandler
         return d
 
 
+    def test_unknown(self):
+        """
+        Unknown verb yields unsupported error.
+        """
+        xml = """
+        <iq type='get' to='pubsub.example.org'
+                       from='user@example.org'>
+          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
+            <affiliations node='test'/>
+          </pubsub>
+        </iq>
+        """
+
+        def cb(result):
+            self.assertEquals('feature-not-implemented', result.condition)
+            self.assertEquals('unsupported', result.appCondition.name)
+            self.assertEquals(NS_PUBSUB_ERRORS, result.appCondition.uri)
+
+        d = self.handleRequest(xml)
+        self.assertFailure(d, error.StanzaError)
+        d.addCallback(cb)
+        return d
+
+
 
 class PubSubResourceTest(unittest.TestCase):
 

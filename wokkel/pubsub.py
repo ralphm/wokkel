@@ -1181,17 +1181,23 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             try:
                 handler = getattr(resource, request.verb)
             except AttributeError:
-                # fix lookup feature
                 text = "Request verb: %s" % request.verb
                 return defer.fail(Unsupported('', text))
 
             d = handler(request)
         else:
-            handlerName, argNames = self._legacyHandlers[request.verb]
+            try:
+                handlerName, argNames = self._legacyHandlers[request.verb]
+            except KeyError:
+                text = "Request verb: %s" % request.verb
+                return defer.fail(Unsupported('', text))
+
             handler = getattr(self, handlerName)
+
             args = [getattr(request, arg) for arg in argNames]
             if 'options' in argNames:
                 args[argNames.index('options')] = request.options.getValues()
+
             d = handler(*args)
 
         # If needed, translate the result into a response
