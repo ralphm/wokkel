@@ -1661,7 +1661,10 @@ class PubSubRequestTest(unittest.TestCase):
 
     def test_fromElementDefault(self):
         """
-        Test parsing a request for the default node configuration.
+        Parsing default node configuration request sets required attributes.
+
+        Besides C{verb}, C{sender} and C{recipient}, we expect C{nodeType}
+        to be set. If not passed it receives the default C{u'leaf'}.
         """
 
         xml = """
@@ -1674,15 +1677,15 @@ class PubSubRequestTest(unittest.TestCase):
         """
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
-        self.assertEqual('default', request.verb)
-        self.assertEqual(JID('user@example.org'), request.sender)
-        self.assertEqual(JID('pubsub.example.org'), request.recipient)
-        self.assertEqual('leaf', request.nodeType)
+        self.assertEquals(u'default', request.verb)
+        self.assertEquals(JID('user@example.org'), request.sender)
+        self.assertEquals(JID('pubsub.example.org'), request.recipient)
+        self.assertEquals(u'leaf', request.nodeType)
 
 
     def test_fromElementDefaultCollection(self):
         """
-        Parsing a request for the default configuration extracts the node type.
+        Parsing default request for collection sets nodeType to collection.
         """
 
         xml = """
@@ -1705,7 +1708,7 @@ class PubSubRequestTest(unittest.TestCase):
         """
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
-        self.assertEqual('collection', request.nodeType)
+        self.assertEquals('collection', request.nodeType)
 
 
     def test_fromElementConfigureGet(self):
@@ -2645,8 +2648,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
     def test_on_default(self):
         """
-        A default request should result in
-        L{PubSubService.getDefaultConfiguration} being called.
+        A default request returns default options filtered by available fields.
         """
 
         xml = """
@@ -2657,9 +2659,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
           </pubsub>
         </iq>
         """
-
-        def getConfigurationOptions():
-            return {
+        fieldDefs = {
                 "pubsub#persist_items":
                     {"type": "boolean",
                      "label": "Persist items to storage"},
@@ -2668,15 +2668,23 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
                      "label": "Deliver payloads with event notifications"}
                 }
 
+        def getConfigurationOptions():
+            return fieldDefs
+
         def default(request):
-            return defer.succeed({})
+            return defer.succeed({'pubsub#persist_items': 'false',
+                                  'x-myfield': '1'})
 
         def cb(element):
-            self.assertEqual('pubsub', element.name)
-            self.assertEqual(NS_PUBSUB_OWNER, element.uri)
-            self.assertEqual(NS_PUBSUB_OWNER, element.default.uri)
+            self.assertEquals('pubsub', element.name)
+            self.assertEquals(NS_PUBSUB_OWNER, element.uri)
+            self.assertEquals(NS_PUBSUB_OWNER, element.default.uri)
             form = data_form.Form.fromElement(element.default.x)
-            self.assertEqual(NS_PUBSUB_NODE_CONFIG, form.formNamespace)
+            self.assertEquals(NS_PUBSUB_NODE_CONFIG, form.formNamespace)
+            form.typeCheck(fieldDefs)
+            self.assertIn('pubsub#persist_items', form.fields)
+            self.assertFalse(form.fields['pubsub#persist_items'].value)
+            self.assertNotIn('x-myfield', form.fields)
 
         self.resource.getConfigurationOptions = getConfigurationOptions
         self.resource.default = default
@@ -2686,50 +2694,11 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
-    def test_on_defaultCollection(self):
-        """
-        Responses to default requests should depend on passed node type.
-        """
-
-        xml = """
-        <iq type='get' to='pubsub.example.org'
-                       from='user@example.org'>
-          <pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>
-            <default>
-              <x xmlns='jabber:x:data' type='submit'>
-                <field var='FORM_TYPE' type='hidden'>
-                  <value>http://jabber.org/protocol/pubsub#node_config</value>
-                </field>
-                <field var='pubsub#node_type'>
-                  <value>collection</value>
-                </field>
-              </x>
-            </default>
-
-          </pubsub>
-        </iq>
-        """
-
-        def getConfigurationOptions():
-            return {
-                "pubsub#deliver_payloads":
-                    {"type": "boolean",
-                     "label": "Deliver payloads with event notifications"}
-                }
-
-        def default(request):
-            return defer.succeed({})
-
-        self.resource.getConfigurationOptions = getConfigurationOptions
-        self.resource.default = default
-        verify.verifyObject(iwokkel.IPubSubResource, self.resource)
-        return self.handleRequest(xml)
-
-
     def test_on_defaultUnknownNodeType(self):
         """
-        A default request should result in
-        L{PubSubResource.default} being called.
+        Unknown node types yield non-acceptable.
+
+        Both C{getConfigurationOptions} and C{default} must not be called.
         """
 
         xml = """
@@ -2751,12 +2720,16 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         </iq>
         """
 
+        def getConfigurationOptions():
+            self.fail("Unexpected call to getConfigurationOptions")
+
         def default(request):
-            self.fail("Unexpected call to getConfiguration")
+            self.fail("Unexpected call to default")
 
         def cb(result):
             self.assertEquals('not-acceptable', result.condition)
 
+        self.resource.getConfigurationOptions = getConfigurationOptions
         self.resource.default = default
         verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         d = self.handleRequest(xml)
