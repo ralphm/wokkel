@@ -138,13 +138,13 @@ class Subscription(object):
                 subscriptionIdentifier=element.getAttribute('subid'))
 
 
-    def toElement(self):
+    def toElement(self, defaultUri=None):
         """
         Return the DOM representation of this subscription.
 
         @rtype: L{domish.Element}
         """
-        element = domish.Element((None, 'subscription'))
+        element = domish.Element((defaultUri, 'subscription'))
         if self.nodeIdentifier:
             element['node'] = self.nodeIdentifier
         element['jid'] = unicode(self.subscriber)
@@ -358,6 +358,7 @@ class PubSubRequest(generic.Stanza):
         """
         if self.items:
             for item in self.items:
+                item.uri = NS_PUBSUB
                 verbElement.addChild(item)
 
 
@@ -1213,7 +1214,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
     def _toResponse_subscribe(self, result, resource, request):
         response = domish.Element((NS_PUBSUB, "pubsub"))
-        response.addChild(result.toElement())
+        response.addChild(result.toElement(NS_PUBSUB))
         return response
 
 
@@ -1221,7 +1222,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         response = domish.Element((NS_PUBSUB, 'pubsub'))
         subscriptions = response.addElement('subscriptions')
         for subscription in result:
-            subscriptions.addChild(subscription.toElement())
+            subscriptions.addChild(subscription.toElement(NS_PUBSUB))
         return response
 
 
@@ -1307,6 +1308,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         items["node"] = request.nodeIdentifier
 
         for item in result:
+            item.uri = NS_PUBSUB
             items.addChild(item)
 
         return response
@@ -1357,7 +1359,9 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             message = self._createNotification('items', service,
                                                nodeIdentifier, subscriber,
                                                subscriptions)
-            message.event.items.children = items
+            for item in items:
+                item.uri = NS_PUBSUB_EVENT
+                message.event.items.addChild(item)
             self.send(message)
 
 

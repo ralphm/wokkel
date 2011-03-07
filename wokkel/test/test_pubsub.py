@@ -462,12 +462,8 @@ class PubSubClientTest(unittest.TestCase):
         self.assertEquals(1, len(children))
         child = children[0]
         self.assertEquals('test', child['node'])
-
-        items = []
-        for element in child.elements():
-            if element.name == 'item' and element.uri in (NS_PUBSUB, None):
-                items.append(element)
-
+        items = list(domish.generateElementsQNamed(child.children,
+                                                   'item', NS_PUBSUB))
         self.assertEquals(1, len(items))
         self.assertIdentical(item, items[0])
 
@@ -2217,7 +2213,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual('pubsub', element.name)
             self.assertEqual(NS_PUBSUB, element.uri)
             subscription = element.subscription
-            self.assertIn(subscription.uri, (None, NS_PUBSUB))
+            self.assertEqual(NS_PUBSUB, subscription.uri)
             self.assertEqual('test', subscription['node'])
             self.assertEqual('user@example.org/Home', subscription['jid'])
             self.assertEqual('subscribed', subscription['subscription'])
@@ -2430,7 +2426,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             self.assertEqual(1, len(children))
             subscription = children[0]
             self.assertEqual('subscription', subscription.name)
-            self.assertIn(subscription.uri, (None, NS_PUBSUB))
+            self.assertEqual(NS_PUBSUB, subscription.uri, NS_PUBSUB)
             self.assertEqual('user@example.org', subscription['jid'])
             self.assertEqual('test', subscription['node'])
             self.assertEqual('subscribed', subscription['subscription'])
@@ -2980,7 +2976,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
             item = element.items.children[-1]
             self.assertTrue(domish.IElement.providedBy(item))
             self.assertEqual('item', item.name)
-            self.assertIn(item.uri, (NS_PUBSUB, None))
+            self.assertEqual(NS_PUBSUB, item.uri)
             self.assertEqual('current', item['id'])
 
         self.resource.items = items
@@ -3060,6 +3056,56 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.resource.delete = delete
         verify.verifyObject(iwokkel.IPubSubResource, self.resource)
         return self.handleRequest(xml)
+
+
+    def test_notifyPublish(self):
+        """
+        Publish notifications are sent to the subscribers.
+        """
+        subscriber = JID('user@example.org')
+        subscriptions = [pubsub.Subscription('test', subscriber, 'subscribed')]
+        items = [pubsub.Item('current')]
+        notifications = [(subscriber, subscriptions, items)]
+        self.service.notifyPublish(JID('pubsub.example.org'), 'test',
+                                   notifications)
+        message = self.stub.output[-1]
+
+        self.assertEquals('message', message.name)
+        self.assertIdentical(None, message.uri)
+        self.assertEquals('user@example.org', message['to'])
+        self.assertEquals('pubsub.example.org', message['from'])
+        self.assertTrue(message.event)
+        self.assertEquals(NS_PUBSUB_EVENT, message.event.uri)
+        self.assertTrue(message.event.items)
+        self.assertEquals(NS_PUBSUB_EVENT, message.event.items.uri)
+        self.assertTrue(message.event.items.hasAttribute('node'))
+        self.assertEquals('test', message.event.items['node'])
+        itemElements = list(domish.generateElementsQNamed(
+            message.event.items.children, 'item', NS_PUBSUB_EVENT))
+        self.assertEquals(1, len(itemElements))
+        self.assertEquals('current', itemElements[0].getAttribute('id'))
+
+
+    def test_notifyPublishCollection(self):
+        """
+        Publish notifications are sent to the subscribers of collections.
+
+        The node the item was published to is on the C{items} element, while
+        the subscribed-to node is in the C{'Collections'} SHIM header.
+        """
+        subscriber = JID('user@example.org')
+        subscriptions = [pubsub.Subscription('', subscriber, 'subscribed')]
+        items = [pubsub.Item('current')]
+        notifications = [(subscriber, subscriptions, items)]
+        self.service.notifyPublish(JID('pubsub.example.org'), 'test',
+                                   notifications)
+        message = self.stub.output[-1]
+
+        self.assertTrue(message.event.items.hasAttribute('node'))
+        self.assertEquals('test', message.event.items['node'])
+        headers = shim.extractHeaders(message)
+        self.assertIn('Collection', headers)
+        self.assertIn('', headers['Collection'])
 
 
     def test_notifyDelete(self):
