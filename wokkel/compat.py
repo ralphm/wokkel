@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_compat -*-
 #
-# Copyright (c) 2001-2009 Twisted Matrix Laboratories.
+# Copyright (c) Twisted Matrix Laboratories.
 # See LICENSE for details.
 
 from twisted.internet import protocol

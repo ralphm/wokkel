@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2003-2010 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 from setuptools import setup

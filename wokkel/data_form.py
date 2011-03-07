@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_data_form -*-
 #
-# Copyright (c) 2003-2010 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """

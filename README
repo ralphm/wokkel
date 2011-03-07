@@ -30,8 +30,8 @@ mailing list::
 Copyright and Warranty
 ======================
 
-The code in this distribution is Copyright (c) 2003-2009 Ralph Meijer, unless
-excplicitely specified otherwise.
+The code in this distribution is Copyright (c) Ralph Meijer, unless
+explicitly specified otherwise.
 
 Wokkel is made available under the MIT License. The included LICENSE file
 describes this in detail.
