@@ -185,8 +185,9 @@ class StreamManager(XMPPHandlerCollection):
 
         # get protocol handler up to speed when a connection has already
         # been established
-        if self.xmlstream and self._initialized:
+        if self.xmlstream:
             handler.makeConnection(self.xmlstream)
+        if self._initialized:
             handler.connectionInitialized()
 
 
@@ -210,7 +211,7 @@ class StreamManager(XMPPHandlerCollection):
 
         self.xmlstream = xs
 
-        for e in self:
+        for e in list(self):
             e.makeConnection(xs)
 
 
@@ -229,7 +230,7 @@ class StreamManager(XMPPHandlerCollection):
 
         # Notify all child services which implement
         # the IService interface
-        for e in self:
+        for e in list(self):
             e.connectionInitialized()
 
 
@@ -264,7 +265,7 @@ class StreamManager(XMPPHandlerCollection):
 
         # Notify all child services which implement
         # the IService interface
-        for e in self:
+        for e in list(self):
             e.connectionLost(reason)
 
 

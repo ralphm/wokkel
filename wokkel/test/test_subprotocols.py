@@ -286,6 +286,49 @@ class StreamManagerTest(unittest.TestCase):
         self.assertEquals(0, handler.doneLost)
 
 
+    def test_addHandlerConnected(self):
+        """
+        Adding a handler when connected doesn't call connectionInitialized.
+        """
+        sm = self.streamManager
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        sm._connected(xs)
+        handler = DummyXMPPHandler()
+        handler.setHandlerParent(sm)
+
+        self.assertEquals(1, handler.doneMade)
+        self.assertEquals(0, handler.doneInitialized)
+        self.assertEquals(0, handler.doneLost)
+
+
+    def test_addHandlerConnectedNested(self):
+        """
+        Adding a handler in connectionMade doesn't cause 2nd call.
+        """
+        class NestingHandler(DummyXMPPHandler):
+            nestedHandler = None
+
+            def connectionMade(self):
+                DummyXMPPHandler.connectionMade(self)
+                self.nestedHandler = DummyXMPPHandler()
+                self.nestedHandler.setHandlerParent(self.parent)
+
+        sm = self.streamManager
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        handler = NestingHandler()
+        handler.setHandlerParent(sm)
+        sm._connected(xs)
+
+        self.assertEquals(1, handler.doneMade)
+        self.assertEquals(0, handler.doneInitialized)
+        self.assertEquals(0, handler.doneLost)
+
+        self.assertEquals(1, handler.nestedHandler.doneMade)
+        self.assertEquals(0, handler.nestedHandler.doneInitialized)
+        self.assertEquals(0, handler.nestedHandler.doneLost)
+
+
+
     def test_addHandlerInitialized(self):
         """
         Test the addition of a protocol handler after the stream
@@ -305,6 +348,64 @@ class StreamManagerTest(unittest.TestCase):
         self.assertEquals(1, handler.doneMade)
         self.assertEquals(1, handler.doneInitialized)
         self.assertEquals(0, handler.doneLost)
+
+
+    def test_addHandlerInitializedNested(self):
+        """
+        Adding a handler in connectionInitialized doesn't cause 2nd call.
+        """
+        class NestingHandler(DummyXMPPHandler):
+            nestedHandler = None
+
+            def connectionInitialized(self):
+                DummyXMPPHandler.connectionInitialized(self)
+                self.nestedHandler = DummyXMPPHandler()
+                self.nestedHandler.setHandlerParent(self.parent)
+
+        sm = self.streamManager
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        handler = NestingHandler()
+        handler.setHandlerParent(sm)
+        sm._connected(xs)
+        sm._authd(xs)
+
+        self.assertEquals(1, handler.doneMade)
+        self.assertEquals(1, handler.doneInitialized)
+        self.assertEquals(0, handler.doneLost)
+
+        self.assertEquals(1, handler.nestedHandler.doneMade)
+        self.assertEquals(1, handler.nestedHandler.doneInitialized)
+        self.assertEquals(0, handler.nestedHandler.doneLost)
+
+
+    def test_addHandlerConnectionLostNested(self):
+        """
+        Adding a handler in connectionLost doesn't call connectionLost there.
+        """
+        class NestingHandler(DummyXMPPHandler):
+            nestedHandler = None
+
+            def connectionLost(self, reason):
+                DummyXMPPHandler.connectionLost(self, reason)
+                self.nestedHandler = DummyXMPPHandler()
+                self.nestedHandler.setHandlerParent(self.parent)
+
+        sm = self.streamManager
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        handler = NestingHandler()
+        handler.setHandlerParent(sm)
+        sm._connected(xs)
+        sm._authd(xs)
+        sm._disconnected(xs)
+
+        self.assertEquals(1, handler.doneMade)
+        self.assertEquals(1, handler.doneInitialized)
+        self.assertEquals(1, handler.doneLost)
+
+        self.assertEquals(0, handler.nestedHandler.doneMade)
+        self.assertEquals(0, handler.nestedHandler.doneInitialized)
+        self.assertEquals(0, handler.nestedHandler.doneLost)
+
 
     def test_removeHandler(self):
         """
