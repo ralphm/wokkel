@@ -10,6 +10,7 @@ from zope.interface.verify import verifyObject
 from twisted.trial import unittest
 from twisted.test import proto_helpers
 from twisted.internet import defer
+from twisted.python import failure
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import error, xmlstream
 
@@ -52,6 +53,20 @@ class DummyXMPPHandler(subprotocols.XMPPHandler):
 
     def connectionLost(self, reason):
         self.doneLost += 1
+
+
+
+class FailureReasonXMPPHandler(subprotocols.XMPPHandler):
+    """
+    Dummy handler specifically for failure Reason tests.
+    """
+    def __init__(self):
+        self.gotFailureReason = False
+
+
+    def connectionLost(self, reason):
+        if isinstance(reason, failure.Failure):
+            self.gotFailureReason = True
 
 
 
@@ -234,17 +249,28 @@ class StreamManagerTest(unittest.TestCase):
 
     def test_disconnected(self):
         """
-        Test that protocol handlers have their connectionLost method
-        called when the XML stream is disconnected.
+        Protocol handlers have connectionLost called on stream disconnect.
         """
         sm = self.streamManager
         handler = DummyXMPPHandler()
         handler.setHandlerParent(sm)
-        xs = xmlstream.XmlStream(xmlstream.Authenticator())
-        sm._disconnected(xs)
+        sm._disconnected(None)
         self.assertEquals(0, handler.doneMade)
         self.assertEquals(0, handler.doneInitialized)
         self.assertEquals(1, handler.doneLost)
+
+
+    def test_disconnectedReason(self):
+        """
+        A L{STREAM_END_EVENT} results in L{StreamManager} firing the handlers
+        L{connectionLost} methods, passing a L{failure.Failure} reason.
+        """
+        sm = self.streamManager
+        handler = FailureReasonXMPPHandler()
+        handler.setHandlerParent(sm)
+        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        sm._disconnected(failure.Failure(Exception("no reason")))
+        self.assertEquals(True, handler.gotFailureReason)
 
 
     def test_addHandler(self):

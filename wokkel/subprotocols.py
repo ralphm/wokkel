@@ -10,7 +10,8 @@ XMPP subprotocol support.
 from zope.interface import implements
 
 from twisted.internet import defer
-from twisted.python import log
+from twisted.internet.error import ConnectionDone
+from twisted.python import failure, log
 from twisted.words.protocols.jabber import error, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import xpath
@@ -246,7 +247,7 @@ class StreamManager(XMPPHandlerCollection):
         """
 
 
-    def _disconnected(self, _):
+    def _disconnected(self, reason):
         """
         Called when the stream has been closed.
 
@@ -257,10 +258,14 @@ class StreamManager(XMPPHandlerCollection):
         self.xmlstream = None
         self._initialized = False
 
+        # Twisted versions before 11.0 passed an XmlStream here.
+        if not hasattr(reason, 'trap'):
+            reason = failure.Failure(ConnectionDone())
+
         # Notify all child services which implement
         # the IService interface
         for e in self:
-            e.connectionLost(None)
+            e.connectionLost(reason)
 
 
     def send(self, obj):
