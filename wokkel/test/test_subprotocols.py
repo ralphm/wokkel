@@ -9,12 +9,13 @@ from zope.interface.verify import verifyObject
 
 from twisted.trial import unittest
 from twisted.test import proto_helpers
-from twisted.internet import defer
+from twisted.internet import defer, task
+from twisted.internet.error import ConnectionDone
 from twisted.python import failure
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import error, xmlstream
 
-from wokkel import iwokkel, subprotocols
+from wokkel import generic, iwokkel, subprotocols
 
 class DummyFactory(object):
     """
@@ -164,20 +165,46 @@ class XMPPHandlerCollectionTest(unittest.TestCase):
 
 
 
+class IQGetStanza(generic.Stanza):
+    stanzaKind = 'iq'
+    stanzaType = 'get'
+    stanzaID = 'test'
+
+
+
 class StreamManagerTest(unittest.TestCase):
     """
     Tests for L{subprotocols.StreamManager}.
     """
 
     def setUp(self):
-        factory = DummyFactory()
-        self.streamManager = subprotocols.StreamManager(factory)
+        factory = xmlstream.XmlStreamFactory(xmlstream.Authenticator())
+        self.clock = task.Clock()
+        self.streamManager = subprotocols.StreamManager(factory, self.clock)
+        self.xmlstream = factory.buildProtocol(None)
+        self.transport = proto_helpers.StringTransport()
+        self.xmlstream.transport = self.transport
+
+        self.request = IQGetStanza()
+
+    def _streamStarted(self):
+        """
+        Bring the test stream to the initialized state.
+        """
+        self.xmlstream.connectionMade()
+        self.xmlstream.dataReceived(
+                "<stream:stream xmlns='jabber:client' "
+                    "xmlns:stream='http://etherx.jabber.org/streams' "
+                    "from='example.com' id='12345'>")
+        self.xmlstream.dispatch(self.xmlstream, "//event/stream/authd")
+
 
     def test_basic(self):
         """
         Test correct initialization and setup of factory observers.
         """
-        sm = self.streamManager
+        factory = DummyFactory()
+        sm = subprotocols.StreamManager(factory)
         self.assertIdentical(None, sm.xmlstream)
         self.assertEquals([], sm.handlers)
         self.assertEquals(sm._connected,
@@ -407,6 +434,7 @@ class StreamManagerTest(unittest.TestCase):
         self.assertEquals(0, handler.nestedHandler.doneLost)
 
 
+
     def test_removeHandler(self):
         """
         Test removal of protocol handler.
@@ -417,6 +445,7 @@ class StreamManagerTest(unittest.TestCase):
         handler.disownHandlerParent(sm)
         self.assertNotIn(handler, sm)
         self.assertIdentical(None, handler.parent)
+
 
     def test_sendInitialized(self):
         """
@@ -507,6 +536,228 @@ class StreamManagerTest(unittest.TestCase):
         sm.send("<presence/>")
         self.assertEquals("", xs.transport.value())
         self.assertEquals("<presence/>", sm._packetQueue[0])
+
+
+    def test_requestSendInitialized(self):
+        """
+        A request is sent out over the wire when the stream is initialized.
+        """
+        self._streamStarted()
+
+        self.streamManager.request(self.request)
+        expected = u"<iq type='get' id='%s'/>" % self.request.stanzaID
+        self.assertEquals(expected, self.transport.value())
+
+
+    def test_requestSendInitializedFreshID(self):
+        """
+        A request without an ID gets a fresh one upon send.
+        """
+        self._streamStarted()
+
+        self.request.stanzaID = None
+        self.streamManager.request(self.request)
+        self.assertNotIdentical(None, self.request.stanzaID)
+        expected = u"<iq type='get' id='%s'/>" % self.request.stanzaID
+        self.assertEquals(expected, self.transport.value())
+
+
+    def test_requestSendNotConnected(self):
+        """
+        A request is queued until a stream is initialized.
+        """
+        handler = DummyXMPPHandler()
+        self.streamManager.addHandler(handler)
+
+        self.streamManager.request(self.request)
+        expected = u"<iq type='get' id='test'/>"
+
+        xs = self.xmlstream
+        self.assertEquals("", xs.transport.value())
+
+        xs.connectionMade()
+        self.assertEquals("", xs.transport.value())
+
+        xs.dataReceived("<stream:stream xmlns='jabber:client' "
+                        "xmlns:stream='http://etherx.jabber.org/streams' "
+                        "from='example.com' id='12345'>")
+        xs.dispatch(xs, "//event/stream/authd")
+
+        self.assertEquals(expected, xs.transport.value())
+        self.assertFalse(self.streamManager._packetQueue)
+
+
+    def test_requestResultResponse(self):
+        """
+        A result response gets the request deferred fired with the response.
+        """
+        def cb(result):
+            self.assertEquals(result['type'], 'result')
+
+        self._streamStarted()
+        d = self.streamManager.request(self.request)
+        d.addCallback(cb)
+
+        xs = self.xmlstream
+        xs.dataReceived("<iq type='result' id='test'/>")
+        return d
+
+
+    def test_requestErrorResponse(self):
+        """
+        An error response gets the request deferred fired with a failure.
+        """
+        self._streamStarted()
+        d = self.streamManager.request(self.request)
+        self.assertFailure(d, error.StanzaError)
+
+        xs = self.xmlstream
+        xs.dataReceived("<iq type='error' id='test'/>")
+        return d
+
+
+    def test_requestNonTrackedResponse(self):
+        """
+        Test that untracked iq responses don't trigger any action.
+
+        Untracked means that the id of the incoming response iq is not
+        in the stream's C{iqDeferreds} dictionary.
+        """
+        # Set up a fallback handler that checks the stanza's handled attribute.
+        # If that is set to True, the iq tracker claims to have handled the
+        # response.
+        dispatched = []
+        def cb(iq):
+            dispatched.append(iq)
+
+        self._streamStarted()
+        self.xmlstream.addObserver("/iq", cb, -1)
+
+        # Receive an untracked iq response
+        self.xmlstream.dataReceived("<iq type='result' id='other'/>")
+        self.assertEquals(1, len(dispatched))
+        self.assertFalse(getattr(dispatched[-1], 'handled', False))
+
+
+    def test_requestCleanup(self):
+        """
+        Test if the deferred associated with an iq request is removed
+        from the list kept in the L{XmlStream} object after it has
+        been fired.
+        """
+        self._streamStarted()
+        d = self.streamManager.request(self.request)
+        xs = self.xmlstream
+        xs.dataReceived("<iq type='result' id='test'/>")
+        self.assertNotIn('test', self.streamManager._iqDeferreds)
+        return d
+
+
+    def test_requestDisconnectCleanup(self):
+        """
+        Test if deferreds for iq's that haven't yet received a response
+        have their errback called on stream disconnect.
+        """
+        d = self.streamManager.request(self.request)
+        xs = self.xmlstream
+        xs.connectionLost(failure.Failure(ConnectionDone()))
+        self.assertFailure(d, ConnectionDone)
+        return d
+
+
+    def test_requestNoModifyingDict(self):
+        """
+        Test to make sure the errbacks cannot cause the iteration of the
+        iqDeferreds to blow up in our face.
+        """
+
+        def eb(failure):
+            d = xmlstream.IQ(self.xmlstream).send()
+            d.addErrback(eb)
+
+        d = self.streamManager.request(self.request)
+        d.addErrback(eb)
+        self.xmlstream.connectionLost(failure.Failure(ConnectionDone()))
+        return d
+
+
+    def test_requestTimingOut(self):
+        """
+        Test that an iq request with a defined timeout times out.
+        """
+        self.request.timeout = 60
+        d = self.streamManager.request(self.request)
+        self.assertFailure(d, xmlstream.TimeoutError)
+
+        self.clock.pump([1, 60])
+        self.assertFalse(self.clock.calls)
+        self.assertFalse(self.streamManager._iqDeferreds)
+        return d
+
+
+    def test_requestNotTimingOut(self):
+        """
+        Test that an iq request with a defined timeout does not time out
+        when a response was received before the timeout period elapsed.
+        """
+        self._streamStarted()
+        self.request.timeout = 60
+        d = self.streamManager.request(self.request)
+        self.clock.callLater(1, self.xmlstream.dataReceived,
+                             "<iq type='result' id='test'/>")
+        self.clock.pump([1, 1])
+        self.assertFalse(self.clock.calls)
+        return d
+
+
+    def test_requestDisconnectTimeoutCancellation(self):
+        """
+        Test if timeouts for iq's that haven't yet received a response
+        are cancelled on stream disconnect.
+        """
+
+        self.request.timeout = 60
+        d = self.streamManager.request(self.request)
+
+        self.xmlstream.connectionLost(failure.Failure(ConnectionDone()))
+        self.assertFailure(d, ConnectionDone)
+        self.assertFalse(self.clock.calls)
+        return d
+
+
+    def test_requestNotIQ(self):
+        """
+        The request stanza must be an iq.
+        """
+        stanza = generic.Stanza()
+        stanza.stanzaKind = 'message'
+
+        d = self.streamManager.request(stanza)
+        self.assertFailure(d, ValueError)
+
+
+    def test_requestNotResult(self):
+        """
+        The request stanza cannot be of type 'result'.
+        """
+        stanza = generic.Stanza()
+        stanza.stanzaKind = 'iq'
+        stanza.stanzaType = 'result'
+
+        d = self.streamManager.request(stanza)
+        self.assertFailure(d, ValueError)
+
+
+    def test_requestNotError(self):
+        """
+        The request stanza cannot be of type 'error'.
+        """
+        stanza = generic.Stanza()
+        stanza.stanzaKind = 'iq'
+        stanza.stanzaType = 'error'
+
+        d = self.streamManager.request(stanza)
+        self.assertFailure(d, ValueError)
 
 
 
