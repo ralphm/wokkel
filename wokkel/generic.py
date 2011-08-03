@@ -236,6 +236,34 @@ class ErrorStanza(Stanza):
         self.exception = error.exceptionFromStanza(element)
 
 
+class Request(Stanza):
+    """
+    IQ request stanza.
+
+    This is a base class for IQ get or set stanzas, to be used with
+    L{wokkel.subprotocols.StreamManager.request}.
+    """
+
+    stanzaKind = 'iq'
+    stanzaType = 'get'
+    timeout = None
+
+    def __init__(self, recipient=None, sender=None, stanzaType='get'):
+        Stanza.__init__(self, recipient=recipient, sender=sender)
+        self.stanzaType = stanzaType
+
+
+    def toElement(self):
+        element = Stanza.toElement(self)
+
+        if not self.stanzaID:
+            element.addUniqueId()
+            self.stanzaID = element['id']
+
+        return element
+
+
+
 class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):
     protocol = xmlstream.XmlStream
 
