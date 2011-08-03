@@ -20,7 +20,6 @@ try:
 except ImportError:
     from wokkel.compat import BootstrapMixin
 
-from wokkel import disco
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import XMPPHandler
 
@@ -120,6 +119,7 @@ class VersionHandler(XMPPHandler):
         info = set()
 
         if not node:
+            from wokkel import disco
             info.add(disco.DiscoFeature(NS_VERSION))
 
         return defer.succeed(info)
@@ -174,6 +174,8 @@ class Stanza(object):
     @type recipient: L{jid.JID}
     """
 
+    recipient = None
+    sender = None
     stanzaKind = None
     stanzaID = None
     stanzaType = None
