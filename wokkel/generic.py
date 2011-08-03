@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_generic -*-
 #
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """
@@ -20,7 +20,6 @@ try:
 except ImportError:
     from wokkel.compat import BootstrapMixin
 
-from wokkel import disco
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import XMPPHandler
 
@@ -120,6 +119,7 @@ class VersionHandler(XMPPHandler):
         info = set()
 
         if not node:
+            from wokkel import disco
             info.add(disco.DiscoFeature(NS_VERSION))
 
         return defer.succeed(info)
@@ -174,6 +174,8 @@ class Stanza(object):
     @type recipient: L{jid.JID}
     """
 
+    recipient = None
+    sender = None
     stanzaKind = None
     stanzaID = None
     stanzaType = None
@@ -234,6 +236,34 @@ class ErrorStanza(Stanza):
     def parseElement(self, element):
         Stanza.parseElement(self, element)
         self.exception = error.exceptionFromStanza(element)
+
+
+class Request(Stanza):
+    """
+    IQ request stanza.
+
+    This is a base class for IQ get or set stanzas, to be used with
+    L{wokkel.subprotocols.StreamManager.request}.
+    """
+
+    stanzaKind = 'iq'
+    stanzaType = 'get'
+    timeout = None
+
+    def __init__(self, recipient=None, sender=None, stanzaType='get'):
+        Stanza.__init__(self, recipient=recipient, sender=sender)
+        self.stanzaType = stanzaType
+
+
+    def toElement(self):
+        element = Stanza.toElement(self)
+
+        if not self.stanzaID:
+            element.addUniqueId()
+            self.stanzaID = element['id']
+
+        return element
+
 
 
 class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):

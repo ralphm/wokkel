@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_disco -*-
 #
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """
@@ -14,8 +14,7 @@ from twisted.internet import defer
 from twisted.words.protocols.jabber import error, jid
 from twisted.words.xish import domish
 
-from wokkel import data_form
-from wokkel.compat import IQ
+from wokkel import data_form, generic
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import IQHandlerMixin, XMPPHandler
 
@@ -119,7 +118,7 @@ class DiscoInfo(object):
     @ivar nodeIdentifier: The optional node this info applies to.
     @type nodeIdentifier: C{unicode}
     @ivar features: Features as L{DiscoFeature}.
-    @type features: C{set)
+    @type features: C{set}
     @ivar identities: Identities as a mapping from (category, type) to name,
                       all C{unicode}.
     @type identities: C{dict}
@@ -346,26 +345,57 @@ class DiscoItems(object):
 
 
 
-class _DiscoRequest(IQ):
+class _DiscoRequest(generic.Request):
     """
-    Element representing an XMPP service discovery request.
+    A Service Discovery request.
+
+    @ivar verb: Type of request: C{'info'} or C{'items'}.
+    @type verb: C{str}
+    @ivar nodeIdentifier: Optional node to request info for.
+    @type nodeIdentifier: C{unicode}
     """
 
-    def __init__(self, xs, namespace, nodeIdentifier=''):
-        """
-        Initialize the request.
+    verb = None
+    nodeIdentifier = ''
 
-        @param xs: XML Stream the request should go out on.
-        @type xs: L{xmlstream.XmlStream}
-        @param namespace: Request namespace.
-        @type namespace: C{str}
-        @param nodeIdentifier: Node to request info from.
-        @type nodeIdentifier: C{unicode}
-        """
-        IQ.__init__(self, xs, "get")
-        query = self.addElement((namespace, 'query'))
-        if nodeIdentifier:
-            query['node'] = nodeIdentifier
+    _requestVerbMap = {
+            NS_DISCO_INFO: 'info',
+            NS_DISCO_ITEMS: 'items',
+            }
+
+    _verbRequestMap = dict(((v, k) for k, v in _requestVerbMap.iteritems()))
+
+    def __init__(self, verb=None, nodeIdentifier='',
+                       recipient=None, sender=None):
+        generic.Request.__init__(self, recipient=recipient, sender=sender,
+                                       stanzaType='get')
+        self.verb = verb
+        self.nodeIdentifier = nodeIdentifier
+
+
+    def parseElement(self, element):
+        generic.Request.parseElement(self, element)
+
+        verbElement = None
+        for child in element.elements():
+            if child.name == 'query' and child.uri in self._requestVerbMap:
+                self.verb = self._requestVerbMap[child.uri]
+                verbElement = child
+
+        if verbElement:
+            self.nodeIdentifier = verbElement.getAttribute('node', '')
+
+
+    def toElement(self):
+        element = generic.Request.toElement(self)
+
+        childURI = self._verbRequestMap[self.verb]
+        query = element.addElement((childURI, 'query'))
+
+        if self.nodeIdentifier:
+            query['node'] = self.nodeIdentifier
+
+        return element
 
 
 
@@ -388,11 +418,11 @@ class DiscoClientProtocol(XMPPHandler):
         @type sender: L{jid.JID}
         """
 
-        request = _DiscoRequest(self.xmlstream, NS_DISCO_INFO, nodeIdentifier)
-        if sender is not None:
-            request['from'] = unicode(sender)
+        request = _DiscoRequest('info', nodeIdentifier)
+        request.sender = sender
+        request.recipient = entity
 
-        d = request.send(entity.full())
+        d = self.request(request)
         d.addCallback(lambda iq: DiscoInfo.fromElement(iq.query))
         return d
 
@@ -411,11 +441,11 @@ class DiscoClientProtocol(XMPPHandler):
         @type sender: L{jid.JID}
         """
 
-        request = _DiscoRequest(self.xmlstream, NS_DISCO_ITEMS, nodeIdentifier)
-        if sender is not None:
-            request['from'] = unicode(sender)
+        request = _DiscoRequest('items', nodeIdentifier)
+        request.sender = sender
+        request.recipient = entity
 
-        d = request.send(entity.full())
+        d = self.request(request)
         d.addCallback(lambda iq: DiscoItems.fromElement(iq.query))
         return d
 
@@ -445,23 +475,22 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         @param iq: The request iq element.
         @type iq: L{Element<twisted.words.xish.domish.Element>}
         """
-        requestor = jid.internJID(iq["from"])
-        target = jid.internJID(iq["to"])
-        nodeIdentifier = iq.query.getAttribute("node", '')
+        request = _DiscoRequest.fromElement(iq)
 
         def toResponse(info):
-            if nodeIdentifier and not info:
+            if request.nodeIdentifier and not info:
                 raise error.StanzaError('item-not-found')
             else:
                 response = DiscoInfo()
-                response.nodeIdentifier = nodeIdentifier
+                response.nodeIdentifier = request.nodeIdentifier
 
                 for item in info:
                     response.append(item)
 
             return response.toElement()
 
-        d = self.info(requestor, target, nodeIdentifier)
+        d = self.info(request.sender, request.recipient,
+                      request.nodeIdentifier)
         d.addCallback(toResponse)
         return d
 
@@ -473,20 +502,19 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         @param iq: The request iq element.
         @type iq: L{Element<twisted.words.xish.domish.Element>}
         """
-        requestor = jid.internJID(iq["from"])
-        target = jid.internJID(iq["to"])
-        nodeIdentifier = iq.query.getAttribute("node", '')
+        request = _DiscoRequest.fromElement(iq)
 
         def toResponse(items):
             response = DiscoItems()
-            response.nodeIdentifier = nodeIdentifier
+            response.nodeIdentifier = request.nodeIdentifier
 
             for item in items:
                 response.append(item)
 
             return response.toElement()
 
-        d = self.items(requestor, target, nodeIdentifier)
+        d = self.items(request.sender, request.recipient,
+                       request.nodeIdentifier)
         d.addCallback(toResponse)
         return d
 

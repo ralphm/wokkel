@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_ping -*-
 #
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """
@@ -94,6 +94,7 @@ class PingHandler(XMPPHandler):
         """
         response = toResponse(iq, 'result')
         self.xmlstream.send(response)
+        iq.handled = True
 
 
     def getDiscoInfo(self, requestor, target, nodeIdentifier=''):

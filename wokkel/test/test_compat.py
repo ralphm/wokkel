@@ -1,5 +1,5 @@
 # Copyright (c) 2001-2008 Twisted Matrix Laboratories.
-# Copyright (c) 2008-2009 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """

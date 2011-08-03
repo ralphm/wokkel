@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_component -*-
 #
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """
@@ -157,7 +157,7 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
     Authenticator for accepting components.
 
     @ivar secret: The shared used to authorized incoming component connections.
-    @type secret: C{str}.
+    @type secret: C{unicode}.
     """
 
     namespace = NS_COMPONENT_ACCEPT
@@ -236,7 +236,8 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
         If the handshake was ok, the stream is authorized, and  XML Stanzas may
         be exchanged.
         """
-        calculatedHash = xmlstream.hashPassword(self.xmlstream.sid, self.secret)
+        calculatedHash = xmlstream.hashPassword(self.xmlstream.sid,
+                                                unicode(self.secret))
         if handshake != calculatedHash:
             exc = error.StreamError('not-authorized', text='Invalid hash')
             self.xmlstream.sendStreamError(exc)

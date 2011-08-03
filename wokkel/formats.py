@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 NS_MOOD = 'http://jabber.org/protocol/mood'

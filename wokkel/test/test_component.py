@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2008 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """
@@ -368,7 +368,7 @@ class ListenComponentAuthenticatorTest(unittest.TestCase):
 
         xs = self.xmlstream
         xs.addOnetimeObserver(xmlstream.STREAM_AUTHD_EVENT, authenticated)
-        xs.sid = '1234'
+        xs.sid = u'1234'
         theHash = '32532c0f7dbf1253c095b18b18e36d38d94c1256'
         xs.authenticator.onHandshake(theHash)
         self.assertEqual('<handshake/>', self.output[-1])
@@ -389,7 +389,7 @@ class ListenComponentAuthenticatorTest(unittest.TestCase):
         xs.addOnetimeObserver(xmlstream.STREAM_AUTHD_EVENT, authenticated)
         xs.sendStreamError = streamErrors.append
 
-        xs.sid = '1234'
+        xs.sid = u'1234'
         theHash = '1234'
         xs.authenticator.onHandshake(theHash)
         self.assertEquals('not-authorized', streamErrors[-1].condition)

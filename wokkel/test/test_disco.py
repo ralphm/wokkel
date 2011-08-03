@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """
@@ -9,9 +9,10 @@ from zope.interface import implements
 
 from twisted.internet import defer
 from twisted.trial import unittest
+from twisted.words.protocols.jabber.error import StanzaError
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.xmlstream import toResponse
-from twisted.words.xish import domish
+from twisted.words.xish import domish, utility
 
 from wokkel import data_form, disco
 from wokkel.generic import parseXml
@@ -476,9 +477,14 @@ class DiscoClientProtocolTest(unittest.TestCase):
         Set up stub and protocol for testing.
         """
         self.stub = XmlStreamStub()
+        self.patch(XMPPHandler, 'request', self.request)
         self.protocol = disco.DiscoClientProtocol()
-        self.protocol.xmlstream = self.stub.xmlstream
-        self.protocol.connectionInitialized()
+
+
+    def request(self, request):
+        element = request.toElement()
+        self.stub.xmlstream.send(element)
+        return defer.Deferred()
 
 
     def test_requestItems(self):
@@ -510,7 +516,7 @@ class DiscoClientProtocolTest(unittest.TestCase):
         element = query.addElement(u'item')
         element[u'jid'] = u"test2.example.org"
 
-        self.stub.send(response)
+        d.callback(response)
         return d
 
 
@@ -526,8 +532,8 @@ class DiscoClientProtocolTest(unittest.TestCase):
 
         response = toResponse(iq, u'result')
         response.addElement((NS_DISCO_ITEMS, u'query'))
-        self.stub.send(response)
 
+        d.callback(response)
         return d
 
 
@@ -565,7 +571,7 @@ class DiscoClientProtocolTest(unittest.TestCase):
         element = query.addElement(u"feature")
         element[u'var'] = u'http://jabber.org/protocol/muc'
 
-        self.stub.send(response)
+        d.callback(response)
         return d
 
 
@@ -574,15 +580,15 @@ class DiscoClientProtocolTest(unittest.TestCase):
         A disco info request can be sent with an explicit sender address.
         """
         d = self.protocol.requestInfo(JID(u'example.org'),
-                                       sender=JID(u'test.example.org'))
+                                      sender=JID(u'test.example.org'))
 
         iq = self.stub.output[-1]
         self.assertEqual(u'test.example.org', iq.getAttribute(u'from'))
 
         response = toResponse(iq, u'result')
         response.addElement((NS_DISCO_INFO, u'query'))
-        self.stub.send(response)
 
+        d.callback(response)
         return d
 
 
@@ -594,6 +600,46 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
 
     def setUp(self):
         self.service = disco.DiscoHandler()
+
+
+    def test_connectionInitializedObserveInfo(self):
+        """
+        An observer for Disco Info requests is setup on stream initialization.
+        """
+        xml = """<iq from='test@example.com' to='example.com'
+                     type='get'>
+                   <query xmlns='%s'/>
+                 </iq>""" % NS_DISCO_INFO
+
+        def handleRequest(iq):
+            called.append(iq)
+
+        called = []
+        self.service.xmlstream = utility.EventDispatcher()
+        self.service.handleRequest = handleRequest
+        self.service.connectionInitialized()
+        self.service.xmlstream.dispatch(parseXml(xml))
+        self.assertEqual(1, len(called))
+
+
+    def test_connectionInitializedObserveItems(self):
+        """
+        An observer for Disco Items requests is setup on stream initialization.
+        """
+        xml = """<iq from='test@example.com' to='example.com'
+                     type='get'>
+                   <query xmlns='%s'/>
+                 </iq>""" % NS_DISCO_ITEMS
+
+        def handleRequest(iq):
+            called.append(iq)
+
+        called = []
+        self.service.xmlstream = utility.EventDispatcher()
+        self.service.handleRequest = handleRequest
+        self.service.connectionInitialized()
+        self.service.xmlstream.dispatch(parseXml(xml))
+        self.assertEqual(1, len(called))
 
 
     def test_onDiscoInfo(self):
@@ -635,6 +681,50 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
         return d
 
 
+    def test_onDiscoInfoWithNoFromAttribute(self):
+        """
+        Disco info request without a from attribute has requestor None.
+        """
+        xml = """<iq to='example.com'
+                     type='get'>
+                   <query xmlns='%s'/>
+                 </iq>""" % NS_DISCO_INFO
+
+        def info(requestor, target, nodeIdentifier):
+            self.assertEqual(None, requestor)
+
+            return defer.succeed([
+                disco.DiscoIdentity('dummy', 'generic', 'Generic Dummy Entity'),
+                disco.DiscoFeature('jabber:iq:version')
+            ])
+
+        self.service.info = info
+        d = self.handleRequest(xml)
+        return d
+
+
+    def test_onDiscoInfoWithNoToAttribute(self):
+        """
+        Disco info request without a to attribute has target None.
+        """
+        xml = """<iq from='test@example.com'
+                     type='get'>
+                   <query xmlns='%s'/>
+                 </iq>""" % NS_DISCO_INFO
+
+        def info(requestor, target, nodeIdentifier):
+            self.assertEqual(JID('test@example.com'), requestor)
+
+            return defer.succeed([
+                disco.DiscoIdentity('dummy', 'generic', 'Generic Dummy Entity'),
+                disco.DiscoFeature('jabber:iq:version')
+            ])
+
+        self.service.info = info
+        d = self.handleRequest(xml)
+        return d
+
+
     def test_onDiscoInfoWithNode(self):
         """
         An info request for a node should return it in the response.
@@ -657,6 +747,30 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         self.service.info = info
         d = self.handleRequest(xml)
+        d.addCallback(cb)
+        return d
+
+
+    def test_onDiscoInfoWithNodeNoResults(self):
+        """
+        An info request for a node with no results returns items-not-found.
+        """
+        xml = """<iq from='test@example.com' to='example.com'
+                     type='get'>
+                   <query xmlns='%s' node='test'/>
+                 </iq>""" % NS_DISCO_INFO
+
+        def cb(exc):
+            self.assertEquals('item-not-found', exc.condition)
+
+        def info(requestor, target, nodeIdentifier):
+            self.assertEqual('test', nodeIdentifier)
+
+            return defer.succeed([])
+
+        self.service.info = info
+        d = self.handleRequest(xml)
+        self.assertFailure(d, StanzaError)
         d.addCallback(cb)
         return d
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """
@@ -131,6 +131,19 @@ class PingHandlerTest(unittest.TestCase):
         self.assertEquals('example.com', response.getAttribute('from'))
         self.assertEquals('test@example.com', response.getAttribute('to'))
         self.assertEquals('result', response.getAttribute('type'))
+
+
+    def test_onPingHandled(self):
+        """
+        The ping handler should mark the stanza as handled.
+        """
+        xml = """<iq from='test@example.com' to='example.com' type='get'>
+                   <ping xmlns='urn:xmpp:ping'/>
+                 </iq>"""
+        iq = parseXml(xml)
+        self.stub.send(iq)
+
+        self.assertTrue(iq.handled)
 
 
     def test_interfaceIDisco(self):
