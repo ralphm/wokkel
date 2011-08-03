@@ -71,6 +71,15 @@ class FailureReasonXMPPHandler(subprotocols.XMPPHandler):
 
 
 
+class IQGetStanza(generic.Stanza):
+    timeout = None
+
+    stanzaKind = 'iq'
+    stanzaType = 'get'
+    stanzaID = 'test'
+
+
+
 class XMPPHandlerTest(unittest.TestCase):
     """
     Tests for L{subprotocols.XMPPHandler}.
@@ -126,6 +135,27 @@ class XMPPHandlerTest(unittest.TestCase):
         self.assertIdentical(None, handler.xmlstream)
 
 
+    def test_request(self):
+        """
+        A request is passed up to the stream manager.
+        """
+        class DummyStreamManager(object):
+            def __init__(self):
+                self.requests = []
+
+            def request(self, request):
+                self.requests.append(request)
+                return defer.succeed(None)
+
+        handler = subprotocols.XMPPHandler()
+        handler.parent = DummyStreamManager()
+        request = IQGetStanza()
+        d = handler.request(request)
+        self.assertEquals(1, len(handler.parent.requests))
+        self.assertIdentical(request, handler.parent.requests[-1])
+        return d
+
+
 
 class XMPPHandlerCollectionTest(unittest.TestCase):
     """
@@ -162,13 +192,6 @@ class XMPPHandlerCollectionTest(unittest.TestCase):
         handler.disownHandlerParent(self.collection)
         self.assertNotIn(handler, self.collection)
         self.assertIdentical(None, handler.parent)
-
-
-
-class IQGetStanza(generic.Stanza):
-    stanzaKind = 'iq'
-    stanzaType = 'get'
-    stanzaID = 'test'
 
 
 

@@ -94,6 +94,18 @@ class XMPPHandler(object):
         self.parent.send(obj)
 
 
+    def request(self, request):
+        """
+        Send an IQ request and track the response.
+
+        This passes the request to the parent for sending and response
+        tracking.
+
+        @see: L{StreamManager.request}.
+        """
+        return self.parent.request(request)
+
+
 
 class XMPPHandlerCollection(object):
     """
