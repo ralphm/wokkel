@@ -130,7 +130,7 @@ class MucClientTest(unittest.TestCase):
         """
 
         def cb(room):
-            self.assertEqual(self.test_room, room.roomIdentifier)
+            self.assertEquals(self.test_room, room.roomIdentifier)
 
         d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
         d.addCallback(cb)
@@ -343,7 +343,7 @@ class MucClientTest(unittest.TestCase):
 
 
         def historyReceived(room, user, body, stamp, frm=None):
-            self.assertTrue(body=='test', "wrong message body")
+            self.assertEquals('test', body, "wrong message body")
             self.assertTrue(stamp, 'Does not have a history stamp')
 
         d, self.protocol.receivedHistory = calledAsync(historyReceived)
@@ -380,7 +380,7 @@ class MucClientTest(unittest.TestCase):
         while len(self.stub.output)>0:
             m = self.stub.output.pop()
             # check for delay element
-            self.assertTrue(m.name=='message', 'Wrong stanza')
+            self.assertEquals('message', m.name, 'Wrong stanza')
             self.assertTrue(xpath.matches("/message/delay", m), 'Invalid history stanza')
 
 
@@ -422,7 +422,7 @@ class MucClientTest(unittest.TestCase):
 
         def cb(iq):
             # check for a result
-            self.assertTrue(iq['type']=='result', 'We did not get a result')
+            self.assertEquals('result', iq['type'], 'We did not get a result')
 
         d = self.protocol.register(self.room_jid)
         d.addCallback(cb)
@@ -455,7 +455,7 @@ class MucClientTest(unittest.TestCase):
         """
 
         def cb(iq):
-            self.assertTrue(iq['type']=='result', 'Not a result')
+            self.assertEquals('result', iq['type'], 'Not a result')
 
 
         fields = []
@@ -482,7 +482,7 @@ class MucClientTest(unittest.TestCase):
         """
 
         def cb(destroyed):
-            self.assertTrue(destroyed==True, 'Room not destroyed.')
+            self.assertTrue(destroyed, 'Room not destroyed.')
 
         d = self.protocol.destroy(self.room_jid)
         d.addCallback(cb)
@@ -560,18 +560,18 @@ class MucClientTest(unittest.TestCase):
         room.addUser(user)
 
         def cb(room):
-            self.assertEqual(self.test_room, room.roomIdentifier)
+            self.assertEquals(self.test_room, room.roomIdentifier)
             user = room.getUser(self.room_jid.resource)
             self.assertNotIdentical(None, user, 'User not found')
-            self.assertEqual('testing MUC', user.status, 'Wrong status')
-            self.assertEqual('xa', user.show, 'Wrong show')
+            self.assertEquals('testing MUC', user.status, 'Wrong status')
+            self.assertEquals('xa', user.show, 'Wrong show')
 
         d = self.protocol.status(self.room_jid, 'xa', 'testing MUC')
         d.addCallback(cb)
 
         prs = self.stub.output[-1]
 
-        self.assertEqual('presence', prs.name, "Need to be presence")
+        self.assertEquals('presence', prs.name, "Need to be presence")
         self.assertTrue(getattr(prs, 'x', None), 'No muc x element')
 
         # send back user presence, status changed
@@ -591,11 +591,11 @@ class MucClientTest(unittest.TestCase):
     def test_getMemberList(self):
         def cb(room):
             members = room.members
-            self.assertEqual(1, len(members))
+            self.assertEquals(1, len(members))
             user = members[0]
-            self.assertEqual(JID(u'hag66@shakespeare.lit'), user.entity)
-            self.assertEqual(u'thirdwitch', user.nick)
-            self.assertEqual(u'participant', user.role)
+            self.assertEquals(JID(u'hag66@shakespeare.lit'), user.entity)
+            self.assertEquals(u'thirdwitch', user.nick)
+            self.assertEquals(u'participant', user.role)
 
         self._createRoom()
         bareRoomJID = self.room_jid.userhostJID()
@@ -605,7 +605,7 @@ class MucClientTest(unittest.TestCase):
         iq = self.stub.output[-1]
         query = iq.query
         self.assertNotIdentical(None, query)
-        self.assertEqual(NS_MUC_ADMIN, query.uri)
+        self.assertEquals(NS_MUC_ADMIN, query.uri)
 
         response = toResponse(iq, 'result')
         query = response.addElement((NS_MUC_ADMIN, 'query'))
