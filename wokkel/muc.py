@@ -362,7 +362,7 @@ class PrivateChat(domish.Element):
         domish.Element.__init__(self, (None, 'message'))
         self['type'] = 'chat'
         if isinstance(to, jid.JID):
-            self['to'] = to.userhost()
+            self['to'] = to.full()
         else:
             self['to'] = to
         if frm:

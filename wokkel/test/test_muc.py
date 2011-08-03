@@ -403,13 +403,13 @@ class MucClientTest(unittest.TestCase):
         """
         Send private messages to muc entities.
         """
-        other_nick = self.room_jid.userhost()+'/OtherNick'
+        other_nick = JID(self.room_jid.userhost()+'/OtherNick')
 
         self.protocol.chat(other_nick, 'This is a test')
 
         msg = self.stub.output[-1]
 
-        query = "/message[@type='chat' and @to='%s']/body" % other_nick
+        query = "/message[@type='chat' and @to='%s']/body" % other_nick.full()
         self.assertTrue(xpath.matches(query, msg), 'Wrong message type')
 
 
