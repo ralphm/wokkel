@@ -84,106 +84,11 @@ STATUS_CODE_CREATED = 201
 
 DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
 
-class JidMalformed(Exception):
-    """
-    A jid malformed error from the server.
-
-    """
-    condition = 'modify'
-    mucCondition = 'jid-malformed'
-
-
-
-class NotAuthorized(Exception):
-    """
-    """
-    condition = 'auth'
-    mucCondition = 'not-authorized'
-
-
-
-class RegistrationRequired(Exception):
-    """
-    """
-    condition = 'auth'
-    mucCondition = 'registration-required'
-
-
-
-class Forbidden(Exception):
-    """
-    """
-    condition = 'auth'
-    mucCondition = 'forbidden'
-
-
-
-class Conflict(Exception):
-    """
-    """
-    condition = 'cancel'
-    mucCondition = 'conflict'
-
-
-
 class NotFound(Exception):
     """
     """
     condition = 'cancel'
     mucCondition = 'not-found'
-
-
-
-class ServiceUnavailable(Exception):
-    """
-    """
-    condition = 'wait'
-    mucCondition = 'service-unavailable'
-
-
-
-MUC_EXCEPTIONS = {
-    'jid-malformed': JidMalformed,
-    'forbidden': Forbidden,
-    'not-authorized': NotAuthorized,
-    'exception': Exception,
-    'conflict': Conflict,
-    'service-unavailable': ServiceUnavailable,
-    'not-found': NotFound,
-    }
-
-
-
-class MUCError(error.StanzaError):
-    """
-    Exception with muc specific condition.
-    """
-    def __init__(self, condition, mucCondition, type='error', feature=None, text=None):
-        appCondition = domish.Element((NS_MUC, mucCondition))
-        if feature:
-            appCondition['feature'] = feature
-        error.StanzaError.__init__(self, condition,
-                                         type=type,
-                                         text=text,
-                                         appCondition=appCondition)
-
-
-
-class BadRequest(MUCError):
-    """
-    Bad request stanza error.
-    """
-    def __init__(self, mucCondition=None, text=None):
-        MUCError.__init__(self, 'bad-request', mucCondition, text)
-
-
-
-class Unsupported(MUCError):
-    def __init__(self, feature, text=None):
-        MUCError.__init__(self, 'feature-not-implemented',
-                          'unsupported',
-                          feature,
-                          text)
 
 
 
@@ -736,19 +641,6 @@ class MUCClient(XMPPHandler):
         # add an error hook here?
         self._userLeavesRoom(occupantJID)
 
-
-    def _getExceptionFromElement(self, stanza):
-        # find an exception based on the error stanza
-        muc_condition = 'exception'
-
-        error = getattr(stanza, 'error', None)
-        if error is not None:
-            for e in error.elements():
-                muc_condition = e.name
-
-        return MUC_EXCEPTIONS[muc_condition]
-
-
     def _userLeavesRoom(self, occupantJID):
         # when a user leaves a room we need to update it
         room = self._getRoom(occupantJID)
@@ -856,7 +748,7 @@ class MUCClient(XMPPHandler):
 
         # check for errors
         if prs.hasAttribute('type') and prs['type'] == 'error':
-            d.errback(self._getExceptionFromElement(prs))
+            d.errback(error.exceptionFromStanza(prs))
         else:
             # change the state of the room
             room = self._getRoom(occupantJID)
@@ -880,7 +772,7 @@ class MUCClient(XMPPHandler):
 
         # check for errors
         if prs.hasAttribute('type') and prs['type'] == 'error':
-            d.errback(self._getExceptionFromElement(prs))
+            d.errback(error.exceptionFromStanza(prs))
         else:
             # change the state of the room
             room = self._getRoom(occupantJID)

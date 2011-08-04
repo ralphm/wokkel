@@ -17,6 +17,7 @@ from wokkel.generic import parseXml
 from wokkel.test.helpers import XmlStreamStub
 
 from twisted.words.protocols.jabber.xmlstream import toResponse
+from twisted.words.protocols.jabber.error import StanzaError
 
 NS_MUC_ADMIN = 'http://jabber.org/protocol/muc#admin'
 
@@ -157,7 +158,7 @@ class MucClientTest(unittest.TestCase):
         """
 
         def cb(error):
-            self.assertEquals('forbidden', error.value.mucCondition,
+            self.assertEquals('forbidden', error.value.condition,
                               'Wrong muc condition')
 
         d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
@@ -185,7 +186,7 @@ class MucClientTest(unittest.TestCase):
         """
 
         def cb(error):
-            self.assertEquals('jid-malformed', error.value.mucCondition,
+            self.assertEquals('jid-malformed', error.value.condition,
                               'Wrong muc condition')
 
         d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
