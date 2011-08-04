@@ -17,7 +17,6 @@ from wokkel.generic import parseXml
 from wokkel.test.helpers import XmlStreamStub
 
 from twisted.words.protocols.jabber.xmlstream import toResponse
-from twisted.words.protocols.jabber.error import StanzaError
 
 NS_MUC_ADMIN = 'http://jabber.org/protocol/muc#admin'
 

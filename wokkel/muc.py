@@ -84,12 +84,6 @@ STATUS_CODE_CREATED = 201
 
 DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
 
-class NotFound(Exception):
-    """
-    """
-    condition = 'cancel'
-    mucCondition = 'not-found'
-
 
 
 class ConfigureRequest(xmlstream.IQ):
@@ -527,24 +521,6 @@ class MessageVoice(GroupChat):
 
 
 
-class PresenceError(xmppim.Presence):
-    """
-    This behaves like an object providing L{domish.IElement}.
-    """
-
-    def __init__(self, error, to=None, frm=None):
-        xmppim.Presence.__init__(self, to, type='error')
-        if frm:
-            self['from'] = frm
-        # add muc elements
-        x = self.addElement('x', NS_MUC)
-
-        # add error
-        e = error.getElement()
-        self.addChild(e)
-
-
-
 class MUCClient(XMPPHandler):
     """
     Multi-User Chat client protocol.
@@ -752,8 +728,6 @@ class MUCClient(XMPPHandler):
         else:
             # change the state of the room
             room = self._getRoom(occupantJID)
-            if room is None:
-                raise NotFound
             room.state = 'joined'
 
             # grab status
@@ -775,9 +749,6 @@ class MUCClient(XMPPHandler):
             d.errback(error.exceptionFromStanza(prs))
         else:
             # change the state of the room
-            room = self._getRoom(occupantJID)
-            if room is None:
-                raise NotFound
             self._removeRoom(occupantJID)
 
             d.callback(True)
@@ -1002,8 +973,6 @@ class MUCClient(XMPPHandler):
 
 
         room = self._getRoom(roomJID)
-        if room is None:
-            raise NotFound
 
         # Change the nickname
         room.nick = new_nick
@@ -1057,8 +1026,6 @@ class MUCClient(XMPPHandler):
         @type show: C{unicode}
         """
         room = self._getRoom(occupantJID)
-        if room is None:
-            raise NotFound
 
         p = BasicPresence(to=room.occupantJID)
         if status is not None:
