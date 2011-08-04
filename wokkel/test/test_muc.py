@@ -127,6 +127,30 @@ class MucClientTest(unittest.TestCase):
         return d
 
 
+    def test_groupChatNoNick(self):
+        """
+        Message received from the room itself, no nickname
+        """
+        xml = """
+            <message to='test@test.com' from='%s' type='groupchat'>
+              <body>test</body>
+            </message>
+        """ % (self.room_jid.userhost())
+
+        self._createRoom()
+
+        def groupChat(room, user, message):
+            self.assertEquals('test', message.body,
+                              "Wrong group chat message")
+            self.assertEquals(self.test_room, room.roomIdentifier,
+                              'Wrong room name')
+
+
+        d, self.protocol.receivedGroupChat = calledAsync(groupChat)
+        self.stub.send(parseXml(xml))
+        return d
+
+
     def test_joinRoom(self):
         """
         Joining a room
