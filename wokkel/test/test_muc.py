@@ -5,6 +5,9 @@
 Tests for L{wokkel.muc}
 """
 
+from datetime import datetime
+from dateutil.tz import tzutc
+
 from zope.interface import verify
 
 from twisted.trial import unittest
@@ -115,7 +118,7 @@ class MucClientTest(unittest.TestCase):
         self._createRoom()
 
         def groupChat(room, user, message):
-            self.assertEquals('test', message, "Wrong group chat message")
+            self.assertEquals('test', message.body, "Wrong group chat message")
             self.assertEquals(self.test_room, room.roomIdentifier,
                               'Wrong room name')
 
@@ -342,9 +345,11 @@ class MucClientTest(unittest.TestCase):
         self._createRoom()
 
 
-        def historyReceived(room, user, body, stamp, frm=None):
-            self.assertEquals('test', body, "wrong message body")
-            self.assertTrue(stamp, 'Does not have a history stamp')
+        def historyReceived(room, user, message):
+            self.assertEquals('test', message.body, "wrong message body")
+            stamp = datetime(2002, 10, 13, 23, 58, 37, tzinfo=tzutc())
+            self.assertEquals(stamp, message.delay.stamp,
+                             'Does not have a history stamp')
 
         d, self.protocol.receivedHistory = calledAsync(historyReceived)
         self.stub.send(parseXml(xml))
@@ -364,7 +369,9 @@ class MucClientTest(unittest.TestCase):
         msg.addElement('body', None, 'test')
         msg.addElement('thread', None, thread)
 
-        archive.append({'stanza': msg, 'timestamp': '2002-10-13T23:58:37Z'})
+        archive.append({'stanza': msg,
+                        'timestamp': datetime(2002, 10, 13, 23, 58, 37,
+                                              tzinfo=tzutc())})
 
         msg = domish.Element((None, 'message'))
         msg['to'] = 'testing2@example.com'
@@ -372,7 +379,9 @@ class MucClientTest(unittest.TestCase):
         msg.addElement('body', None, 'yo')
         msg.addElement('thread', None, thread)
 
-        archive.append({'stanza': msg, 'timestamp': '2002-10-13T23:58:43Z'})
+        archive.append({'stanza': msg,
+                        'timestamp': datetime(2002, 10, 13, 23, 58, 43,
+                                              tzinfo=tzutc())})
 
         self.protocol.history(self.room_jid, archive)
 
@@ -391,7 +400,7 @@ class MucClientTest(unittest.TestCase):
         bareRoomJID = self.room_jid.userhostJID()
         invitee = JID('test@jabber.org')
 
-        self.protocol.invite(bareRoomJID, 'This is a test', invitee)
+        self.protocol.invite(bareRoomJID, invitee, 'This is a test')
 
         msg = self.stub.output[-1]
 

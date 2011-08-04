@@ -791,11 +791,9 @@ class IMUCClient(Interface):
         """
 
 
-    def receivedHistory(room, user, message, history, frm=None):
+    def receivedHistory(room, user, message):
         """
         Past messages from a chat room has been received. This occurs when you join a room.
-
-
         """
 
 
