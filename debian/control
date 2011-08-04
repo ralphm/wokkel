@@ -10,7 +10,7 @@ Homepage: http://wokkel.ik.nu/
 Package: python-wokkel
 Architecture: all
 XB-Python-Version: ${python:Versions}
-Depends: ${python:Depends}, ${misc:Depends}, python-twisted, python-twisted-words (>= 8.0.0), python-twisted-names
+Depends: ${python:Depends}, ${misc:Depends}, python-twisted, python-twisted-words (>= 8.0.0), python-twisted-names, python-dateutil
 Description: A set of enhancements to Twisted Words' Jabber/XMPP
  It serves as a testing ground for new features and enhancements which will
  eventually end up in Twisted Words.  It currently provides sub-protocols,

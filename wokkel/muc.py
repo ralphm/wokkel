@@ -1,6 +1,6 @@
 # -*- test-case-name: wokkel.test.test_muc -*-
 #
-# Copyright (c) 2003-2009 Ralph Meijer
+# Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
 """
