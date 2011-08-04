@@ -36,51 +36,11 @@ NS_JABBER_DELAY = 'jabber:x:delay'
 
 NS_REQUEST = 'jabber:iq:register'
 
-# Iq get and set XPath queries
-IQ = '/iq'
-IQ_GET = IQ+'[@type="get"]'
-IQ_SET = IQ+'[@type="set"]'
-
-IQ_RESULT = IQ+'[@type="result"]'
-IQ_ERROR = IQ+'[@type="error"]'
-
-IQ_QUERY = IQ+'/query'
-IQ_GET_QUERY = IQ_GET + '/query'
-IQ_SET_QUERY = IQ_SET + '/query'
-
-IQ_COMMAND = IQ+'/command'
-
-MUC_ADMIN = IQ_QUERY+'[@xmlns="' + NS_MUC_ADMIN + '"]'
-MUC_OWNER = IQ_QUERY+'[@xmlns="' + NS_MUC_OWNER + '"]'
-
-MUC_AO = MUC_ADMIN + '|' + MUC_OWNER
-
-
 MESSAGE = '/message'
 PRESENCE = '/presence'
 
-CHAT_BODY = MESSAGE +'[@type="chat"]/body'
-CHAT = MESSAGE +'[@type="chat"]'
-
 GROUPCHAT = MESSAGE +'[@type="groupchat"]/body'
 SUBJECT = MESSAGE +'[@type="groupchat"]/subject'
-MESSAGE_ERROR = MESSAGE +'[@type="error"]'
-
-STATUS_CODES = { # see http://www.xmpp.org/extensions/xep-0045.html#registrar-statuscodes
-    100:
-        {'name':'fulljid',
-         'stanza':'presence',
-
-         },
-    201:
-        {'name':'created',
-         'stanza': 'presence',
-         'context':'Entering a room',
-         'purpose':'Inform user that a new room has been created'
-         },
-}
-
-STATUS_CODE_CREATED = 201
 
 DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
 
