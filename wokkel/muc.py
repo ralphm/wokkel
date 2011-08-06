@@ -1240,7 +1240,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @type subject: C{unicode}
         """
         msg = GroupChat(roomJID.userhostJID(), subject=subject)
-        self.xmlstream.send(msg)
+        self.xmlstream.send(msg.toElement())
 
 
     def voice(self, roomJID):

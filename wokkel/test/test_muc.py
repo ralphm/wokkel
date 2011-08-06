@@ -47,14 +47,15 @@ class MucClientTest(unittest.TestCase):
         self.protocol = muc.MUCClient()
         self.protocol.xmlstream = self.stub.xmlstream
         self.protocol.connectionInitialized()
-        self.test_room = 'test'
-        self.test_srv  = 'conference.example.org'
-        self.test_nick = 'Nick'
+        self.roomIdentifier = 'test'
+        self.service  = 'conference.example.org'
+        self.nick = 'Nick'
 
-        self.room_jid = JID(tuple=(self.test_room,
-                                   self.test_srv,
-                                   self.test_nick))
-        self.user_jid = JID('test@jabber.org/Testing')
+        self.occupantJID = JID(tuple=(self.roomIdentifier,
+                                      self.service,
+                                      self.nick))
+        self.roomJID = self.occupantJID.userhostJID()
+        self.userJID = JID('test@example.org/Testing')
 
 
     def _createRoom(self):
@@ -62,10 +63,10 @@ class MucClientTest(unittest.TestCase):
         A helper method to create a test room.
         """
         # create a room
-        self.current_room = muc.Room(self.test_room,
-                                     self.test_srv,
-                                     self.test_nick)
-        self.protocol._addRoom(self.current_room)
+        room = muc.Room(self.roomIdentifier,
+                        self.service,
+                        self.nick)
+        self.protocol._addRoom(room)
 
 
     def test_interface(self):
@@ -77,12 +78,7 @@ class MucClientTest(unittest.TestCase):
 
     def test_userJoinedRoom(self):
         """
-        The client receives presence from an entity joining the room.
-
-        This tests the class L{muc.UserPresence} and the userJoinedRoom event method.
-
-        The test sends the user presence and tests if the event method is called.
-
+        Joins by others to a room we're in are passed to userJoinedRoom
         """
         xml = """
             <presence to='%s' from='%s'>
@@ -90,13 +86,13 @@ class MucClientTest(unittest.TestCase):
                 <item affiliation='member' role='participant'/>
               </x>
             </presence>
-        """ % (self.user_jid.full(), self.room_jid.full())
+        """ % (self.userJID.full(), self.occupantJID.full())
 
         # create a room
         self._createRoom()
 
         def userJoinedRoom(room, user):
-            self.assertEquals(self.test_room, room.roomIdentifier,
+            self.assertEquals(self.roomIdentifier, room.roomIdentifier,
                               'Wrong room name')
             self.assertTrue(room.inRoster(user), 'User not in roster')
 
@@ -105,61 +101,57 @@ class MucClientTest(unittest.TestCase):
         return d
 
 
-    def test_groupChat(self):
+    def test_receivedGroupChat(self):
         """
-        The client receives a groupchat message from an entity in the room.
+        Messages received from a room we're in are passed to receivedGroupChat.
         """
-        xml = """
+        xml = u"""
             <message to='test@test.com' from='%s' type='groupchat'>
               <body>test</body>
             </message>
-        """ % (self.room_jid.full())
+        """ % (self.occupantJID)
 
         self._createRoom()
 
-        def groupChat(room, user, message):
+        def receivedGroupChat(room, user, message):
             self.assertEquals('test', message.body, "Wrong group chat message")
-            self.assertEquals(self.test_room, room.roomIdentifier,
+            self.assertEquals(self.roomIdentifier, room.roomIdentifier,
                               'Wrong room name')
 
-        d, self.protocol.receivedGroupChat = calledAsync(groupChat)
+        d, self.protocol.receivedGroupChat = calledAsync(receivedGroupChat)
         self.stub.send(parseXml(xml))
         return d
 
 
-    def test_groupChatNoNick(self):
+    def test_receivedGroupChatRoom(self):
         """
-        Message received from the room itself, no nickname
+        Messages received from the room itself have C{user} set to C{None}.
         """
-        xml = """
+        xml = u"""
             <message to='test@test.com' from='%s' type='groupchat'>
               <body>test</body>
             </message>
-        """ % (self.room_jid.userhost())
+        """ % (self.roomJID)
 
         self._createRoom()
 
-        def groupChat(room, user, message):
-            self.assertEquals('test', message.body,
-                              "Wrong group chat message")
-            self.assertEquals(self.test_room, room.roomIdentifier,
-                              'Wrong room name')
+        def receivedGroupChat(room, user, message):
+            self.assertIdentical(None, user)
 
-
-        d, self.protocol.receivedGroupChat = calledAsync(groupChat)
+        d, self.protocol.receivedGroupChat = calledAsync(receivedGroupChat)
         self.stub.send(parseXml(xml))
         return d
 
 
     def test_joinRoom(self):
         """
-        Joining a room
+        Joining a room waits for confirmation, deferred fires room.
         """
 
         def cb(room):
-            self.assertEquals(self.test_room, room.roomIdentifier)
+            self.assertEquals(self.roomIdentifier, room.roomIdentifier)
 
-        d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
+        d = self.protocol.join(self.service, self.roomIdentifier, self.nick)
         d.addCallback(cb)
 
         prs = self.stub.output[-1]
@@ -173,7 +165,7 @@ class MucClientTest(unittest.TestCase):
                 <item affiliation='member' role='participant'/>
               </x>
             </presence>
-        """ % (self.test_room, self.test_srv, self.test_nick)
+        """ % (self.roomIdentifier, self.service, self.nick)
         self.stub.send(parseXml(xml))
         return d
 
@@ -187,7 +179,7 @@ class MucClientTest(unittest.TestCase):
             self.assertEquals('forbidden', error.value.condition,
                               'Wrong muc condition')
 
-        d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
+        d = self.protocol.join(self.service, self.roomIdentifier, self.nick)
         d.addBoth(cb)
 
         prs = self.stub.output[-1]
@@ -195,13 +187,13 @@ class MucClientTest(unittest.TestCase):
         self.assertNotIdentical(None, prs.x, 'No muc x element')
 
         # send back error, forbidden
-        xml = """
+        xml = u"""
             <presence from='%s' type='error'>
               <error type='auth'>
                 <forbidden xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
               </error>
             </presence>
-        """ % (self.room_jid.full())
+        """ % (self.occupantJID)
         self.stub.send(parseXml(xml))
         return d
 
@@ -215,7 +207,7 @@ class MucClientTest(unittest.TestCase):
             self.assertEquals('jid-malformed', error.value.condition,
                               'Wrong muc condition')
 
-        d = self.protocol.join(self.test_srv, self.test_room, self.test_nick)
+        d = self.protocol.join(self.service, self.roomIdentifier, self.nick)
         d.addBoth(cb)
 
         prs = self.stub.output[-1]
@@ -223,13 +215,13 @@ class MucClientTest(unittest.TestCase):
         self.assertNotIdentical(None, prs.x, 'No muc x element')
 
         # send back error, bad JID
-        xml = """
+        xml = u"""
             <presence from='%s' type='error'>
               <error type='modify'>
                 <jid-malformed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
               </error>
             </presence>
-        """ % (self.room_jid.full())
+        """ % (self.occupantJID)
         self.stub.send(parseXml(xml))
         return d
 
@@ -242,7 +234,7 @@ class MucClientTest(unittest.TestCase):
             self.assertTrue(left, 'did not leave room')
 
         self._createRoom()
-        d = self.protocol.leave(self.room_jid)
+        d = self.protocol.leave(self.occupantJID)
         d.addCallback(cb)
 
         prs = self.stub.output[-1]
@@ -250,9 +242,9 @@ class MucClientTest(unittest.TestCase):
         self.assertEquals('unavailable', prs['type'],
                           'Unavailable is not being sent')
 
-        xml = """
-            <presence to='test@jabber.org' from='%s' type='unavailable'/>
-        """ % (self.room_jid.full())
+        xml = u"""
+            <presence to='%s' from='%s' type='unavailable'/>
+        """ % (self.userJID, self.occupantJID)
         self.stub.send(parseXml(xml))
         return d
 
@@ -262,20 +254,20 @@ class MucClientTest(unittest.TestCase):
         An entity leaves the room, a presence of type unavailable is received by the client.
         """
 
-        xml = """
+        xml = u"""
             <presence to='%s' from='%s' type='unavailable'/>
-        """ % (self.user_jid.full(), self.room_jid.full())
+        """ % (self.userJID, self.occupantJID)
 
         # create a room
         self._createRoom()
 
         # add user to room
-        user = muc.User(self.room_jid.resource)
-        room = self.protocol._getRoom(self.room_jid)
+        user = muc.User(self.nick)
+        room = self.protocol._getRoom(self.occupantJID)
         room.addUser(user)
 
         def userPresence(room, user):
-            self.assertEquals(self.test_room, room.roomIdentifier,
+            self.assertEquals(self.roomIdentifier, room.roomIdentifier,
                               'Wrong room name')
             self.assertFalse(room.inRoster(user), 'User in roster')
 
@@ -293,15 +285,15 @@ class MucClientTest(unittest.TestCase):
         def cb(banned):
             self.assertTrue(banned, 'Did not ban user')
 
-        d = self.protocol.ban(self.room_jid, banned, reason='Spam',
-                              sender=self.user_jid)
+        d = self.protocol.ban(self.occupantJID, banned, reason='Spam',
+                              sender=self.userJID)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
 
         self.assertTrue(xpath.matches(
-                "/iq[@type='set' and @to='%s']/query/item"
-                    "[@affiliation='outcast']" % (self.room_jid.userhost(),),
+                u"/iq[@type='set' and @to='%s']/query/item"
+                    "[@affiliation='outcast']" % (self.roomJID,),
                 iq),
             'Wrong ban stanza')
 
@@ -320,15 +312,15 @@ class MucClientTest(unittest.TestCase):
         def cb(kicked):
             self.assertTrue(kicked, 'Did not kick user')
 
-        d = self.protocol.kick(self.room_jid, nick, reason='Spam',
-                               sender=self.user_jid)
+        d = self.protocol.kick(self.occupantJID, nick, reason='Spam',
+                               sender=self.userJID)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
 
         self.assertTrue(xpath.matches(
-                "/iq[@type='set' and @to='%s']/query/item"
-                    "[@affiliation='none']" % (self.room_jid.userhost(),),
+                u"/iq[@type='set' and @to='%s']/query/item"
+                    "[@affiliation='none']" % (self.roomJID,),
                 iq),
             'Wrong kick stanza')
 
@@ -343,13 +335,13 @@ class MucClientTest(unittest.TestCase):
         Sending a password via presence to a password protected room.
         """
 
-        self.protocol.password(self.room_jid, 'secret')
+        self.protocol.password(self.occupantJID, 'secret')
 
         prs = self.stub.output[-1]
 
         self.assertTrue(xpath.matches(
-                "/presence[@to='%s']/x/password"
-                    "[text()='secret']" % (self.room_jid.full(),),
+                u"/presence[@to='%s']/x/password"
+                    "[text()='secret']" % (self.occupantJID,),
                 prs),
             'Wrong presence stanza')
 
@@ -358,13 +350,13 @@ class MucClientTest(unittest.TestCase):
         """
         Receiving history on room join.
         """
-        xml = """
+        xml = u"""
             <message to='test@test.com' from='%s' type='groupchat'>
               <body>test</body>
               <delay xmlns='urn:xmpp:delay' stamp="2002-10-13T23:58:37Z"
                                             from="%s"/>
             </message>
-        """ % (self.room_jid.full(), self.user_jid.full())
+        """ % (self.occupantJID, self.userJID)
 
         self._createRoom()
 
@@ -407,7 +399,7 @@ class MucClientTest(unittest.TestCase):
                         'timestamp': datetime(2002, 10, 13, 23, 58, 43,
                                               tzinfo=tzutc())})
 
-        self.protocol.history(self.room_jid, archive)
+        self.protocol.history(self.occupantJID, archive)
 
 
         while len(self.stub.output)>0:
@@ -421,29 +413,49 @@ class MucClientTest(unittest.TestCase):
         """
         Invite a user to a room
         """
-        bareRoomJID = self.room_jid.userhostJID()
-        invitee = JID('test@jabber.org')
+        invitee = JID('other@example.org')
 
-        self.protocol.invite(bareRoomJID, invitee, 'This is a test')
+        self.protocol.invite(self.roomJID, invitee, u'This is a test')
 
-        msg = self.stub.output[-1]
+        message = self.stub.output[-1]
 
-        query = u"/message[@to='%s']/x/invite/reason" % bareRoomJID
-        self.assertTrue(xpath.matches(query, msg), 'Wrong message type')
+        self.assertEquals('message', message.name)
+        self.assertEquals(self.roomJID.full(), message.getAttribute('to'))
+        self.assertEquals(muc.NS_MUC_USER, message.x.uri)
+        self.assertEquals(muc.NS_MUC_USER, message.x.invite.uri)
+        self.assertEquals(invitee.full(), message.x.invite.getAttribute('to'))
+        self.assertEquals(muc.NS_MUC_USER, message.x.invite.reason.uri)
+        self.assertEquals(u'This is a test', unicode(message.x.invite.reason))
 
 
-    def test_privateMessage(self):
+    def test_groupChat(self):
         """
         Send private messages to muc entities.
         """
-        other_nick = JID(self.room_jid.userhost()+'/OtherNick')
+        self.protocol.groupChat(self.roomJID, u'This is a test')
 
-        self.protocol.chat(other_nick, 'This is a test')
+        message = self.stub.output[-1]
 
-        msg = self.stub.output[-1]
+        self.assertEquals('message', message.name)
+        self.assertEquals(self.roomJID.full(), message.getAttribute('to'))
+        self.assertEquals('groupchat', message.getAttribute('type'))
+        self.assertEquals(u'This is a test', unicode(message.body))
 
-        query = "/message[@type='chat' and @to='%s']/body" % other_nick.full()
-        self.assertTrue(xpath.matches(query, msg), 'Wrong message type')
+
+    def test_chat(self):
+        """
+        Send private messages to muc entities.
+        """
+        otherOccupantJID = JID(self.occupantJID.userhost()+'/OtherNick')
+
+        self.protocol.chat(otherOccupantJID, u'This is a test')
+
+        message = self.stub.output[-1]
+
+        self.assertEquals('message', message.name)
+        self.assertEquals(otherOccupantJID.full(), message.getAttribute('to'))
+        self.assertEquals('chat', message.getAttribute('type'))
+        self.assertEquals(u'This is a test', unicode(message.body))
 
 
     def test_register(self):
@@ -453,11 +465,13 @@ class MucClientTest(unittest.TestCase):
         http://xmpp.org/extensions/xep-0045.html#register
         """
 
+        # FIXME: this doesn't really test the registration
+
         def cb(iq):
             # check for a result
             self.assertEquals('result', iq['type'], 'We did not get a result')
 
-        d = self.protocol.register(self.room_jid)
+        d = self.protocol.register(self.roomJID)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
@@ -473,7 +487,7 @@ class MucClientTest(unittest.TestCase):
         """
         Client requesting voice for a room.
         """
-        self.protocol.voice(self.room_jid)
+        self.protocol.voice(self.occupantJID)
 
         m = self.stub.output[-1]
 
@@ -495,9 +509,9 @@ class MucClientTest(unittest.TestCase):
 
         fields.append(data_form.Field(label='Natural-Language Room Name',
                                       var='muc#roomconfig_roomname',
-                                      value=self.test_room))
+                                      value=self.roomIdentifier))
 
-        d = self.protocol.configure(self.room_jid.userhost(), fields)
+        d = self.protocol.configure(self.roomJID, fields)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
@@ -509,7 +523,7 @@ class MucClientTest(unittest.TestCase):
         return d
 
 
-    def test_roomDestroy(self):
+    def test_destroy(self):
         """
         Destroy a room.
         """
@@ -517,7 +531,7 @@ class MucClientTest(unittest.TestCase):
         def cb(destroyed):
             self.assertTrue(destroyed, 'Room not destroyed.')
 
-        d = self.protocol.destroy(self.room_jid)
+        d = self.protocol.destroy(self.occupantJID)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
@@ -529,6 +543,20 @@ class MucClientTest(unittest.TestCase):
         return d
 
 
+    def test_subject(self):
+        """
+        Change subject of the room.
+        """
+        self.protocol.subject(self.roomJID, u'This is a test')
+
+        message = self.stub.output[-1]
+
+        self.assertEquals('message', message.name)
+        self.assertEquals(self.roomJID.full(), message.getAttribute('to'))
+        self.assertEquals('groupchat', message.getAttribute('type'))
+        self.assertEquals(u'This is a test', unicode(message.subject))
+
+
     def test_nickChange(self):
         """
         Send a nick change to the server.
@@ -538,10 +566,10 @@ class MucClientTest(unittest.TestCase):
         self._createRoom()
 
         def cb(room):
-            self.assertEquals(self.test_room, room.roomIdentifier)
+            self.assertEquals(self.roomIdentifier, room.roomIdentifier)
             self.assertEquals(test_nick, room.nick)
 
-        d = self.protocol.nick(self.room_jid, test_nick)
+        d = self.protocol.nick(self.occupantJID, test_nick)
         d.addCallback(cb)
 
         prs = self.stub.output[-1]
@@ -555,7 +583,7 @@ class MucClientTest(unittest.TestCase):
                 <item affiliation='member' role='participant'/>
               </x>
             </presence>
-        """ % (self.test_room, self.test_srv, test_nick)
+        """ % (self.roomIdentifier, self.service, test_nick)
         self.stub.send(parseXml(xml))
         return d
 
@@ -569,13 +597,13 @@ class MucClientTest(unittest.TestCase):
         def cb(give_voice):
             self.assertTrue(give_voice, 'Did not give voice user')
 
-        d = self.protocol.grantVoice(self.room_jid, nick, sender=self.user_jid)
+        d = self.protocol.grantVoice(self.occupantJID, nick, sender=self.userJID)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
 
-        query = ("/iq[@type='set' and @to='%s']/query/item"
-                     "[@role='participant']") % self.room_jid.userhost()
+        query = (u"/iq[@type='set' and @to='%s']/query/item"
+                     "[@role='participant']") % self.roomJID
         self.assertTrue(xpath.matches(query, iq), 'Wrong voice stanza')
 
         response = toResponse(iq, 'result')
@@ -588,18 +616,18 @@ class MucClientTest(unittest.TestCase):
         Change status
         """
         self._createRoom()
-        room = self.protocol._getRoom(self.room_jid)
-        user = muc.User(self.room_jid.resource)
+        room = self.protocol._getRoom(self.occupantJID)
+        user = muc.User(self.nick)
         room.addUser(user)
 
         def cb(room):
-            self.assertEquals(self.test_room, room.roomIdentifier)
-            user = room.getUser(self.room_jid.resource)
+            self.assertEquals(self.roomIdentifier, room.roomIdentifier)
+            user = room.getUser(self.nick)
             self.assertNotIdentical(None, user, 'User not found')
             self.assertEquals('testing MUC', user.status, 'Wrong status')
             self.assertEquals('xa', user.show, 'Wrong show')
 
-        d = self.protocol.status(self.room_jid, 'xa', 'testing MUC')
+        d = self.protocol.status(self.occupantJID, 'xa', 'testing MUC')
         d.addCallback(cb)
 
         prs = self.stub.output[-1]
@@ -608,7 +636,7 @@ class MucClientTest(unittest.TestCase):
         self.assertTrue(getattr(prs, 'x', None), 'No muc x element')
 
         # send back user presence, status changed
-        xml = """
+        xml = u"""
             <presence from='%s'>
               <x xmlns='http://jabber.org/protocol/muc#user'>
                 <item affiliation='member' role='participant'/>
@@ -616,7 +644,7 @@ class MucClientTest(unittest.TestCase):
               <show>xa</show>
               <status>testing MUC</status>
             </presence>
-        """ % self.room_jid.full()
+        """ % self.occupantJID
         self.stub.send(parseXml(xml))
         return d
 
@@ -631,8 +659,7 @@ class MucClientTest(unittest.TestCase):
             self.assertEquals(u'participant', user.role)
 
         self._createRoom()
-        bareRoomJID = self.room_jid.userhostJID()
-        d = self.protocol.getMemberList(bareRoomJID)
+        d = self.protocol.getMemberList(self.roomJID)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
@@ -650,5 +677,3 @@ class MucClientTest(unittest.TestCase):
         self.stub.send(response)
 
         return d
-
-
