@@ -9,12 +9,11 @@ XMPP Multi-User Chat protocol.
 This protocol is specified in
 U{XEP-0045<http://www.xmpp.org/extensions/xep-0045.html>}.
 """
-import datetime
 from dateutil.tz import tzutc
 
 from zope.interface import implements
 
-from twisted.internet import defer, reactor
+from twisted.internet import defer
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
@@ -38,8 +37,7 @@ NS_REQUEST = 'jabber:iq:register'
 MESSAGE = '/message'
 PRESENCE = '/presence'
 
-GROUPCHAT = MESSAGE +'[@type="groupchat"]/body'
-SUBJECT = MESSAGE +'[@type="groupchat"]/subject'
+GROUPCHAT = MESSAGE +'[@type="groupchat"]'
 
 DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
 
@@ -262,7 +260,7 @@ class HistoryOptions(object):
 
     def toElement(self):
         """
-        Returns a L{domish.Element} representing the xml for the history options.
+        Returns a L{domish.Element} representing the history options.
         """
         element = domish.Element((NS_MUC, 'history'))
 
@@ -314,7 +312,8 @@ class Room(object):
     @ivar state: The status code of the room.
     @type state: L{int}
 
-    @ivar occupantJID: The JID of the occupant in the room. Generated from roomIdentifier, service, and nick.
+    @ivar occupantJID: The JID of the occupant in the room. Generated from
+        roomIdentifier, service, and nick.
     @type occupantJID: L{jid.JID}
     """
 
@@ -459,17 +458,24 @@ class MUCClient(xmppim.BasePresenceProtocol):
 
     timeout = None
 
-    def __init__(self):
-        XMPPHandler.__init__(self)
-
-        self._rooms = {}
-        self._deferreds = []
-
     presenceTypeParserMap = {
                 'error': generic.ErrorStanza,
                 'available': UserPresence,
                 'unavailable': UserPresence,
                 }
+
+    def __init__(self, reactor=None):
+        XMPPHandler.__init__(self)
+
+        self._rooms = {}
+        self._deferreds = []
+
+        if reactor:
+            self._reactor = reactor
+        else:
+            from twisted.internet import reactor
+            self._reactor = reactor
+
 
     def connectionInitialized(self):
         """
@@ -480,11 +486,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         signal that we have finished.
         """
         xmppim.BasePresenceProtocol.connectionInitialized(self)
-
         self.xmlstream.addObserver(GROUPCHAT, self._onGroupChat)
-        self.xmlstream.addObserver(SUBJECT, self._onSubject)
-        # TODO: add history
-
         self.initialized()
 
 
@@ -501,7 +503,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         self._rooms[roomJID] = room
 
 
-    def _getRoom(self, occupantJID):
+    def _getRoom(self, roomJID):
         """
         Grab a room from the room collection.
 
@@ -510,7 +512,6 @@ class MUCClient(xmppim.BasePresenceProtocol):
 
         @type occupantJID: L{jid.JID}
         """
-        roomJID = occupantJID.userhostJID()
         return self._rooms.get(roomJID)
 
 
@@ -549,9 +550,10 @@ class MUCClient(xmppim.BasePresenceProtocol):
         if occupantJID:
             self._userLeavesRoom(occupantJID)
 
+
     def _userLeavesRoom(self, occupantJID):
         # when a user leaves a room we need to update it
-        room = self._getRoom(occupantJID)
+        room = self._getRoom(occupantJID.userhostJID())
         if room is None:
             # not in the room yet
             return
@@ -575,7 +577,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
             return
 
         # grab room
-        room = self._getRoom(occupantJID)
+        room = self._getRoom(occupantJID.userhostJID())
         if room is None:
             # not in the room yet
             return
@@ -599,17 +601,18 @@ class MUCClient(xmppim.BasePresenceProtocol):
         """
         A group chat message has been received from a MUC room.
 
-        There are a few event methods that may get called here. receviedGroupChat and receivedHistory
+        There are a few event methods that may get called here.
+        L{receivedGroupChat}, L{receivedHistory} or L{receivedHistory}.
         """
         message = GroupChat.fromElement(element)
 
         occupantJID = message.sender
-
         if not occupantJID:
-            # need to return an error here XXX
             return
 
-        room = self._getRoom(occupantJID)
+        roomJID = occupantJID.userhostJID()
+
+        room = self._getRoom(roomJID)
         if room is None:
             # not in the room yet
             return
@@ -620,73 +623,41 @@ class MUCClient(xmppim.BasePresenceProtocol):
             # This message is from the room itself.
             user = None
 
-        if message.delay is None:
+        if message.subject:
+            self.receivedSubject(room, user, message.subject)
+        elif message.delay is None:
             self.receivedGroupChat(room, user, message)
         else:
             self.receivedHistory(room, user, message)
 
 
-    def _onSubject(self, msg):
-        """
-        A subject has been sent from a MUC room.
-        """
-        if not msg.hasAttribute('from'):
-            return
-        occupantJID = jid.internJID(msg['from'])
-
-        # grab room
-        room = self._getRoom(occupantJID)
-        if room is None:
-            # not in the room yet
-            return
-
-        self.receivedSubject(occupantJID, unicode(msg.subject))
-
-
-    def _makeTimeStamp(self, stamp=None):
-        # create a timestamp
-        if stamp is None:
-            stamp = datetime.datetime.now()
-
-        return stamp.strftime('%Y%m%dT%H:%M:%S')
-
-
-    def _joinedRoom(self, d, prs):
+    def _joinedRoom(self, presence):
         """
         We have presence that says we joined a room.
         """
-        occupantJID = jid.internJID(prs['from'])
+        roomJID = presence.sender.userhostJID()
 
-        # check for errors
-        if prs.hasAttribute('type') and prs['type'] == 'error':
-            d.errback(error.exceptionFromStanza(prs))
-        else:
-            # change the state of the room
-            room = self._getRoom(occupantJID)
-            room.state = 'joined'
+        # change the state of the room
+        room = self._getRoom(roomJID)
+        room.state = 'joined'
 
-            # grab status
-            status = getattr(prs.x, 'status', None)
-            if status:
-                room.status = status.getAttribute('code', None)
+        # grab status
+        if presence.statusCode:
+            room.status = presence.statusCode
 
-            d.callback(room)
+        return room
 
 
-    def _leftRoom(self, d, prs):
+    def _leftRoom(self, presence):
         """
         We have presence that says we left a room.
         """
-        occupantJID = jid.internJID(prs['from'])
+        occupantJID = presence.sender
 
-        # check for errors
-        if prs.hasAttribute('type') and prs['type'] == 'error':
-            d.errback(error.exceptionFromStanza(prs))
-        else:
-            # change the state of the room
-            self._removeRoom(occupantJID)
+        # change the state of the room
+        self._removeRoom(occupantJID)
 
-            d.callback(True)
+        return True
 
 
     def initialized(self):
@@ -784,31 +755,31 @@ class MUCClient(xmppim.BasePresenceProtocol):
         pass
 
 
-    def sendDeferred(self,  obj, timeout):
+    def sendDeferred(self, stanza):
         """
-        Send data or a domish element, adding a deferred with a timeout.
+        Send presence stanza, adding a deferred with a timeout.
 
-        @param obj: The object to send over the wire.
-        @type obj: L{domish.Element} or C{unicode}
+        @param stanza: The presence stanza to send over the wire.
+        @type stanza: L{generic.Stanza}
 
-        @param timeout: The number of seconds to wait before the deferred is timed out.
+        @param timeout: The number of seconds to wait before the deferred is
+            timed out.
         @type timeout: L{int}
 
         The deferred object L{defer.Deferred} is returned.
         """
         d = defer.Deferred()
-        self._deferreds.append(d)
 
+        def onResponse(element):
+            if element.getAttribute('type') == 'error':
+                d.errback(error.exceptionFromStanza(element))
+            else:
+                d.callback(UserPresence.fromElement(element))
 
         def onTimeout():
-            i = 0
-            for xd in self._deferreds:
-                if d == xd:
-                    self._deferreds.pop(i)
-                    d.errback(xmlstream.TimeoutError("Timeout waiting for response."))
-                i += 1
+            d.errback(xmlstream.TimeoutError("Timeout waiting for response."))
 
-        call = reactor.callLater(timeout, onTimeout)
+        call = self._reactor.callLater(DEFER_TIMEOUT, onTimeout)
 
         def cancelTimeout(result):
             if call.active():
@@ -818,7 +789,10 @@ class MUCClient(xmppim.BasePresenceProtocol):
 
         d.addBoth(cancelTimeout)
 
-        self.xmlstream.send(obj)
+        query = "/presence[@from='%s' or (@from='%s' and @type='error')]" % (
+                stanza.recipient.full(), stanza.recipient.userhost())
+        self.xmlstream.addOnetimeObserver(query, onResponse, priority=1)
+        self.xmlstream.send(stanza.toElement())
         return d
 
 
@@ -840,7 +814,9 @@ class MUCClient(xmppim.BasePresenceProtocol):
 
     def getConfigureForm(self, roomJID):
         """
-        Grab the configuration form from the room. This sends an iq request to the room.
+        Grab the configuration form from the room.
+
+        This sends an iq request to the room.
 
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
@@ -875,12 +851,8 @@ class MUCClient(xmppim.BasePresenceProtocol):
         if history:
             presence.history = HistoryOptions(maxstanzas=history)
 
-        d = self.sendDeferred(presence.toElement(), timeout=DEFER_TIMEOUT)
-
-        # add observer for joining the room
-        query = PRESENCE + u"[@from='%s']" % room.occupantJID
-        self.xmlstream.addOnetimeObserver(query, self._joinedRoom, 1, d)
-
+        d = self.sendDeferred(presence)
+        d.addCallback(self._joinedRoom)
         return d
 
 
@@ -902,19 +874,14 @@ class MUCClient(xmppim.BasePresenceProtocol):
         return user
 
 
-    def _changed(self, d, occupantJID, prs):
+    def _changed(self, presence, occupantJID):
         """
         Callback for changing the nick and status.
         """
+        room = self._getRoom(occupantJID.userhostJID())
+        self._changeUserStatus(room, occupantJID, presence.status, presence.show)
 
-        status = getattr(prs, 'status', None)
-        show = getattr(prs, 'show', None)
-
-        room = self._getRoom(occupantJID)
-
-        user = self._changeUserStatus(room, occupantJID, status, show)
-
-        d.callback(room)
+        return room
 
 
     def nick(self, roomJID, nick):
@@ -929,8 +896,6 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param nick: The new nick name within the room.
         @type nick: C{unicode}
         """
-
-
         room = self._getRoom(roomJID)
 
         # Change the nickname
@@ -938,63 +903,54 @@ class MUCClient(xmppim.BasePresenceProtocol):
 
         # Create presence
         presence = BasicPresence(recipient=room.occupantJID)
-        d = self.sendDeferred(presence.toElement(), timeout=DEFER_TIMEOUT)
 
-        # Add observer for joining the room
-        query = PRESENCE+"[@from='%s']" % (room.occupantJID.full())
-        self.xmlstream.addOnetimeObserver(query, self._changed, 1, d, roomJID)
-
+        d = self.sendDeferred(presence)
+        d.addCallback(self._changed, room.occupantJID)
         return d
 
 
-    def leave(self, occupantJID):
+    def leave(self, roomJID):
         """
         Leave a MUC room.
 
         See: http://xmpp.org/extensions/xep-0045.html#exit
 
-        @param occupantJID: The Room JID of the room to leave.
-        @type occupantJID: L{jid.JID}
+        @param roomJID: The Room JID of the room to leave.
+        @type roomJID: L{jid.JID}
         """
-        room = self._getRoom(occupantJID)
+        room = self._getRoom(roomJID)
 
         presence = xmppim.AvailabilityPresence(recipient=room.occupantJID,
                                                available=False)
 
-        d = self.sendDeferred(presence.toElement(), timeout=DEFER_TIMEOUT)
-        # add observer for joining the room
-        query = PRESENCE + u"[@from='%s' and @type='unavailable']" % (room.occupantJID)
-        self.xmlstream.addOnetimeObserver(query, self._leftRoom, 1, d)
-
+        d = self.sendDeferred(presence)
+        d.addCallback(self._leftRoom)
         return d
 
 
-    def status(self, occupantJID, show=None, status=None):
+    def status(self, roomJID, show=None, status=None):
         """
         Change user status.
 
         See: http://xmpp.org/extensions/xep-0045.html#changepres
 
-        @param occupantJID: The room jabber/xmpp entity id for the requested configuration form.
-        @type occupantJID: L{jid.JID}
+        @param roomJID: The Room JID of the room.
+        @type roomJID: L{jid.JID}
 
-        @param show: The availability of the entity. Common values are xa, available, etc
+        @param show: The availability of the entity. Common values are xa,
+            available, etc
         @type show: C{unicode}
 
         @param show: The current status of the entity.
         @type show: C{unicode}
         """
-        room = self._getRoom(occupantJID)
+        room = self._getRoom(roomJID)
 
         presence = BasicPresence(recipient=room.occupantJID,
                                  show=show, status=status)
 
-        d = self.sendDeferred(presence.toElement(), timeout=DEFER_TIMEOUT)
-
-        # add observer for joining the room
-        query = PRESENCE + u"[@from='%s']" % room.occupantJID
-        self.xmlstream.addOnetimeObserver(query, self._changed, 1, d, occupantJID)
-
+        d = self.sendDeferred(presence)
+        d.addCallback(self._changed, room.occupantJID)
         return d
 
 
@@ -1176,7 +1132,8 @@ class MUCClient(xmppim.BasePresenceProtocol):
         """
         Get an owner list from a room.
 
-        @param roomJID: The room jabber/xmpp entity id for the requested member list.
+        @param roomJID: The room jabber/xmpp entity id for the requested member
+            list.
         @type roomJID: L{jid.JID}
         """
         d = self._getAffiliationList(roomJID, 'owner')
@@ -1188,7 +1145,8 @@ class MUCClient(xmppim.BasePresenceProtocol):
         """
         Grab the registration form for a MUC room.
 
-        @param room: The room jabber/xmpp entity id for the requested registration form.
+        @param room: The room jabber/xmpp entity id for the requested
+            registration form.
         @type room: L{jid.JID}
         """
         iq = RegisterRequest(self.xmlstream)
