@@ -202,6 +202,37 @@ class MUCClientTest(unittest.TestCase):
         return d
 
 
+    def test_joinHistory(self):
+        """
+        Passing a history parameter sends a 'maxstanzas' history limit.
+        """
+
+        def cb(room):
+            self.assertEquals(self.roomIdentifier, room.roomIdentifier)
+
+        d = self.protocol.join(self.service, self.roomIdentifier, self.nick,
+                               history=10)
+        d.addCallback(cb)
+
+        element = self.stub.output[-1]
+        query = "/*/x[@xmlns='%s']/history[@xmlns='%s']" % (muc.NS_MUC,
+                                                            muc.NS_MUC)
+        result = xpath.queryForNodes(query, element)
+        history = result[0]
+        self.assertEquals('10', history.getAttribute('maxstanzas'))
+
+        # send back user presence, they joined
+        xml = """
+            <presence from='%s@%s/%s'>
+              <x xmlns='http://jabber.org/protocol/muc#user'>
+                <item affiliation='member' role='participant'/>
+              </x>
+            </presence>
+        """ % (self.roomIdentifier, self.service, self.nick)
+        self.stub.send(parseXml(xml))
+        return d
+
+
     def test_joinForbidden(self):
         """
         A forbidden error in response to a join errbacks with L{StanzaError}.
