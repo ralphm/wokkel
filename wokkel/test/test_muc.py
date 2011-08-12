@@ -19,7 +19,7 @@ from twisted.words.protocols.jabber.xmlstream import TimeoutError, toResponse
 
 from wokkel import data_form, iwokkel, muc
 from wokkel.generic import parseXml
-from wokkel.test.helpers import XmlStreamStub, TestableStreamManager
+from wokkel.test.helpers import TestableStreamManager
 
 
 NS_MUC_ADMIN = 'http://jabber.org/protocol/muc#admin'
@@ -589,7 +589,7 @@ class MUCClientTest(unittest.TestCase):
         self.assertTrue(xpath.matches(query, m), 'Invalid voice message stanza')
 
 
-    def test_roomConfigure(self):
+    def test_configure(self):
         """
         Default configure and changing the room name.
         """
@@ -597,22 +597,109 @@ class MUCClientTest(unittest.TestCase):
         def cb(iq):
             self.assertEquals('result', iq['type'], 'Not a result')
 
+        values = {'muc#roomconfig_roomname': self.roomIdentifier}
 
-        fields = []
-
-        fields.append(data_form.Field(label='Natural-Language Room Name',
-                                      var='muc#roomconfig_roomname',
-                                      value=self.roomIdentifier))
-
-        d = self.protocol.configure(self.roomJID, fields)
+        d = self.protocol.configure(self.roomJID, values)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
-        query = "/iq/query[@xmlns='%s']/x"% muc.NS_MUC_OWNER
-        self.assertTrue(xpath.matches(query, iq), 'Bad configure request')
+
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals(self.roomJID.full(), iq.getAttribute('to'))
+
+        query = "/iq/query[@xmlns='%s']" % (muc.NS_MUC_OWNER)
+        nodes = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, nodes, 'Bad configure request')
+
+        form = data_form.findForm(nodes[0], muc.NS_MUC_CONFIG)
+        self.assertNotIdentical(None, form, 'Missing configuration form')
+        self.assertEquals('submit', form.formType)
 
         response = toResponse(iq, 'result')
         self.stub.send(response)
+        return d
+
+
+    def test_configureCancel(self):
+        """
+        Cancelling room configuration should send a cancel form.
+        """
+
+        d = self.protocol.configure(self.roomJID, None)
+
+        iq = self.stub.output[-1]
+
+        query = "/iq/query[@xmlns='%s']" % (muc.NS_MUC_OWNER)
+        nodes = xpath.queryForNodes(query, iq)
+
+        form = data_form.findForm(nodes[0], muc.NS_MUC_CONFIG)
+        self.assertNotIdentical(None, form, 'Missing configuration form')
+        self.assertEquals('cancel', form.formType)
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_getConfiguration(self):
+        """
+        The response of a configure form request should extract the form.
+        """
+
+        def cb(form):
+            self.assertEquals('form', form.formType)
+
+        d = self.protocol.getConfiguration(self.roomJID)
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+
+        query = "/iq/query[@xmlns='%s']" % (muc.NS_MUC_OWNER)
+        nodes = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, nodes, 'Missing query element')
+
+        self.assertRaises(StopIteration, nodes[0].elements().next)
+
+        xml = u"""
+            <iq from='%s' id='%s' to='%s' type='result'>
+              <query xmlns='http://jabber.org/protocol/muc#owner'>
+                <x xmlns='jabber:x:data' type='form'>
+                  <field type='hidden'
+                         var='FORM_TYPE'>
+                    <value>http://jabber.org/protocol/muc#roomconfig</value>
+                  </field>
+                  <field label='Natural-Language Room Name'
+                         type='text-single'
+                         var='muc#roomconfig_roomname'/>
+                </x>
+              </query>
+            </iq>
+        """ % (self.roomJID, iq['id'], self.userJID)
+        self.stub.send(parseXml(xml))
+
+        return d
+
+
+    def test_getConfigurationNoOptions(self):
+        """
+        The response of a configure form request should extract the form.
+        """
+
+        def cb(form):
+            self.assertIdentical(None, form)
+
+        d = self.protocol.getConfiguration(self.roomJID)
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+
+        xml = u"""
+            <iq from='%s' id='%s' to='%s' type='result'>
+              <query xmlns='http://jabber.org/protocol/muc#owner'/>
+            </iq>
+        """ % (self.roomJID, iq['id'], self.userJID)
+        self.stub.send(parseXml(xml))
+
         return d
 
 

@@ -43,7 +43,7 @@ DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
 
 
 
-class ConfigureRequest(xmlstream.IQ):
+class ConfigureRequest(generic.Request):
     """
     Configure MUC room request.
 
@@ -53,17 +53,33 @@ class ConfigureRequest(xmlstream.IQ):
     @type method: C{str}
     """
 
-    def __init__(self, xs, method='get', fields=[]):
-        xmlstream.IQ.__init__(self, xs, method)
-        q = self.addElement((NS_MUC_OWNER, 'query'))
-        if method == 'set':
-            # build data form
-            form = data_form.Form('submit', formNamespace=NS_MUC_CONFIG)
-            q.addChild(form.toElement())
+    def __init__(self, recipient, sender=None, options=None):
+        if options is None:
+            stanzaType = 'get'
+        else:
+            stanzaType = 'set'
 
-            for f in fields:
-                # create a field
-                form.addField(f)
+        generic.Request.__init__(self, recipient, sender, stanzaType)
+        self.options = options
+
+
+    def toElement(self):
+        element = generic.Request.toElement(self)
+
+        query = element.addElement((NS_MUC_OWNER, 'query'))
+        if self.options is None:
+            # This is a request for the configuration form.
+            form = None
+        elif not self.options:
+            form = data_form.Form(formType='cancel')
+        else:
+            form = data_form.Form(formType='submit', formNamespace=NS_MUC_CONFIG)
+            form.makeFields(self.options)
+
+        if form:
+            query.addChild(form.toElement())
+
+        return element
 
 
 
@@ -825,34 +841,43 @@ class MUCClient(xmppim.BasePresenceProtocol):
         return d
 
 
-    def configure(self, roomJID, fields=[]):
+    def configure(self, roomJID, options):
         """
         Configure a room.
 
-        @param roomJID: The bare JID of the room.
+        @param roomJID: The room to configure.
         @type roomJID: L{jid.JID}
 
-        @param fields: The fields we want to modify.
-        @type fields: A L{list} or L{dataform.Field}
+        @param options: A mapping of field names to values, or C{None} to cancel.
+        @type options: C{dict}
         """
-        request = ConfigureRequest(self.xmlstream, method='set', fields=fields)
-        request['to'] = roomJID
+        if not options:
+            options = False
+        request = ConfigureRequest(recipient=roomJID, options=options)
+        return self.request(request)
 
-        return request.send()
 
-
-    def getConfigureForm(self, roomJID):
+    def getConfiguration(self, roomJID):
         """
-        Grab the configuration form from the room.
+        Grab the configuration from the room.
 
         This sends an iq request to the room.
 
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
+
+        @return: A deferred that fires with the room's configuration form as
+            a L{data_form.Form} or C{None} if there are no configuration
+            options available.
         """
-        request = ConfigureRequest(self.xmlstream)
-        request['to'] = roomJID
-        return request.send()
+        def cb(response):
+            form = data_form.findForm(response.query, NS_MUC_CONFIG)
+            return form
+
+        request = ConfigureRequest(recipient=roomJID, options=None)
+        d = self.request(request)
+        d.addCallback(cb)
+        return d
 
 
     def join(self, service, roomIdentifier, nick, history=None):

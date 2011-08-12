@@ -797,26 +797,32 @@ class IMUCClient(Interface):
         """
 
 
-    def configure(room_jid, fields=[]):
-        """Configure a room. When a user has administration privledges they can configure 
-        a room. 
+    def configure(roomJID, options):
+        """
+        Configure a room.
 
-        @param room_jid: A XMPP entity for the room.
-        @type room_jid: L{jid.JID}
+        @param roomJID: The room to configure.
+        @type roomJID: L{jid.JID}
 
-        @param fields: A list of fields to change or add to the room's configuration.
-        @type fields: C{list}
-
+        @param options: A mapping of field names to values, or C{None} to cancel.
+        @type options: C{dict}
         """
 
-    def getConfigureForm(room_jid):
-        """
-        In order to know the fields to change in a room you will need to get the form.
-        
-        @param room_jid: The room you want the configuration form from.
-        @type room_jid: L{jid.JID}
 
+    def getConfiguration(roomJID):
         """
+        Grab the configuration from the room.
+
+        This sends an iq request to the room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @return: A deferred that fires with the room's configuration form as
+            a L{data_form.Form} or C{None} if there are no configuration
+            options available.
+        """
+
 
     def join(server, room, nick):
         """
