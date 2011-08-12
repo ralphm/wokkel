@@ -1402,7 +1402,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
 
     def grantModerator(self, roomJID, nick, reason=None, sender=None):
         """
-        Grant moderator priviledges to a MUC room.
+        Grant moderator privileges to a MUC room.
 
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
@@ -1427,7 +1427,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
 
-        @param entity: The room jabber/xmpp entity id.
+        @param entity: The bare JID of the entity to be banned.
         @type entity: L{jid.JID}
 
         @param reason: The reason for banning the entity.

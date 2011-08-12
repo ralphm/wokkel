@@ -824,82 +824,182 @@ class IMUCClient(Interface):
         """
 
 
-    def join(server, room, nick):
+    def join(service, roomIdentifier, nick, history=None):
         """
-        Join a multi-user chat room. 
+        Join a MUC room by sending presence to it.
 
-        @param server: The server the room is on.
-        @type server: C{str}
+        @param server: The server where the room is located.
+        @type server: C{unicode}
 
-        @param room: The room name.
-        @type room: C{str}
-        
-        @param nick: The nick name you want when you join the room.
-        @type nick: C{str}
+        @param room: The room name the entity is joining.
+        @type room: C{unicode}
 
+        @param nick: The nick name for the entitity joining the room.
+        @type nick: C{unicode}
+
+        @param history: The maximum number of history stanzas you would like.
+
+        @return: A deferred that fires when the entity is in the room or an
+                 error has occurred.
         """
 
 
-    def leave(room_jid):
+    def nick(roomJID, nick):
         """
-        Leave a multi-user chat room.
+        Change an entity's nick name in a MUC room.
 
-        @param room_jid: The room you want the configuration form from.
-        @type room_jid: L{jid.JID}
+        See: http://xmpp.org/extensions/xep-0045.html#changenick
 
+        @param roomJID: The JID of the room, i.e. without a resource.
+        @type roomJID: L{jid.JID}
+
+        @param nick: The new nick name within the room.
+        @type nick: C{unicode}
         """
+
+
+    def leave(roomJID):
+        """
+        Leave a MUC room.
+
+        See: http://xmpp.org/extensions/xep-0045.html#exit
+
+        @param roomJID: The Room JID of the room to leave.
+        @type roomJID: L{jid.JID}
+        """
+
 
     def userJoinedRoom(room, user):
-        """User has joined the room.
+        """
+        User has joined a MUC room.
+
+        This method will need to be modified inorder for clients to
+        do something when this event occurs.
 
         @param room: The room the user joined.
         @type  room: L{muc.Room}
 
         @param user: The user that joined the room.
         @type  user: L{muc.User}
-
-        """
-   
-
-    def groupChat(to, message, children=None):
-        """Send a groupchat message to a room.
-
         """
 
 
-    def chat(to, message, children=None):
+    def groupChat(roomJID, body, children=None):
         """
-
-        """
-
-
-    def password(to, password):
-        """
-        """
-    
-    def register(to, fields=[]):
-        """
+        Send a groupchat message.
         """
 
 
-    def subject(to, subject):
+    def chat(occupantJID, body, children=None):
         """
-        """
+        Send a private chat message to a user in a MUC room.
 
-    def voice(to):
-        """
-        """
+        See: http://xmpp.org/extensions/xep-0045.html#privatemessage
 
-
-    def history(to, message_list):
-        """
-        """
-
-    def ban(to, ban_jid, frm, reason=None):
-        """
+        @param occupantJID: The Room JID of the other user.
+        @type occupantJID: L{jid.JID}
         """
 
 
-    def kick(to, kick_jid, frm, reason=None):
+    def password(roomJID, password):
         """
+        Send a password to a room so the entity can join.
+
+        See: http://xmpp.org/extensions/xep-0045.html#enter-pw
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param password: The MUC room password.
+        @type password: C{unicode}
+        """
+
+
+    def register(roomJID, fields=[]):
+        """
+        Send a request to register for a room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param fields: The fields you need to register.
+        @type fields: L{list} of L{dataform.Field}
+        """
+
+
+
+    def subject(roomJID, subject):
+        """
+        Change the subject of a MUC room.
+
+        See: http://xmpp.org/extensions/xep-0045.html#subject-mod
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param subject: The subject you want to set.
+        @type subject: C{unicode}
+        """
+
+
+    def voice(roomJID):
+        """
+        Request voice for a moderated room.
+
+        @param roomJID: The room jabber/xmpp entity id.
+        @type roomJID: L{jid.JID}
+        """
+
+
+    def history(roomJID, messages):
+        """
+        Send history to create a MUC based on a one on one chat.
+
+        See: http://xmpp.org/extensions/xep-0045.html#continue
+
+        @param roomJID: The room jabber/xmpp entity id.
+        @type roomJID: L{jid.JID}
+
+        @param messages: The history to send to the room as an ordered list of
+                         message, represented by a dictionary with the keys
+                         C{'stanza'}, holding the original stanza a
+                         L{domish.Element}, and C{'timestamp'} with the
+                         timestamp.
+        @type messages: L{list} of L{domish.Element}
+        """
+
+
+    def ban(roomJID, entity, reason=None, sender=None):
+        """
+        Ban a user from a MUC room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param entity: The bare JID of the entity to be banned.
+        @type entity: L{jid.JID}
+
+        @param reason: The reason for banning the entity.
+        @type reason: C{unicode}
+
+        @param sender: The entity sending the request.
+        @type sender: L{jid.JID}
+        """
+
+
+    def kick(roomJID, entityOrNick, reason=None, sender=None):
+        """
+        Kick a user from a MUC room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param entityOrNick: The occupant to be banned.
+        @type entityOrNick: L{jid.JID} or C{unicode}
+
+        @param reason: The reason given for the kick.
+        @type reason: C{unicode}
+
+        @param sender: The entity sending the request.
+        @type sender: L{jid.JID}
         """
