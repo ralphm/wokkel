@@ -5,11 +5,12 @@
 Unit test helpers.
 """
 
-from twisted.internet import defer
+from twisted.internet import defer, task
 from twisted.words.xish import xpath
 from twisted.words.xish.utility import EventDispatcher
 
 from wokkel.generic import parseXml
+from wokkel.subprotocols import StreamManager
 
 class XmlStreamStub(object):
     """
@@ -92,3 +93,20 @@ class TestableRequestHandlerMixin(object):
             d = defer.fail(NotImplementedError())
 
         return d
+
+
+class TestableStreamManager(StreamManager):
+    """
+    Stream manager for testing subprotocol handlers.
+    """
+
+    def __init__(self, reactor=None):
+        class DummyFactory(object):
+            def addBootstrap(self, event, fn):
+                pass
+
+        factory = DummyFactory()
+        StreamManager.__init__(self, factory, reactor)
+        self.stub = XmlStreamStub()
+        self._connected(self.stub.xmlstream)
+        self._authd(self.stub.xmlstream)

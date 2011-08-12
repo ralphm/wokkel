@@ -19,7 +19,7 @@ from twisted.words.protocols.jabber.xmlstream import TimeoutError, toResponse
 
 from wokkel import data_form, iwokkel, muc
 from wokkel.generic import parseXml
-from wokkel.test.helpers import XmlStreamStub
+from wokkel.test.helpers import XmlStreamStub, TestableStreamManager
 
 
 NS_MUC_ADMIN = 'http://jabber.org/protocol/muc#admin'
@@ -46,11 +46,12 @@ class MUCClientTest(unittest.TestCase):
     timeout = 2
 
     def setUp(self):
-        self.stub = XmlStreamStub()
         self.clock = task.Clock()
+        self.sessionManager = TestableStreamManager(reactor=self.clock)
+        self.stub = self.sessionManager.stub
         self.protocol = muc.MUCClient(reactor=self.clock)
-        self.protocol.xmlstream = self.stub.xmlstream
-        self.protocol.connectionInitialized()
+        self.protocol.setHandlerParent(self.sessionManager)
+
         self.roomIdentifier = 'test'
         self.service  = 'conference.example.org'
         self.nick = 'Nick'
@@ -619,16 +620,19 @@ class MUCClientTest(unittest.TestCase):
         """
         Destroy a room.
         """
-
-        def cb(destroyed):
-            self.assertTrue(destroyed, 'Room not destroyed.')
-
-        d = self.protocol.destroy(self.occupantJID)
-        d.addCallback(cb)
+        d = self.protocol.destroy(self.occupantJID, reason='Time to leave',
+                                  alternate=JID('other@%s' % self.service),
+                                  password='secret')
 
         iq = self.stub.output[-1]
-        query = "/iq/query[@xmlns='%s']/destroy"% muc.NS_MUC_OWNER
-        self.assertTrue(xpath.matches(query, iq), 'Bad configure request')
+
+        query = ("/iq/query[@xmlns='%s']/destroy[@xmlns='%s']" %
+                 (muc.NS_MUC_OWNER, muc.NS_MUC_OWNER))
+
+        nodes = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, nodes, 'Bad configure request')
+        destroy = nodes[0]
+        self.assertEquals('Time to leave', unicode(destroy.reason))
 
         response = toResponse(iq, 'result')
         self.stub.send(response)

@@ -104,17 +104,46 @@ class AdminRequest(xmlstream.IQ):
 
 
 
-class OwnerRequest(xmlstream.IQ):
+class DestructionRequest(generic.Request):
     """
-    A basic owner iq request.
+    Room destruction request.
 
-    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
-    @type method: C{str}
+    @param reason: Optional reason for the destruction of this room.
+    @type reason: C{unicode}.
+
+    @param alternate: Optional room JID of an alternate venue.
+    @type alternate: L{jid.JID}
+
+    @param password: Optional password for entering the alternate venue.
+    @type password: C{unicode}
     """
 
-    def __init__(self, xs, method='get'):
-        xmlstream.IQ.__init__(self, xs, method)
-        q = self.addElement((NS_MUC_OWNER, 'query'))
+    stanzaType = 'set'
+
+    def __init__(self, recipient, sender=None, reason=None, alternate=None,
+                       password=None):
+        generic.Request.__init__(self, recipient, sender)
+        self.reason = reason
+        self.alternate = alternate
+        self.password = password
+
+
+    def toElement(self):
+        element = generic.Request.toElement(self)
+        element.addElement((NS_MUC_OWNER, 'query'))
+        element.query.addElement('destroy')
+
+        if self.alternate:
+            element.query.destroy['jid'] = self.alternate.full()
+
+            if self.password:
+                element.query.destroy.addElement('password',
+                                                 content=self.password)
+
+        if self.reason:
+            element.query.destroy.addElement('reason', content=self.reason)
+
+        return element
 
 
 
@@ -1154,35 +1183,29 @@ class MUCClient(xmppim.BasePresenceProtocol):
         return iq.send()
 
 
-    def destroy(self, roomJID, reason=None, alternate=None):
+    def destroy(self, roomJID, reason=None, alternate=None, password=None):
         """
         Destroy a room.
 
-        @param roomJID: The bare JID of the room.
+        @param roomJID: The JID of the room.
         @type roomJID: L{jid.JID}
 
-        @param reason: The reason we are destroying the room.
+        @param reason: The reason for the destruction of the room.
         @type reason: C{unicode}
 
-        @param alternate: The bare JID of the room suggested as an alternate
-                          venue.
+        @param alternate: The JID of the room suggested as an alternate venue.
         @type alternate: L{jid.JID}
 
         """
         def destroyed(iq):
             self._removeRoom(roomJID)
-            return True
 
-        iq = OwnerRequest(self.xmlstream, method='set')
-        iq['to'] = roomJID.userhost()
-        d = iq.query.addElement('destroy')
+        request = DestructionRequest(recipient=roomJID, reason=reason,
+                                     alternate=alternate, password=password)
 
-        if alternate is not None:
-            d['jid'] = alternate.userhost()
-        if reason is not None:
-            d.addElement('reason', None, reason)
-
-        return iq.send().addCallback(destroyed)
+        d = self.request(request)
+        d.addCallback(destroyed)
+        return d
 
 
     def subject(self, roomJID, subject):
