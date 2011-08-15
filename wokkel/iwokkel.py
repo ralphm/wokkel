@@ -915,17 +915,17 @@ class IMUCClient(Interface):
         """
 
 
-    def register(roomJID, fields=[]):
+    def register(roomJID, options):
         """
         Send a request to register for a room.
 
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
 
-        @param fields: The fields you need to register.
-        @type fields: L{list} of L{dataform.Field}
+        @param options: A mapping of field names to values, or C{None} to
+            cancel.
+        @type options: C{dict}
         """
-
 
 
     def subject(roomJID, subject):

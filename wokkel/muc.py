@@ -32,7 +32,7 @@ NS_MUC_CONFIG = NS_MUC + '#roomconfig'
 NS_MUC_REQUEST = NS_MUC + '#request'
 NS_MUC_REGISTER = NS_MUC + '#register'
 
-NS_REQUEST = 'jabber:iq:register'
+NS_REGISTER = 'jabber:iq:register'
 
 MESSAGE = '/message'
 PRESENCE = '/presence'
@@ -43,15 +43,12 @@ DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
 
 
 
-class ConfigureRequest(generic.Request):
+class _FormRequest(generic.Request):
     """
-    Configure MUC room request.
-
-    http://xmpp.org/extensions/xep-0045.html#roomconfig
-
-    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
-    @type method: C{str}
+    Base class for form exchange requests.
     """
+    requestNamespace = None
+    formNamespace = None
 
     def __init__(self, recipient, sender=None, options=None):
         if options is None:
@@ -66,14 +63,15 @@ class ConfigureRequest(generic.Request):
     def toElement(self):
         element = generic.Request.toElement(self)
 
-        query = element.addElement((NS_MUC_OWNER, 'query'))
+        query = element.addElement((self.requestNamespace, 'query'))
         if self.options is None:
             # This is a request for the configuration form.
             form = None
         elif not self.options:
             form = data_form.Form(formType='cancel')
         else:
-            form = data_form.Form(formType='submit', formNamespace=NS_MUC_CONFIG)
+            form = data_form.Form(formType='submit',
+                                  formNamespace=self.formNamespace)
             form.makeFields(self.options)
 
         if form:
@@ -83,26 +81,27 @@ class ConfigureRequest(generic.Request):
 
 
 
-class RegisterRequest(xmlstream.IQ):
+class ConfigureRequest(_FormRequest):
     """
-    Register room request.
+    Configure MUC room request.
 
-    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
-    @type method: C{str}
+    http://xmpp.org/extensions/xep-0045.html#roomconfig
     """
 
-    def __init__(self, xs, method='get', fields=[]):
-        xmlstream.IQ.__init__(self, xs, method)
-        q = self.addElement((NS_REQUEST, 'query'))
-        if method == 'set':
-            # build data form
-            form_type = 'submit'
-            form = data_form.Form(form_type, formNamespace=NS_MUC_REGISTER)
-            q.addChild(form.toElement())
+    requestNamespace = NS_MUC_OWNER
+    formNamespace = NS_MUC_CONFIG
 
-            for f in fields:
-                # create a field
-                form.addField(f)
+
+
+class RegisterRequest(_FormRequest):
+    """
+    Register request.
+
+    http://xmpp.org/extensions/xep-0045.html#register
+    """
+
+    requestNamespace = NS_REGISTER
+    formNamespace = NS_MUC_REGISTER
 
 
 
@@ -1086,19 +1085,19 @@ class MUCClient(xmppim.BasePresenceProtocol):
         self.xmlstream.send(presence.toElement())
 
 
-    def register(self, roomJID, fields=[]):
+    def register(self, roomJID, options):
         """
         Send a request to register for a room.
 
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
 
-        @param fields: The fields you need to register.
-        @type fields: L{list} of L{dataform.Field}
+        @param options: A mapping of field names to values, or C{None} to
+            cancel.
+        @type options: C{dict}
         """
-        iq = RegisterRequest(self.xmlstream, method='set', fields=fields)
-        iq['to'] = roomJID.userhost()
-        return iq.send()
+        request = RegisterRequest(recipient=roomJID, options=options)
+        return self.request(request)
 
 
     def _getAffiliationList(self, roomJID, affiliation):

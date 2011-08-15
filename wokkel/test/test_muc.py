@@ -558,18 +558,25 @@ class MUCClientTest(unittest.TestCase):
         http://xmpp.org/extensions/xep-0045.html#register
         """
 
-        # FIXME: this doesn't really test the registration
-
         def cb(iq):
             # check for a result
             self.assertEquals('result', iq['type'], 'We did not get a result')
 
-        d = self.protocol.register(self.roomJID)
+        d = self.protocol.register(self.roomJID,
+                                   {'muc#register_roomnick': 'thirdwitch'})
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
-        query = "/iq/query[@xmlns='%s']" % muc.NS_REQUEST
-        self.assertTrue(xpath.matches(query, iq), 'Invalid iq register request')
+
+        query = "/iq/query[@xmlns='%s']" % muc.NS_REGISTER
+        nodes = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, nodes, 'Invalid registration request')
+
+        form = data_form.findForm(nodes[0], muc.NS_MUC_REGISTER)
+        self.assertNotIdentical(None, form, 'Missing registration form')
+        self.assertEquals('submit', form.formType)
+        self.assertIn('muc#register_roomnick', form.fields)
+
 
         response = toResponse(iq, 'result')
         self.stub.send(response)
