@@ -106,17 +106,81 @@ class RegisterRequest(xmlstream.IQ):
 
 
 
-class AdminRequest(xmlstream.IQ):
+class AdminItem(object):
     """
-    A basic admin iq request.
-
-    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
-    @type method: C{str}
+    Item representing role and/or affiliation for admin request.
     """
 
-    def __init__(self, xs, method='get'):
-        xmlstream.IQ.__init__(self, xs, method)
-        q = self.addElement((NS_MUC_ADMIN, 'query'))
+    def __init__(self, affiliation=None, role=None, entity=None, nick=None,
+                       reason=None):
+        self.affiliation = affiliation
+        self.role = role
+        self.entity = entity
+        self.nick = nick
+        self.reason = reason
+
+
+    def toElement(self):
+        element = domish.Element((NS_MUC_ADMIN, 'item'))
+
+        if self.entity:
+            element['jid'] = self.entity.full()
+
+        if self.nick:
+            element['nick'] = self.nick
+
+        if self.affiliation:
+            element['affiliation'] = self.affiliation
+
+        if self.role:
+            element['role'] = self.role
+
+        if self.reason:
+            element.addElement('reason', content=self.reason)
+
+        return element
+
+
+    @classmethod
+    def fromElement(Class, element):
+        item = Class()
+
+        if element.hasAttribute('jid'):
+            item.entity = jid.JID(element['jid'])
+
+        item.nick = element.getAttribute('nick')
+        item.affiliation = element.getAttribute('affiliation')
+        item.role = element.getAttribute('role')
+
+        for child in element.elements(NS_MUC_ADMIN, 'reason'):
+            item.reason = unicode(child)
+
+        return item
+
+
+
+class AdminStanza(generic.Request):
+    """
+    An admin request or response.
+    """
+
+    childParsers = {(NS_MUC_ADMIN, 'query'): '_childParser_query'}
+
+    def toElement(self):
+        element = generic.Request.toElement(self)
+        element.addElement((NS_MUC_ADMIN, 'query'))
+
+        if self.items:
+            for item in self.items:
+                element.query.addChild(item.toElement())
+
+        return element
+
+
+    def _childParser_query(self, element):
+        self.items = []
+        for child in element.elements(NS_MUC_ADMIN, 'item'):
+            self.items.append(AdminItem.fromElement(child))
 
 
 
@@ -160,63 +224,6 @@ class DestructionRequest(generic.Request):
             element.query.destroy.addElement('reason', content=self.reason)
 
         return element
-
-
-
-class AffiliationRequest(AdminRequest):
-    """
-    Register room request.
-
-    @ivar method: Type attribute of the IQ request. Either C{'set'} or C{'get'}
-    @type method: C{str}
-
-    @ivar affiliation: The affiliation type to send to room.
-    @type affiliation: C{str}
-    """
-
-    def __init__(self, xs, method='get', affiliation='none',
-                       entityOrNick=None, reason=None):
-        AdminRequest.__init__(self, xs, method)
-
-        self.affiliation = affiliation
-        self.reason = reason
-        if entityOrNick:
-            self.items([entityOrNick])
-
-    def items(self, entities=None):
-        """
-        Set or Get the items list for this affiliation request.
-        """
-        if entities:
-            for entityOrNick in entities:
-                item = self.query.addElement('item')
-                item['affiliation'] = self.affiliation
-                try:
-                    item['jid'] = entityOrNick.full()
-                except AttributeError:
-                    item['nick'] = entityOrNick
-
-                if self.reason:
-                    item.addElement('reason', content=self.reason)
-
-        return self.query.elements()
-
-
-
-class RoleRequest(AdminRequest):
-    def __init__(self, xs, method='get', role='none',
-                       entityOrNick=None, reason=None):
-        AdminRequest.__init__(self, xs, method)
-
-        item = self.query.addElement('item')
-        item['role'] = role
-        try:
-            item['jid'] = entityOrNick.full()
-        except AttributeError:
-            item['nick'] = entityOrNick
-
-        if reason:
-            item.addElement('reason', content=self.reason)
 
 
 
@@ -1098,52 +1105,30 @@ class MUCClient(xmppim.BasePresenceProtocol):
         """
         Send a request for an affiliation list in a room.
         """
-        iq = AffiliationRequest(self.xmlstream,
-                                method='get',
-                                affiliation=affiliation,
-                                )
-        iq['to'] = roomJID.userhost()
-        return iq.send()
+        def cb(response):
+            stanza = AdminStanza.fromElement(response)
+            return stanza.items
+
+        request = AdminStanza(recipient=roomJID, stanzaType='get')
+        request.items = [AdminItem(affiliation=affiliation)]
+        d = self.request(request)
+        d.addCallback(cb)
+        return d
 
 
     def _getRoleList(self, roomJID, role):
         """
-        Send a role request.
+        Send a request for a role list in a room.
         """
-        iq = RoleRequest(self.xmlstream,
-                         method='get',
-                         role=role,
-                         )
-        iq['to'] = roomJID.full()
-        return iq.send()
+        def cb(response):
+            stanza = AdminStanza.fromElement(response)
+            return stanza.items
 
-
-    def _setAffiliationList(self, iq, affiliation, occupantJID):
-        # set a rooms affiliation list
-        room = self._getRoom(occupantJID)
-        if room is not None:
-            affiliation_list = []
-            setattr(room, affiliation, [])
-
-            for item in iq.query.elements():
-                nick = item.getAttribute('nick', None)
-                entity = item.getAttribute('jid', None)
-                role = item.getAttribute('role', None)
-                user = None
-                if nick is None and entity is None:
-                    raise Exception, 'bad attributes in item list'
-                if nick is not None:
-                    user = room.getUser(nick)
-                if user is None:
-                    user = User(nick, entity=jid.internJID(entity))
-                    user.affiliation = 'member'
-                if role is not None:
-                    user.role = role
-
-                affiliation_list.append(user)
-
-            setattr(room, affiliation, affiliation_list)
-        return room
+        request = AdminStanza(recipient=roomJID, stanzaType='get')
+        request.items = [AdminItem(role=role)]
+        d = self.request(request)
+        d.addCallback(cb)
+        return d
 
 
     def getMemberList(self, roomJID):
@@ -1153,9 +1138,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
         """
-        d = self._getAffiliationList(roomJID, 'member')
-        d.addCallback(self._setAffiliationList, 'members', roomJID)
-        return d
+        return self._getAffiliationList(roomJID, 'member')
 
 
     def getAdminList(self, roomJID):
@@ -1165,9 +1148,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
         """
-        d = self._getAffiliationList(roomJID, 'admin')
-        d.addCallback(self._setAffiliationList, 'admin', roomJID)
-        return d
+        return self._getAffiliationList(roomJID, 'admin')
 
 
     def getBanList(self, roomJID):
@@ -1177,21 +1158,27 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
         """
-        d = self._getAffiliationList(roomJID, 'outcast')
-        d.addCallback(self._setAffiliationList, 'outcast', roomJID)
-        return d
+        return self._getAffiliationList(roomJID, 'outcast')
 
 
     def getOwnerList(self, roomJID):
         """
         Get an owner list from a room.
 
-        @param roomJID: The room jabber/xmpp entity id for the requested member
-            list.
+        @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
         """
-        d = self._getAffiliationList(roomJID, 'owner')
-        d.addCallback(self._setAffiliationList, 'owner', roomJID)
+        return self._getAffiliationList(roomJID, 'owner')
+
+
+    def getModeratorList(self, roomJID):
+        """
+        Get the moderator list of a room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+        """
+        d = self._getRoleList(roomJID, 'moderator')
         return d
 
 
@@ -1296,65 +1283,54 @@ class MUCClient(xmppim.BasePresenceProtocol):
             self.xmlstream.send(stanza)
 
 
-    def _setAffiliation(self, roomJID, entityOrNick, affiliation,
+    def _setAffiliation(self, roomJID, entity, affiliation,
                               reason=None, sender=None):
         """
         Send a request to change an entity's affiliation to a MUC room.
         """
-        iq = AffiliationRequest(self.xmlstream,
-                                method='set',
-                                entityOrNick=entityOrNick,
-                                affiliation=affiliation,
-                                reason=reason)
-        iq['to'] = roomJID.userhost()
-        if sender is not None:
-            iq['from'] = unicode(sender)
-
-        return iq.send()
+        request = AdminStanza(recipient=roomJID, sender=sender,
+                               stanzaType='set')
+        item = AdminItem(entity=entity, affiliation=affiliation, reason=reason)
+        request.items = [item]
+        return self.request(request)
 
 
-    def _setRole(self, roomJID, entityOrNick, role,
+    def _setRole(self, roomJID, nick, role,
                        reason=None, sender=None):
-        # send a role request
-        iq = RoleRequest(self.xmlstream,
-                         method='set',
-                         role=role,
-                         entityOrNick=entityOrNick,
-                         reason=reason)
-
-        iq['to'] = roomJID.userhost()
-        if sender is not None:
-            iq['from'] = unicode(sender)
-        return iq.send()
+        """
+        Send a request to change an occupant's role in a MUC room.
+        """
+        request = AdminStanza(recipient=roomJID, sender=sender,
+                               stanzaType='set')
+        item = AdminItem(nick=nick, role=role, reason=reason)
+        request.items = [item]
+        return self.request(request)
 
 
-    def modifyAffiliationList(self, frm, roomJID, jid_list, affiliation):
+    def modifyAffiliationList(self, roomJID, entities, affiliation,
+                                    sender=None):
         """
         Modify an affiliation list.
-
-        @param frm: The entity sending the request.
-        @type frm: L{jid.JID}
 
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
 
-        @param entities: The list of entities to change in a room. This can be
-            a nick or a full jid.
-        @type jid_list: L{list} of C{unicode} for nicks. L{list} of L{jid.JID}
-            for jids.
+        @param entities: The list of entities to change for a room.
+        @type entities: L{list} of L{jid.JID}
 
-        @param affiliation: The affilation to change.
+        @param affiliation: The affilation to the entities will acquire.
         @type affiliation: C{unicode}
 
+        @param sender: The entity sending the request.
+        @type sender: L{jid.JID}
+
         """
-        iq = AffiliationRequest(self.xmlstream,
-                                method='set',
-                                affiliation=affiliation,
-                                )
-        iq.items(jid_list)
-        iq['to'] = roomJID.userhost()
-        iq['from'] = frm.full()
-        return iq.send()
+        request = AdminStanza(recipient=roomJID, sender=sender,
+                               stanzaType='set')
+        request.items = [AdminItem(entity=entity, affiliation=affiliation)
+                         for entity in entities]
+
+        return self.request(request)
 
 
     def grantVoice(self, roomJID, nick, reason=None, sender=None):
@@ -1373,7 +1349,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param sender: The entity sending the request.
         @type sender: L{jid.JID}
         """
-        return self._setRole(roomJID, entityOrNick=nick,
+        return self._setRole(roomJID, nick=nick,
                              role='participant',
                              reason=reason, sender=sender)
 
@@ -1396,7 +1372,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param sender: The entity sending the request.
         @type sender: L{jid.JID}
         """
-        return self._setRole(roomJID, entityOrNick=nick, role='visitor',
+        return self._setRole(roomJID, nick=nick, role='visitor',
                              reason=reason, sender=sender)
 
 
@@ -1416,7 +1392,7 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param sender: The entity sending the request.
         @type sender: L{jid.JID}
         """
-        return self._setRole(roomJID, entityOrNick=nick, role='moderator',
+        return self._setRole(roomJID, nick=nick, role='moderator',
                              reason=reason, sender=sender)
 
 
@@ -1440,15 +1416,15 @@ class MUCClient(xmppim.BasePresenceProtocol):
                                     reason=reason, sender=sender)
 
 
-    def kick(self, roomJID, entityOrNick, reason=None, sender=None):
+    def kick(self, roomJID, nick, reason=None, sender=None):
         """
         Kick a user from a MUC room.
 
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
 
-        @param entityOrNick: The occupant to be banned.
-        @type entityOrNick: L{jid.JID} or C{unicode}
+        @param nick: The occupant to be banned.
+        @type nick: C{unicode}
 
         @param reason: The reason given for the kick.
         @type reason: C{unicode}
@@ -1456,5 +1432,5 @@ class MUCClient(xmppim.BasePresenceProtocol):
         @param sender: The entity sending the request.
         @type sender: L{jid.JID}
         """
-        return self._setAffiliation(roomJID, entityOrNick, 'none',
-                                    reason=reason, sender=sender)
+        return self._setRole(roomJID, nick, 'none',
+                             reason=reason, sender=sender)

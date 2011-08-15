@@ -377,7 +377,7 @@ class MUCClientTest(unittest.TestCase):
         def cb(banned):
             self.assertTrue(banned, 'Did not ban user')
 
-        d = self.protocol.ban(self.occupantJID, banned, reason='Spam',
+        d = self.protocol.ban(self.roomJID, banned, reason='Spam',
                               sender=self.userJID)
         d.addCallback(cb)
 
@@ -404,7 +404,7 @@ class MUCClientTest(unittest.TestCase):
         def cb(kicked):
             self.assertTrue(kicked, 'Did not kick user')
 
-        d = self.protocol.kick(self.occupantJID, nick, reason='Spam',
+        d = self.protocol.kick(self.roomJID, nick, reason='Spam',
                                sender=self.userJID)
         d.addCallback(cb)
 
@@ -412,7 +412,7 @@ class MUCClientTest(unittest.TestCase):
 
         self.assertTrue(xpath.matches(
                 u"/iq[@type='set' and @to='%s']/query/item"
-                    "[@affiliation='none']" % (self.roomJID,),
+                    "[@role='none']" % (self.roomJID,),
                 iq),
             'Wrong kick stanza')
 
@@ -799,16 +799,38 @@ class MUCClientTest(unittest.TestCase):
         return d
 
 
+    def test_modifyAffiliationList(self):
+
+        entities = [JID('user1@test.example.org'),
+                    JID('user2@test.example.org')]
+        d = self.protocol.modifyAffiliationList(self.roomJID, entities,
+                                                'admin')
+
+        iq = self.stub.output[-1]
+        query = "/iq/query[@xmlns='%s']/item[@xmlns='%s']" % (muc.NS_MUC_ADMIN,
+                                                              muc.NS_MUC_ADMIN)
+        items = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, items)
+        self.assertEquals(entities[0], JID(items[0].getAttribute('jid')))
+        self.assertEquals('admin', items[0].getAttribute('affiliation'))
+        self.assertEquals(entities[1], JID(items[1].getAttribute('jid')))
+        self.assertEquals('admin', items[1].getAttribute('affiliation'))
+
+        # Send a response to have the deferred fire.
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
     def test_grantVoice(self):
         """
-        Test granting voice to a user.
-
+        Granting voice sends request to set role to 'participant'.
         """
         nick = 'TroubleMaker'
         def cb(give_voice):
             self.assertTrue(give_voice, 'Did not give voice user')
 
-        d = self.protocol.grantVoice(self.occupantJID, nick,
+        d = self.protocol.grantVoice(self.roomJID, nick,
                                      sender=self.userJID)
         d.addCallback(cb)
 
@@ -816,6 +838,47 @@ class MUCClientTest(unittest.TestCase):
 
         query = (u"/iq[@type='set' and @to='%s']/query/item"
                      "[@role='participant']") % self.roomJID
+        self.assertTrue(xpath.matches(query, iq), 'Wrong voice stanza')
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_revokeVoice(self):
+        """
+        Revoking voice sends request to set role to 'visitor'.
+        """
+        nick = 'TroubleMaker'
+
+        d = self.protocol.revokeVoice(self.roomJID, nick,
+                                      reason="Trouble maker",
+                                      sender=self.userJID)
+
+        iq = self.stub.output[-1]
+
+        query = (u"/iq[@type='set' and @to='%s']/query/item"
+                     "[@role='visitor']") % self.roomJID
+        self.assertTrue(xpath.matches(query, iq), 'Wrong voice stanza')
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_grantModerator(self):
+        """
+        Granting moderator privileges sends request to set role to 'moderator'.
+        """
+        nick = 'TroubleMaker'
+
+        d = self.protocol.grantModerator(self.roomJID, nick,
+                                         sender=self.userJID)
+
+        iq = self.stub.output[-1]
+
+        query = (u"/iq[@type='set' and @to='%s']/query/item"
+                     "[@role='moderator']") % self.roomJID
         self.assertTrue(xpath.matches(query, iq), 'Wrong voice stanza')
 
         response = toResponse(iq, 'result')
@@ -862,22 +925,29 @@ class MUCClientTest(unittest.TestCase):
 
 
     def test_getMemberList(self):
-        def cb(room):
-            members = room.members
-            self.assertEquals(1, len(members))
-            user = members[0]
-            self.assertEquals(JID(u'hag66@shakespeare.lit'), user.entity)
-            self.assertEquals(u'thirdwitch', user.nick)
-            self.assertEquals(u'participant', user.role)
+        """
+        Retrieving the member list returns a list of L{muc.AdminItem}s
 
-        self._createRoom()
+        The request asks for the affiliation C{'member'}.
+        """
+        def cb(items):
+            self.assertEquals(1, len(items))
+            item = items[0]
+            self.assertEquals(JID(u'hag66@shakespeare.lit'), item.entity)
+            self.assertEquals(u'thirdwitch', item.nick)
+            self.assertEquals(u'member', item.affiliation)
+
         d = self.protocol.getMemberList(self.roomJID)
         d.addCallback(cb)
 
         iq = self.stub.output[-1]
-        query = iq.query
-        self.assertNotIdentical(None, query)
-        self.assertEquals(NS_MUC_ADMIN, query.uri)
+        self.assertEquals('get', iq.getAttribute('type'))
+        query = "/iq/query[@xmlns='%s']/item[@xmlns='%s']" % (muc.NS_MUC_ADMIN,
+                                                              muc.NS_MUC_ADMIN)
+        items = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, items)
+        self.assertEquals(1, len(items))
+        self.assertEquals('member', items[0].getAttribute('affiliation'))
 
         response = toResponse(iq, 'result')
         query = response.addElement((NS_MUC_ADMIN, 'query'))
@@ -886,6 +956,119 @@ class MUCClientTest(unittest.TestCase):
         item['jid'] = 'hag66@shakespeare.lit'
         item['nick'] = 'thirdwitch'
         item['role'] = 'participant'
+        self.stub.send(response)
+
+        return d
+
+
+    def test_getAdminList(self):
+        """
+        Retrieving the admin list returns a list of L{muc.AdminItem}s
+
+        The request asks for the affiliation C{'admin'}.
+        """
+        d = self.protocol.getAdminList(self.roomJID)
+
+        iq = self.stub.output[-1]
+        query = "/iq/query[@xmlns='%s']/item[@xmlns='%s']" % (muc.NS_MUC_ADMIN,
+                                                              muc.NS_MUC_ADMIN)
+        items = xpath.queryForNodes(query, iq)
+        self.assertEquals('admin', items[0].getAttribute('affiliation'))
+
+        response = toResponse(iq, 'result')
+        query = response.addElement((NS_MUC_ADMIN, 'query'))
+        self.stub.send(response)
+
+        return d
+
+
+    def test_getBanList(self):
+        """
+        Retrieving the ban list returns a list of L{muc.AdminItem}s
+
+        The request asks for the affiliation C{'outcast'}.
+        """
+        def cb(items):
+            self.assertEquals(1, len(items))
+            item = items[0]
+            self.assertEquals(JID(u'hag66@shakespeare.lit'), item.entity)
+            self.assertEquals(u'outcast', item.affiliation)
+            self.assertEquals(u'Trouble making', item.reason)
+
+        d = self.protocol.getBanList(self.roomJID)
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        query = "/iq/query[@xmlns='%s']/item[@xmlns='%s']" % (muc.NS_MUC_ADMIN,
+                                                              muc.NS_MUC_ADMIN)
+        items = xpath.queryForNodes(query, iq)
+        self.assertEquals('outcast', items[0].getAttribute('affiliation'))
+
+        response = toResponse(iq, 'result')
+        query = response.addElement((NS_MUC_ADMIN, 'query'))
+        item = query.addElement('item')
+        item['affiliation'] ='outcast'
+        item['jid'] = 'hag66@shakespeare.lit'
+        item.addElement('reason', content='Trouble making')
+        self.stub.send(response)
+
+        return d
+
+
+    def test_getOwnerList(self):
+        """
+        Retrieving the owner list returns a list of L{muc.AdminItem}s
+
+        The request asks for the affiliation C{'owner'}.
+        """
+        d = self.protocol.getOwnerList(self.roomJID)
+
+        iq = self.stub.output[-1]
+        query = "/iq/query[@xmlns='%s']/item[@xmlns='%s']" % (muc.NS_MUC_ADMIN,
+                                                              muc.NS_MUC_ADMIN)
+        items = xpath.queryForNodes(query, iq)
+        self.assertEquals('owner', items[0].getAttribute('affiliation'))
+
+        response = toResponse(iq, 'result')
+        query = response.addElement((NS_MUC_ADMIN, 'query'))
+        self.stub.send(response)
+
+        return d
+
+
+    def test_getModeratorList(self):
+        """
+        Retrieving the moderator returns a list of L{muc.AdminItem}s.
+
+        The request asks for the role C{'moderator'}.
+        """
+
+        def cb(items):
+            self.assertEquals(1, len(items))
+            item = items[0]
+            self.assertEquals(JID(u'hag66@shakespeare.lit'), item.entity)
+            self.assertEquals(u'thirdwitch', item.nick)
+            self.assertEquals(u'moderator', item.role)
+
+        d = self.protocol.getModeratorList(self.roomJID)
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.assertEquals('get', iq.getAttribute('type'))
+        query = "/iq/query[@xmlns='%s']/item[@xmlns='%s']" % (muc.NS_MUC_ADMIN,
+                                                              muc.NS_MUC_ADMIN)
+        items = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, items)
+        self.assertEquals(1, len(items))
+        self.assertEquals('moderator', items[0].getAttribute('role'))
+
+        response = toResponse(iq, 'result')
+        query = response.addElement((NS_MUC_ADMIN, 'query'))
+        item = query.addElement('item')
+        item['affiliation'] ='member'
+        item['jid'] = 'hag66@shakespeare.lit'
+        item['nick'] = 'thirdwitch'
+        item['role'] = 'moderator'
         self.stub.send(response)
 
         return d

@@ -987,15 +987,15 @@ class IMUCClient(Interface):
         """
 
 
-    def kick(roomJID, entityOrNick, reason=None, sender=None):
+    def kick(roomJID, nick, reason=None, sender=None):
         """
         Kick a user from a MUC room.
 
         @param roomJID: The bare JID of the room.
         @type roomJID: L{jid.JID}
 
-        @param entityOrNick: The occupant to be banned.
-        @type entityOrNick: L{jid.JID} or C{unicode}
+        @param nick: The occupant to be banned.
+        @type nick: L{jid.JID} or C{unicode}
 
         @param reason: The reason given for the kick.
         @type reason: C{unicode}
