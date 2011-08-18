@@ -824,20 +824,22 @@ class IMUCClient(Interface):
         """
 
 
-    def join(service, roomIdentifier, nick, history=None):
+    def join(roomJID, nick, historyOptions=None, password=None):
         """
         Join a MUC room by sending presence to it.
 
-        @param server: The server where the room is located.
-        @type server: C{unicode}
-
-        @param room: The room name the entity is joining.
-        @type room: C{unicode}
+        @param roomJID: The JID of the room the entity is joining.
+        @type roomJID: L{jid.JID}
 
         @param nick: The nick name for the entitity joining the room.
         @type nick: C{unicode}
 
-        @param history: The maximum number of history stanzas you would like.
+        @param historyOptions: Options for conversation history sent by the
+            room upon joining.
+        @type historyOptions: L{HistoryOptions}
+
+        @param password: Optional password for the room.
+        @type password: C{unicode}
 
         @return: A deferred that fires when the entity is in the room or an
                  error has occurred.
@@ -884,13 +886,13 @@ class IMUCClient(Interface):
         """
 
 
-    def groupChat(roomJID, body, children=None):
+    def groupChat(roomJID, body):
         """
         Send a groupchat message.
         """
 
 
-    def chat(occupantJID, body, children=None):
+    def chat(occupantJID, body):
         """
         Send a private chat message to a user in a MUC room.
 
@@ -898,20 +900,6 @@ class IMUCClient(Interface):
 
         @param occupantJID: The Room JID of the other user.
         @type occupantJID: L{jid.JID}
-        """
-
-
-    def password(roomJID, password):
-        """
-        Send a password to a room so the entity can join.
-
-        See: http://xmpp.org/extensions/xep-0045.html#enter-pw
-
-        @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
-
-        @param password: The MUC room password.
-        @type password: C{unicode}
         """
 
 
