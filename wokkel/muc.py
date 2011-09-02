@@ -355,18 +355,45 @@ class UserPresence(xmppim.AvailabilityPresence):
     Availability presence sent from MUC service to client.
     """
 
-    statusCode = None
+    affiliation = None
+    role = None
+    entity = None
+    nick = None
+
+    statusCodes = None
 
     childParsers = {(NS_MUC_USER, 'x'): '_childParser_mucUser'}
 
     def _childParser_mucUser(self, element):
+        statusCodes = set()
+
         for child in element.elements():
             if child.uri != NS_MUC_USER:
                 continue
-            elif child.name == 'status':
-                self.statusCode = child.getAttribute('code')
-            # TODO: item, destroy
 
+            elif child.name == 'status':
+                try:
+                    statusCode = int(child.getAttribute('code'))
+                except (TypeError, ValueError):
+                    continue
+
+                statusCodes.add(statusCode)
+
+            elif child.name == 'item':
+                if child.hasAttribute('jid'):
+                    self.entity = jid.JID(child['jid'])
+
+                self.nick = child.getAttribute('nick')
+                self.affiliation = child.getAttribute('affiliation')
+                self.role = child.getAttribute('role')
+
+                for reason in child.elements(NS_MUC_ADMIN, 'reason'):
+                    self.reason = unicode(reason)
+
+            # TODO: destroy
+
+        if statusCodes:
+            self.statusCodes = statusCodes
 
 
 class VoiceRequest(xmppim.Message):
@@ -495,7 +522,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
 
         query = "/presence[@from='%s' or (@from='%s' and @type='error')]" % (
                 stanza.recipient.full(), stanza.recipient.userhost())
-        self.xmlstream.addOnetimeObserver(query, onResponse, priority=1)
+        self.xmlstream.addOnetimeObserver(query, onResponse, priority=-1)
         self.xmlstream.send(stanza.toElement())
         return d
 
@@ -1040,11 +1067,8 @@ class Room(object):
     An in memory object representing a MUC room from the perspective of
     a client.
 
-    @ivar roomIdentifier: The Room ID of the MUC room.
-    @type roomIdentifier: C{unicode}
-
-    @ivar service: The server where the MUC room is located.
-    @type service: C{unicode}
+    @ivar roomJID: The Room JID of the MUC room.
+    @type roomJID: L{JID}
 
     @ivar nick: The nick name for the client in this room.
     @type nick: C{unicode}
@@ -1053,17 +1077,16 @@ class Room(object):
     @type state: L{int}
 
     @ivar occupantJID: The JID of the occupant in the room. Generated from
-        roomIdentifier, service, and nick.
+        roomJID and nick.
     @type occupantJID: L{jid.JID}
     """
 
 
-    def __init__(self, roomIdentifier, service, nick, state=None):
+    def __init__(self, roomJID, nick, state=None):
         """
         Initialize the room.
         """
-        self.roomIdentifier = roomIdentifier
-        self.service = service
+        self.roomJID = roomJID
         self.setNick(nick)
         self.state = state
 
@@ -1073,9 +1096,7 @@ class Room(object):
 
 
     def setNick(self, nick):
-        self.occupantJID = jid.internJID(u"%s@%s/%s" % (self.roomIdentifier,
-                                                        self.service,
-                                                        nick))
+        self.occupantJID = jid.internJID(u"%s/%s" % (self.roomJID, nick))
         self.nick = nick
 
 
@@ -1167,13 +1188,34 @@ class MUCClient(MUCClientProtocol):
         return self._rooms.get(roomJID)
 
 
-    def _removeRoom(self, occupantJID):
+    def _removeRoom(self, roomJID):
         """
         Delete a room from the room collection.
         """
-        roomJID = occupantJID.userhostJID()
         if roomJID in self._rooms:
             del self._rooms[roomJID]
+
+
+    def _getRoomUser(self, stanza):
+        """
+        Lookup the room and user associated with the stanza's sender.
+        """
+        occupantJID = stanza.sender
+
+        if not occupantJID:
+            return None, None
+
+        # when a user leaves a room we need to update it
+        room = self._getRoom(occupantJID.userhostJID())
+        if room is None:
+            # not in the room yet
+            return None, None
+
+        # Check if user is in roster
+        nick = occupantJID.resource
+        user = room.getUser(nick)
+
+        return room, user
 
 
     def unavailableReceived(self, presence):
@@ -1184,38 +1226,13 @@ class MUCClient(MUCClientProtocol):
         left the room.
         """
 
-        occupantJID = presence.sender
+        room, user = self._getRoomUser(presence)
 
-        if occupantJID:
-            self._userLeavesRoom(occupantJID)
-
-
-    def errorReceived(self, presence):
-        """
-        Error presence was received.
-
-        If this was received from a MUC room occupant JID, we conclude the
-        occupant has left the room.
-        """
-        occupantJID = presence.sender
-
-        if occupantJID:
-            self._userLeavesRoom(occupantJID)
-
-
-    def _userLeavesRoom(self, occupantJID):
-        # when a user leaves a room we need to update it
-        room = self._getRoom(occupantJID.userhostJID())
-        if room is None:
-            # not in the room yet
+        if room is None or user is None:
             return
-        # check if user is in roster
-        user = room.getUser(occupantJID.resource)
-        if user is None:
-            return
-        if room.inRoster(user):
-            room.removeUser(user)
-            self.userLeftRoom(room, user)
+
+        room.removeUser(user)
+        self.userLeftRoom(room, user)
 
 
     def availableReceived(self, presence):
@@ -1223,27 +1240,21 @@ class MUCClient(MUCClientProtocol):
         Available presence was received.
         """
 
-        occupantJID = presence.sender
+        room, user = self._getRoomUser(presence)
 
-        if not occupantJID:
-            return
-
-        # grab room
-        room = self._getRoom(occupantJID.userhostJID())
         if room is None:
-            # not in the room yet
             return
 
-        user = self._changeUserStatus(room, occupantJID, presence.status,
-                                      presence.show)
+        if user is None:
+            nick = presence.sender.resource
+            user = User(nick, presence.entity)
+
+        # Update user status
+        user.status = presence.status
+        user.show = presence.show
 
         if room.inRoster(user):
-            # we changed status or nick
-            if presence.statusCode:
-                room.status = presence.statusCode # XXX
-            else:
-                self.userUpdatedStatus(room, user, presence.show,
-                                       presence.status)
+            self.userUpdatedStatus(room, user, presence.show, presence.status)
         else:
             room.addUser(user)
             self.userJoinedRoom(room, user)
@@ -1256,22 +1267,10 @@ class MUCClient(MUCClientProtocol):
         There are a few event methods that may get called here.
         L{receivedGroupChat}, L{receivedHistory} or L{receivedHistory}.
         """
-        occupantJID = message.sender
-        if not occupantJID:
-            return
+        room, user = self._getRoomUser(message)
 
-        roomJID = occupantJID.userhostJID()
-
-        room = self._getRoom(roomJID)
         if room is None:
-            # not in the room yet
             return
-
-        if occupantJID.resource:
-            user = room.getUser(occupantJID.resource)
-        else:
-            # This message is from the room itself.
-            user = None
 
         if message.subject:
             self.receivedSubject(room, user, message.subject)
@@ -1279,35 +1278,6 @@ class MUCClient(MUCClientProtocol):
             self.receivedGroupChat(room, user, message)
         else:
             self.receivedHistory(room, user, message)
-
-
-    def _joinedRoom(self, presence):
-        """
-        We have presence that says we joined a room.
-        """
-        roomJID = presence.sender.userhostJID()
-
-        # change the state of the room
-        room = self._getRoom(roomJID)
-        room.state = 'joined'
-
-        # grab status
-        if presence.statusCode:
-            room.status = presence.statusCode
-
-        return room
-
-
-    def _leftRoom(self, presence):
-        """
-        We have presence that says we left a room.
-        """
-        occupantJID = presence.sender
-
-        # change the state of the room
-        self._removeRoom(occupantJID)
-
-        return True
 
 
     def userJoinedRoom(self, room, user):
@@ -1352,8 +1322,10 @@ class MUCClient(MUCClientProtocol):
         pass
 
 
-    def receivedSubject(self, room, subject):
+    def receivedSubject(self, room, user, subject):
         """
+        A (new) room subject has been received.
+
         This method will need to be modified inorder for clients to
         do something when this event occurs.
         """
@@ -1400,41 +1372,43 @@ class MUCClient(MUCClientProtocol):
 
     def join(self, roomJID, nick, historyOptions=None,
                    password=None):
-        room = Room(roomJID.user, roomJID.host, nick, state='joining')
+        """
+        Join a MUC room by sending presence to it.
+
+        @param roomJID: The JID of the room the entity is joining.
+        @type roomJID: L{jid.JID}
+
+        @param nick: The nick name for the entitity joining the room.
+        @type nick: C{unicode}
+
+        @param historyOptions: Options for conversation history sent by the
+            room upon joining.
+        @type historyOptions: L{HistoryOptions}
+
+        @param password: Optional password for the room.
+        @type password: C{unicode}
+
+        @return: A deferred that fires with the room when the entity is in the
+            room, or with a failure if an error has occurred.
+        """
+        def cb(presence):
+            """
+            We have presence that says we joined a room.
+            """
+            room.state = 'joined'
+            return room
+
+        def eb(failure):
+            self._removeRoom(roomJID)
+            return failure
+
+        room = Room(roomJID, nick, state='joining')
         self._addRoom(room)
 
         d = MUCClientProtocol.join(self, roomJID, nick, historyOptions,
                                          password)
-        d.addCallback(self._joinedRoom)
+        d.addCallbacks(cb, eb)
         return d
-
-
-    def _changeUserStatus(self, room, occupantJID, status, show):
-        """
-        Change the user status in a room.
-        """
-
-        # check if user is in roster
-        user = room.getUser(occupantJID.resource)
-        if user is None: # create a user that does not exist
-            user = User(occupantJID.resource)
-
-        if status is not None:
-            user.status = unicode(status)
-        if show is not None:
-            user.show = unicode(show)
-
-        return user
-
-
-    def _changed(self, presence, occupantJID):
-        """
-        Callback for changing the nick and status.
-        """
-        room = self._getRoom(occupantJID.userhostJID())
-        self._changeUserStatus(room, occupantJID, presence.status, presence.show)
-
-        return room
 
 
     def nick(self, roomJID, nick):
@@ -1449,13 +1423,15 @@ class MUCClient(MUCClientProtocol):
         @param nick: The new nick name within the room.
         @type nick: C{unicode}
         """
+        def cb(presence):
+            # Presence confirmation, change the nickname.
+            room.setNick(nick)
+            return room
+
         room = self._getRoom(roomJID)
 
-        # Change the nickname
-        room.setNick(nick)
-
         d = MUCClientProtocol.nick(self, roomJID, nick)
-        d.addCallback(self._changed, room.occupantJID)
+        d.addCallback(cb)
         return d
 
 
@@ -1468,8 +1444,11 @@ class MUCClient(MUCClientProtocol):
         @param roomJID: The Room JID of the room to leave.
         @type roomJID: L{jid.JID}
         """
+        def cb(presence):
+            self._removeRoom(roomJID)
+
         d = MUCClientProtocol.leave(self, roomJID)
-        d.addCallback(self._leftRoom)
+        d.addCallback(cb)
         return d
 
 
@@ -1491,7 +1470,7 @@ class MUCClient(MUCClientProtocol):
         """
         room = self._getRoom(roomJID)
         d = MUCClientProtocol.status(self, roomJID, show, status)
-        d.addCallback(self._changed, room.occupantJID)
+        d.addCallback(lambda _: room)
         return d
 
 

@@ -778,13 +778,16 @@ class IMUCClient(Interface):
 
     """
 
-    def receivedSubject(room, subject):
+    def receivedSubject(room, user, subject):
         """
         A subject is received when you join a room and when the subject is changed. This
         method is triggered by one of those two events.
 
         @param room: The room the subject was accepted for.
         @type room: L{muc.Room}
+
+        @param user: The user that set the subject.
+        @type  user: L{muc.User}
 
         @param subject: The subject of the given room.
         @type subject: C{unicode}
