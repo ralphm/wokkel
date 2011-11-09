@@ -12,6 +12,8 @@ for Field Standardization for Data Forms as described in
 U{XEP-0068<http://www.xmpp.org/extensions/xep-0068.html>}.
 """
 
+from zope.interface import implements
+from zope.interface.common import mapping
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
 
@@ -47,7 +49,7 @@ class Option(object):
     @ivar value: Value of this option.
     @type value: C{unicode}
     @ivar label: Optional label for this option.
-    @type label: C{unicode} or C{NoneType}.
+    @type label: C{unicode} or C{NoneType}
     """
 
     def __init__(self, value, label=None):
@@ -94,12 +96,12 @@ class Field(object):
 
     @ivar fieldType: Type of this field. One of C{'boolean'}, C{'fixed'},
                      C{'hidden'}, C{'jid-multi'}, C{'jid-single'},
-                     C{'list-multi'}, {'list-single'}, C{'text-multi'},
+                     C{'list-multi'}, C{'list-single'}, C{'text-multi'},
                      C{'text-private'}, C{'text-single'}.
 
                      The default is C{'text-single'}.
     @type fieldType: C{str}
-    @ivar var: Field name. Optional if L{fieldType} is C{'fixed'}.
+    @ivar var: Field name. Optional if C{fieldType} is C{'fixed'}.
     @type var: C{str}
     @ivar label: Human readable label for this field.
     @type label: C{unicode}
@@ -108,12 +110,12 @@ class Field(object):
     @type values: C{list}
     @ivar options: List of possible values to choose from in a response
                    to this form as a list of L{Option}s.
-    @type options: C{list}.
+    @type options: C{list}
     @ivar desc: Human readable description for this field.
     @type desc: C{unicode}
     @ivar required: Whether the field is required to be provided in a
                     response to this form.
-    @type required: C{bool}.
+    @type required: C{bool}
     """
 
     def __init__(self, fieldType='text-single', var=None, value=None,
@@ -365,6 +367,9 @@ class Form(object):
     other fields in the namespace of the value of that field. This namespace
     is recorded in the C{formNamespace} instance variable.
 
+    A L{Form} also acts as read-only dictionary, with the values of fields
+    keyed by their name. See L{__getitem__}.
+
     @ivar formType: Type of form. One of C{'form'}, C{'submit'}, {'cancel'},
                     or {'result'}.
     @type formType: C{str}
@@ -378,7 +383,7 @@ class Form(object):
 
     @ivar formNamespace: The optional namespace of the field names for this
         form. This goes in the special field named C{'FORM_TYPE'}, if set.
-    @type formNamespace: C{str}.
+    @type formNamespace: C{str}
 
     @ivar fields: Dictionary of named fields. Note that this is meant to be
         used for reading, only. One should use L{addField} or L{makeFields} and
@@ -389,6 +394,11 @@ class Form(object):
         C{fields}, this is meant to be used for reading, only.
     @type fieldList: C{list}
     """
+
+    implements(mapping.IIterableMapping,
+               mapping.IEnumerableMapping,
+               mapping.IReadMapping,
+               mapping.IItemMapping)
 
     def __init__(self, formType, title=None, instructions=None,
                        formNamespace=None, fields=None):
@@ -468,7 +478,7 @@ class Form(object):
         If the field type is unknown, the field type is C{None}. When the form
         is rendered using L{toElement}, these fields will have no C{'type'}
         attribute, and it is up to the receiving party to interpret the values
-        properly (e.g. by knowing about the FORM_TYPE in L{formNamespace} and
+        properly (e.g. by knowing about the FORM_TYPE in C{formNamespace} and
         the field name).
 
         @param values: Values to create fields from.
@@ -567,32 +577,86 @@ class Form(object):
         return form
 
 
+    def __iter__(self):
+        return iter(self.fields)
+
+
+    def __len__(self):
+        return len(self.fields)
+
+
+    def __getitem__(self, key):
+        """
+        Called to implement evaluation of self[key].
+
+        This returns the value of the field with the name in C{key}. For
+        multi-value fields, the value is a list, otherwise a single value.
+
+        If a field has no type, and the field has multiple values, the value
+        of the list of values. Otherwise, it will be a single value.
+
+        Raises C{KeyError} if there is no field with the name in C{key}.
+        """
+        field = self.fields[key]
+
+        if (field.fieldType in ('jid-multi', 'list-multi', 'text-multi') or
+            (field.fieldType is None and len(field.values) > 1)):
+            value = field.values
+        else:
+            value = field.value
+
+        return value
+
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
+    def __contains__(self, key):
+        return key in self.fields
+
+
+    def iterkeys(self):
+        return iter(self)
+
+
+    def itervalues(self):
+        for key in self:
+            yield self[key]
+
+
+    def iteritems(self):
+        for key in self:
+            yield (key, self[key])
+
+
+    def keys(self):
+        return list(self)
+
+
+    def values(self):
+        return list(self.itervalues())
+
+
+    def items(self):
+        return list(self.iteritems())
+
+
     def getValues(self):
         """
         Extract values from the named form fields.
 
         For all named fields, the corresponding value or values are
-        returned in a dictionary keyed by the field name. For multi-value
-        fields, the dictionary value is a list, otherwise a single value.
+        returned in a dictionary keyed by the field name. This is equivalent
+        do C{dict(f)}, where C{f} is a L{Form}.
 
-        If a field has no type, and the field has multiple values, the value of
-        the dictionary entry is the list of values. Otherwise, it will be a
-        single value.
-
+        @see: L{__getitem__}
         @rtype: C{dict}
         """
-        values = {}
-
-        for name, field in self.fields.iteritems():
-            if (field.fieldType in ('jid-multi', 'list-multi', 'text-multi') or
-                (field.fieldType is None and len(field.values) > 1)):
-                value = field.values
-            else:
-                value = field.value
-
-            values[name] = value
-
-        return values
+        return dict(self)
 
 
     def typeCheck(self, fieldDefs=None, filterUnknown=False):

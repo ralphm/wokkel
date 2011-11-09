@@ -384,7 +384,7 @@ class PubSubRequest(generic.Stanza):
         Parse node type out of a request for the default node configuration.
         """
         form = data_form.findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
-        if form and form.formType == 'submit':
+        if form is not None and form.formType == 'submit':
             values = form.getValues()
             self.nodeType = values.get('pubsub#node_type', 'leaf')
         else:
@@ -396,7 +396,7 @@ class PubSubRequest(generic.Stanza):
         Parse options out of a request for setting the node configuration.
         """
         form = data_form.findForm(verbElement, NS_PUBSUB_NODE_CONFIG)
-        if form:
+        if form is not None:
             if form.formType in ('submit', 'cancel'):
                 self.options = form
             else:
@@ -412,7 +412,7 @@ class PubSubRequest(generic.Stanza):
         for element in verbElement.parent.elements():
             if element.uri == NS_PUBSUB and element.name == 'configure':
                 form = data_form.findForm(element, NS_PUBSUB_NODE_CONFIG)
-                if form:
+                if form is not None:
                     if form.formType != 'submit':
                         raise BadRequest(text=u"Unexpected form type '%s'" %
                                               form.formType)
@@ -496,7 +496,7 @@ class PubSubRequest(generic.Stanza):
         Parse options form out of a subscription options request.
         """
         form = data_form.findForm(verbElement, NS_PUBSUB_SUBSCRIBE_OPTIONS)
-        if form:
+        if form is not None:
             if form.formType in ('submit', 'cancel'):
                 self.options = form
             else:
@@ -515,7 +515,7 @@ class PubSubRequest(generic.Stanza):
             if element.name == 'options' and element.uri == NS_PUBSUB:
                 form = data_form.findForm(element,
                                           NS_PUBSUB_SUBSCRIBE_OPTIONS)
-                if form:
+                if form is not None:
                     if form.formType != 'submit':
                         raise BadRequest(text=u"Unexpected form type '%s'" %
                                               form.formType)
@@ -526,7 +526,7 @@ class PubSubRequest(generic.Stanza):
 
 
     def _render_optionsWithSubscribe(self, verbElement):
-        if self.options:
+        if self.options is not None:
             optionsElement = verbElement.parent.addElement('options')
             self._render_options(optionsElement)
 
@@ -1194,11 +1194,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                 return defer.fail(Unsupported('', text))
 
             handler = getattr(self, handlerName)
-
             args = [getattr(request, arg) for arg in argNames]
-            if 'options' in argNames:
-                args[argNames.index('options')] = request.options.getValues()
-
             d = handler(*args)
 
         # If needed, translate the result into a response
