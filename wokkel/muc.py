@@ -456,7 +456,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         A group chat message has been received from a MUC room.
 
         There are a few event methods that may get called here.
-        L{receivedGroupChat}, L{receivedHistory} or L{receivedHistory}.
+        L{receivedGroupChat}, L{receivedSubject} or L{receivedHistory}.
         """
         message = GroupChat.fromElement(element)
         self.groupChatReceived(message)
