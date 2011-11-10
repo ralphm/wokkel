@@ -5,6 +5,9 @@
 Tests for {wokkel.data_form}.
 """
 
+from zope.interface import verify
+from zope.interface.common.mapping import IIterableMapping
+
 from twisted.trial import unittest
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import jid
@@ -472,7 +475,7 @@ class FieldTest(unittest.TestCase):
         """
         element = domish.Element((NS_X_DATA, 'field'))
         element['var'] = 'test'
-        child = element.addElement(('myns', 'value'))
+        element.addElement(('myns', 'value'))
         field = data_form.Field.fromElement(element)
 
         self.assertIdentical(None, field.value)
@@ -988,53 +991,193 @@ class FormTest(unittest.TestCase):
         self.assertEqual(values, form.getValues())
 
 
-    def test_getValues(self):
+    def test_interface(self):
         """
-        Each named field is represented in the values, keyed by name.
+        L{Form}s act as a read-only dictionary.
+        """
+        form = data_form.Form('submit')
+        verify.verifyObject(IIterableMapping, form)
+
+
+    def test_getitem(self):
+        """
+        Using Form as a mapping will yield the value of fields keyed by name.
         """
         fields = [data_form.Field(var='botname', value='The Jabber Bot'),
                   data_form.Field('boolean', var='public', value=True),
                   data_form.Field('list-multi', var='features',
                                                 values=['news', 'search'])]
         form = data_form.Form('submit', fields=fields)
-        values = form.getValues()
-        self.assertEqual({'botname': 'The Jabber Bot',
-                          'public': True,
-                          'features': ['news', 'search']},
-                         values)
+        self.assertEqual('The Jabber Bot', form['botname'])
+        self.assertTrue(form['public'])
+        self.assertEqual(['news', 'search'], form['features'])
 
 
-    def test_getValuesOneValueTypeMulti(self):
+    def test_getitemOneValueTypeMulti(self):
         """
         A single value for a multi-value field type is returned in a list.
         """
         fields = [data_form.Field('list-multi', var='features',
                                                 values=['news'])]
         form = data_form.Form('submit', fields=fields)
-        values = form.getValues()
-        self.assertEqual({'features': ['news']}, values)
+        self.assertEqual(['news'], form['features'])
 
 
-    def test_getValuesMultipleValuesNoType(self):
+    def test_getitemMultipleValuesNoType(self):
         """
         Multiple values for a field without type are returned in a list.
         """
         fields = [data_form.Field(None, var='features',
                                         values=['news', 'search'])]
         form = data_form.Form('submit', fields=fields)
-        values = form.getValues()
-        self.assertEqual({'features': ['news', 'search']}, values)
+        self.assertEqual(['news', 'search'], form['features'])
 
 
-    def test_getValuesMultipleValuesTypeSingle(self):
+    def test_getitemMultipleValuesTypeSingle(self):
         """
         Multiple values for a single-value field type returns the first value.
         """
         fields = [data_form.Field('text-single', var='features',
                                         values=['news', 'search'])]
         form = data_form.Form('submit', fields=fields)
-        values = form.getValues()
-        self.assertEqual({'features': 'news'}, values)
+        self.assertEqual('news', form['features'])
+
+
+    def test_get(self):
+        """
+        Getting the value of a known field succeeds.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot')]
+        form = data_form.Form('submit', fields=fields)
+        self.assertEqual('The Jabber Bot', form.get('botname'))
+
+
+    def test_getUnknownNone(self):
+        """
+        Getting the value of a unknown field returns None.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot')]
+        form = data_form.Form('submit', fields=fields)
+        self.assertIdentical(None, form.get('features'))
+
+
+    def test_getUnknownDefault(self):
+        """
+        Getting the value of a unknown field returns specified default.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot')]
+        form = data_form.Form('submit', fields=fields)
+        self.assertTrue(form.get('public', True))
+
+
+    def test_contains(self):
+        """
+        A form contains a known field.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot')]
+        form = data_form.Form('submit', fields=fields)
+        self.assertIn('botname', form)
+
+
+    def test_containsNot(self):
+        """
+        A form does not contains an unknown field.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot')]
+        form = data_form.Form('submit', fields=fields)
+        self.assertNotIn('features', form)
+
+
+    def test_iterkeys(self):
+        """
+        Iterating over the keys of a form yields all field names.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
+                  data_form.Field('boolean', var='public', value=True),
+                  data_form.Field('list-multi', var='features',
+                                                values=['news', 'search'])]
+        form = data_form.Form('submit', fields=fields)
+        self.assertEqual(set(['botname', 'public', 'features']),
+                         set(form.iterkeys()))
+
+
+    def test_itervalues(self):
+        """
+        Iterating over the values of a form yields all field values.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
+                  data_form.Field('boolean', var='public', value=True)]
+        form = data_form.Form('submit', fields=fields)
+        self.assertEqual(set(['The Jabber Bot', True]),
+                         set(form.itervalues()))
+
+
+    def test_iteritems(self):
+        """
+        Iterating over the values of a form yields all item tuples.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
+                  data_form.Field('boolean', var='public', value=True)]
+        form = data_form.Form('submit', fields=fields)
+        self.assertEqual(set([('botname', 'The Jabber Bot'),
+                              ('public', True)]),
+                         set(form.iteritems()))
+
+
+    def test_keys(self):
+        """
+        Getting the keys of a form yields a list of field names.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
+                  data_form.Field('boolean', var='public', value=True),
+                  data_form.Field('list-multi', var='features',
+                                                values=['news', 'search'])]
+        form = data_form.Form('submit', fields=fields)
+        keys = form.keys()
+        self.assertIsInstance(keys, list)
+        self.assertEqual(set(['botname', 'public', 'features']),
+                         set(keys))
+
+
+    def test_values(self):
+        """
+        Getting the values of a form yields a list of field values.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
+                  data_form.Field('boolean', var='public', value=True)]
+        form = data_form.Form('submit', fields=fields)
+        values = form.values()
+        self.assertIsInstance(values, list)
+        self.assertEqual(set(['The Jabber Bot', True]), set(values))
+
+
+    def test_items(self):
+        """
+        Iterating over the values of a form yields a list of all item tuples.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
+                  data_form.Field('boolean', var='public', value=True)]
+        form = data_form.Form('submit', fields=fields)
+        items = form.items()
+        self.assertIsInstance(items, list)
+        self.assertEqual(set([('botname', 'The Jabber Bot'),
+                              ('public', True)]),
+                         set(items))
+
+
+    def test_getValues(self):
+        """
+        L{Form.getValues} returns a dict of all field values.
+        """
+        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
+                  data_form.Field('boolean', var='public', value=True),
+                  data_form.Field('list-multi', var='features',
+                                                values=['news', 'search'])]
+        form = data_form.Form('submit', fields=fields)
+        self.assertEqual({'botname': 'The Jabber Bot',
+                          'public': True,
+                          'features': ['news', 'search']},
+                         form.getValues())
 
 
     def test_typeCheckKnownFieldChecked(self):

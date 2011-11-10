@@ -1617,7 +1617,7 @@ class PubSubRequestTest(unittest.TestCase):
         """
 
         request = pubsub.PubSubRequest.fromElement(parseXml(xml))
-        values = request.options.getValues()
+        values = request.options
         self.assertIn('pubsub#access_model', values)
         self.assertEqual(u'open', values['pubsub#access_model'])
         self.assertIn('pubsub#persist_items', values)
@@ -2913,7 +2913,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         def configureSet(request):
             self.assertEquals(['pubsub#deliver_payloads'],
-                              request.options.fields.keys())
+                              request.options.keys())
 
         self.resource.getConfigurationOptions = getConfigurationOptions
         self.resource.configureSet = configureSet
@@ -3708,9 +3708,10 @@ class PubSubServiceWithoutResourceTest(unittest.TestCase, TestableRequestHandler
                 }
 
         def setConfiguration(requestor, service, nodeIdentifier, options):
-            self.assertEquals({'pubsub#deliver_payloads': False,
-                               'pubsub#persist_items': True}, options)
-
+            self.assertIn('pubsub#deliver_payloads', options)
+            self.assertFalse(options['pubsub#deliver_payloads'])
+            self.assertIn('pubsub#persist_items', options)
+            self.assertTrue(options['pubsub#persist_items'])
 
         self.service.getConfigurationOptions = getConfigurationOptions
         self.service.setConfiguration = setConfiguration

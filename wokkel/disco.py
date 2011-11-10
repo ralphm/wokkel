@@ -209,7 +209,7 @@ class DiscoInfo(object):
             elif (child.uri, child.name) == (data_form.NS_X_DATA, 'x'):
                 item = data_form.Form.fromElement(child)
 
-            if item:
+            if item is not None:
                 info.append(item)
 
         return info

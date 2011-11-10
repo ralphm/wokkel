@@ -74,7 +74,7 @@ class _FormRequest(generic.Request):
                                   formNamespace=self.formNamespace)
             form.makeFields(self.options)
 
-        if form:
+        if form is not None:
             query.addChild(form.toElement())
 
         return element
