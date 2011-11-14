@@ -800,3 +800,230 @@ class IPubSubResource(Interface):
         L{wokkel.pubsub.PubSubRequest.affiliations} are already stripped of
         any resource.
         """
+
+
+
+class IMUCClient(Interface):
+    """
+    Multi-User Chat Client
+
+    A client interface to XEP-045 : http://xmpp.org/extensions/xep-0045.html
+
+    """
+
+    def receivedSubject(room, user, subject):
+        """
+        A subject is received when you join a room and when the subject is changed. This
+        method is triggered by one of those two events.
+
+        @param room: The room the subject was accepted for.
+        @type room: L{muc.Room}
+
+        @param user: The user that set the subject.
+        @type  user: L{muc.User}
+
+        @param subject: The subject of the given room.
+        @type subject: C{unicode}
+        """
+
+
+    def receivedHistory(room, user, message):
+        """
+        Past messages from a chat room has been received. This occurs when you join a room.
+        """
+
+
+    def configure(roomJID, options):
+        """
+        Configure a room.
+
+        @param roomJID: The room to configure.
+        @type roomJID: L{jid.JID}
+
+        @param options: A mapping of field names to values, or C{None} to cancel.
+        @type options: C{dict}
+        """
+
+
+    def getConfiguration(roomJID):
+        """
+        Grab the configuration from the room.
+
+        This sends an iq request to the room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @return: A deferred that fires with the room's configuration form as
+            a L{data_form.Form} or C{None} if there are no configuration
+            options available.
+        """
+
+
+    def join(roomJID, nick, historyOptions=None, password=None):
+        """
+        Join a MUC room by sending presence to it.
+
+        @param roomJID: The JID of the room the entity is joining.
+        @type roomJID: L{jid.JID}
+
+        @param nick: The nick name for the entitity joining the room.
+        @type nick: C{unicode}
+
+        @param historyOptions: Options for conversation history sent by the
+            room upon joining.
+        @type historyOptions: L{HistoryOptions}
+
+        @param password: Optional password for the room.
+        @type password: C{unicode}
+
+        @return: A deferred that fires when the entity is in the room or an
+                 error has occurred.
+        """
+
+
+    def nick(roomJID, nick):
+        """
+        Change an entity's nick name in a MUC room.
+
+        See: http://xmpp.org/extensions/xep-0045.html#changenick
+
+        @param roomJID: The JID of the room, i.e. without a resource.
+        @type roomJID: L{jid.JID}
+
+        @param nick: The new nick name within the room.
+        @type nick: C{unicode}
+        """
+
+
+    def leave(roomJID):
+        """
+        Leave a MUC room.
+
+        See: http://xmpp.org/extensions/xep-0045.html#exit
+
+        @param roomJID: The Room JID of the room to leave.
+        @type roomJID: L{jid.JID}
+        """
+
+
+    def userJoinedRoom(room, user):
+        """
+        User has joined a MUC room.
+
+        This method will need to be modified inorder for clients to
+        do something when this event occurs.
+
+        @param room: The room the user joined.
+        @type  room: L{muc.Room}
+
+        @param user: The user that joined the room.
+        @type  user: L{muc.User}
+        """
+
+
+    def groupChat(roomJID, body):
+        """
+        Send a groupchat message.
+        """
+
+
+    def chat(occupantJID, body):
+        """
+        Send a private chat message to a user in a MUC room.
+
+        See: http://xmpp.org/extensions/xep-0045.html#privatemessage
+
+        @param occupantJID: The Room JID of the other user.
+        @type occupantJID: L{jid.JID}
+        """
+
+
+    def register(roomJID, options):
+        """
+        Send a request to register for a room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param options: A mapping of field names to values, or C{None} to
+            cancel.
+        @type options: C{dict}
+        """
+
+
+    def subject(roomJID, subject):
+        """
+        Change the subject of a MUC room.
+
+        See: http://xmpp.org/extensions/xep-0045.html#subject-mod
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param subject: The subject you want to set.
+        @type subject: C{unicode}
+        """
+
+
+    def voice(roomJID):
+        """
+        Request voice for a moderated room.
+
+        @param roomJID: The room jabber/xmpp entity id.
+        @type roomJID: L{jid.JID}
+        """
+
+
+    def history(roomJID, messages):
+        """
+        Send history to create a MUC based on a one on one chat.
+
+        See: http://xmpp.org/extensions/xep-0045.html#continue
+
+        @param roomJID: The room jabber/xmpp entity id.
+        @type roomJID: L{jid.JID}
+
+        @param messages: The history to send to the room as an ordered list of
+                         message, represented by a dictionary with the keys
+                         C{'stanza'}, holding the original stanza a
+                         L{domish.Element}, and C{'timestamp'} with the
+                         timestamp.
+        @type messages: L{list} of L{domish.Element}
+        """
+
+
+    def ban(roomJID, entity, reason=None, sender=None):
+        """
+        Ban a user from a MUC room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param entity: The bare JID of the entity to be banned.
+        @type entity: L{jid.JID}
+
+        @param reason: The reason for banning the entity.
+        @type reason: C{unicode}
+
+        @param sender: The entity sending the request.
+        @type sender: L{jid.JID}
+        """
+
+
+    def kick(roomJID, nick, reason=None, sender=None):
+        """
+        Kick a user from a MUC room.
+
+        @param roomJID: The bare JID of the room.
+        @type roomJID: L{jid.JID}
+
+        @param nick: The occupant to be banned.
+        @type nick: L{jid.JID} or C{unicode}
+
+        @param reason: The reason given for the kick.
+        @type reason: C{unicode}
+
+        @param sender: The entity sending the request.
+        @type sender: L{jid.JID}
+        """

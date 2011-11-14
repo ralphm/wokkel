@@ -296,6 +296,18 @@ class AvailabilityPresence(BasePresence):
         self.priority = priority
 
 
+    def __get_status(self):
+        if None in self.statuses:
+            return self.statuses[None]
+        elif self.statuses:
+            for status in self.status.itervalues():
+                return status
+        else:
+            return None
+
+    status = property(__get_status)
+
+
     def _childParser_show(self, element):
         show = unicode(element)
         if show in ('chat', 'away', 'xa', 'dnd'):
@@ -367,31 +379,32 @@ class ProbePresence(BasePresence):
 
 
 
-class PresenceProtocol(XMPPHandler):
+class BasePresenceProtocol(XMPPHandler):
     """
-    XMPP Presence protocol.
+    XMPP Presence base protocol handler.
+
+    This class is the base for protocol handlers that receive presence
+    stanzas. Listening to all incoming presence stanzas, it extracts the
+    stanza's type and looks up a matching stanza parser and calls the
+    associated method. The method's name is the type + C{Received}. E.g.
+    C{availableReceived}. See L{PresenceProtocol} for a complete example.
 
     @cvar presenceTypeParserMap: Maps presence stanza types to their respective
         stanza parser classes (derived from L{Stanza}).
     @type presenceTypeParserMap: C{dict}
     """
 
-    presenceTypeParserMap = {
-                'error': ErrorStanza,
-                'available': AvailabilityPresence,
-                'unavailable': AvailabilityPresence,
-                'subscribe': SubscriptionPresence,
-                'unsubscribe': SubscriptionPresence,
-                'subscribed': SubscriptionPresence,
-                'unsubscribed': SubscriptionPresence,
-                'probe': ProbePresence,
-        }
+    presenceTypeParserMap = {}
 
     def connectionInitialized(self):
         self.xmlstream.addObserver("/presence", self._onPresence)
 
 
+
     def _onPresence(self, element):
+        """
+        Called when a presence stanza has been received.
+        """
         stanza = Stanza.fromElement(element)
 
         presenceType = stanza.stanzaType or 'available'
@@ -409,6 +422,21 @@ class PresenceProtocol(XMPPHandler):
             return
         else:
             handler(presence)
+
+
+
+class PresenceProtocol(BasePresenceProtocol):
+
+    presenceTypeParserMap = {
+                'error': ErrorStanza,
+                'available': AvailabilityPresence,
+                'unavailable': AvailabilityPresence,
+                'subscribe': SubscriptionPresence,
+                'unsubscribe': SubscriptionPresence,
+                'subscribed': SubscriptionPresence,
+                'unsubscribed': SubscriptionPresence,
+                'probe': ProbePresence,
+                }
 
 
     def errorReceived(self, presence):
@@ -698,6 +726,46 @@ class RosterClientProtocol(XMPPHandler):
         @param entity: The entity for which the roster item has been removed.
         @type entity: L{JID}
         """
+
+
+
+class Message(Stanza):
+    """
+    A message stanza.
+    """
+
+    stanzaKind = 'message'
+
+    childParsers = {
+            (None, 'body'): '_childParser_body',
+            (None, 'subject'): '_childParser_subject',
+            }
+
+    def __init__(self, recipient=None, sender=None, body=None, subject=None):
+        Stanza.__init__(self, recipient, sender)
+        self.body = body
+        self.subject = subject
+
+
+    def _childParser_body(self, element):
+        self.body = unicode(element)
+
+
+    def _childParser_subject(self, element):
+        self.subject = unicode(element)
+
+
+    def toElement(self):
+        element = Stanza.toElement(self)
+
+        if self.body:
+            element.addElement('body', content=self.body)
+        if self.subject:
+            element.addElement('subject', content=self.subject)
+
+        return element
+
+
 
 class MessageProtocol(XMPPHandler):
     """
