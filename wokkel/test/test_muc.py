@@ -135,13 +135,15 @@ class UserPresenceTest(unittest.TestCase):
                       id='026B3509-2CCE-4D69-96D6-25F41FFDC408'
                       to='hag66@shakespeare.lit/pda'>
               <x xmlns='http://jabber.org/protocol/muc#user'>
-                <child xmlns='myns'/>
+                <status xmlns='myns' code='110'/>
               </x>
             </presence>
         """
 
         element = parseXml(xml)
         presence = muc.UserPresence.fromElement(element)
+
+        self.assertIdentical(None, presence.statusCodes)
 
 
     def test_toElementStatusOne(self):
@@ -1658,8 +1660,6 @@ class MUCClientTest(unittest.TestCase):
             </presence>
         """ % (self.roomJID, self.nick)
         self.stub.send(parseXml(xml))
-
-        room = self.protocol._getRoom(self.roomJID)
 
         # send back error presence, nick conflicted
         xml = u"""

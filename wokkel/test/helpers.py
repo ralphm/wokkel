@@ -5,7 +5,7 @@
 Unit test helpers.
 """
 
-from twisted.internet import defer, task
+from twisted.internet import defer
 from twisted.words.xish import xpath
 from twisted.words.xish.utility import EventDispatcher
 
