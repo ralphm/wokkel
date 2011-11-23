@@ -1,4 +1,4 @@
-Wokkel 0.6.3
+Wokkel 0.7.0pre1
 
 What is this?
 =============
@@ -13,7 +13,8 @@ Requirements
 ============
 
  - Python 2.4 or later.
- - Twisted 8.0.0 or later.
+ - Twisted 10.0.0 or later.
+ - python-dateutil
 
 
 Resources
@@ -43,7 +44,10 @@ Contributors
  - Christopher Zorn
  - Jack Moffitt
  - Mike Malone
- - Pablo Martin
+ - Pablo Martín
+ - Fabio Forno
+ - Kandaurov Oleg
+ - Jérôme Poisson
 
 
 Author

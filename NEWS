@@ -1,3 +1,61 @@
+0.7.0pre1 (2011-11-22)
+======================
+
+Features
+--------
+ - Added method wokkel.data_form.Form.typeCheck for type checking incoming Data
+   Forms submissions against field definitions.
+ - Added method wokkel.data_form.Form.makeFields to add fields from a
+   dictionary mapping field names to values.
+ - Added public function wokkel.data_form.findForm for extracting Data Forms
+   from stanzas.
+ - PubSubRequest.options is now a wokkel.data_form.Form.
+ - wokkel.data_form.Form can now be used as a read-only dictionary.
+ - Added support for configuration options in Publish-Subscribe node create
+   requests.
+ - Added support for subscription options in Publish-Subscribe subscribe
+   requests (#63).
+ - Added support for Publish Subscribe subscription identifiers.
+ - wokkel.pubsub.Item can now be used to send out notifications, too.
+ - Added a twistd plugin to set up a basic XMPP server that accepts component
+   connections and provides server-to-server (dialback) connectivity.
+ - Added support for managing affiliations of Publish-Subscribe nodes,
+   server-side.
+ - Added iq request (set/get) tracking to StreamManager and provide a new base
+   class for such requests: wokkel.generic.Request. Unlike
+   twisted.words.protocols.jabber.xmlstream.IQ, Such requests can be queued
+   until the connection is initialized, with timeouts running from the moment
+   `request` was called (instead of when it was sent over the wire).
+ - Added support for Delayed Delivery information formats.
+ - Added support for XMPP Multi-User Chat, client side (#24).
+
+Fixes
+-----
+
+ - XMPP Ping handler now marks incoming ping requests as handled, so the
+   FallbackHandler doesn't respond, too. (#66)
+ - Incorporate Twisted changes for component password hashes.
+ - Completed test coverage for Data Forms.
+ - Made sure Data Forms field labels don't get overwritten (#60).
+ - Service Discovery identity is now reported correctly for legacy
+   PubSubService use (#64).
+ - Various smaller Service Discovery fixes for PubSubService.
+ - Completed test coverage for Service Discovery support.
+ - Publish Subscribe events with stanza type error are now ignored (#69).
+ - Publish Subscribe requests with multiple 'verbs' are now properly parsed
+   (#72).
+ - Publish Subscribe requests that have no legacy support in PubSubService will
+   now result in a feature-not-implemented error (#70).
+ - Publish Subscribe subscription elements now have the correct namespace when
+   sent out.
+ - Incorporated Twisted changes for passing on a reason Failure upon stream
+   disconnect.
+ - Fixed race condition and nesting issues when adding subprotocol handlers to
+   their StreamManager (#48).
+ - Reimplemented Service Discovery requests using new Request class. By reusing
+   common code, this fixes a problem with requests without addressing (#73).
+
+
 0.6.3 (2009-08-20)
 ==================
 

@@ -6,7 +6,7 @@
 from setuptools import setup
 
 setup(name='wokkel',
-      version='0.6.3',
+      version='0.7.0pre1',
       description='Twisted Jabber support library',
       author='Ralph Meijer',
       author_email='ralphm@ik.nu',
@@ -20,4 +20,9 @@ setup(name='wokkel',
           'twisted.plugins',
       ],
       package_data={'twisted.plugins': ['twisted/plugins/server.py']},
+      zip_safe=False,
+      install_requires=[
+          'Twisted >= 10.0.0',
+          'python-dateutil',
+      ],
 )

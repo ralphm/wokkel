@@ -1,3 +1,9 @@
+wokkel (0.7.0) testing; urgency=low
+
+  * Release Wokkel 0.7.0
+
+ -- 
+
 wokkel (0.6.3-0ubuntu1) jaunty; urgency=low
 
   * Initial release.
