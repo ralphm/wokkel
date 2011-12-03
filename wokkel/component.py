@@ -65,12 +65,12 @@ class Component(StreamManager, service.Service):
     def startService(self):
         service.Service.startService(self)
 
-        self.factory.stopTrying()
         self._connection = self._getConnection()
 
     def stopService(self):
         service.Service.stopService(self)
 
+        self.factory.stopTrying()
         self._connection.disconnect()
 
     def _getConnection(self):
