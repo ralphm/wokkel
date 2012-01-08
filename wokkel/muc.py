@@ -1133,25 +1133,25 @@ class Room(object):
     @ivar nick: The nick name for the client in this room.
     @type nick: C{unicode}
 
-    @ivar state: The status code of the room.
-    @type state: L{int}
-
     @ivar occupantJID: The JID of the occupant in the room. Generated from
         roomJID and nick.
     @type occupantJID: L{jid.JID}
+
+    @ivar locked: Flag signalling a locked room. A locked room first needs
+        to be configured before it can be used. See
+        L{MUCClientProtocol.getConfiguration} and
+        L{MUCClientProtocol.configure}.
+    @type locked: C{bool}
     """
 
+    locked = False
 
-    def __init__(self, roomJID, nick, state=None):
+    def __init__(self, roomJID, nick):
         """
         Initialize the room.
         """
         self.roomJID = roomJID
         self.setNick(nick)
-        self.state = state
-
-        self.status = 0
-
         self.roster = {}
 
 
@@ -1455,14 +1455,16 @@ class MUCClient(MUCClientProtocol):
             """
             We have presence that says we joined a room.
             """
-            room.state = 'joined'
+            if STATUS_CODE.ROOM_CREATED in presence.mucStatuses:
+                room.locked = True
+
             return room
 
         def eb(failure):
             self._removeRoom(roomJID)
             return failure
 
-        room = Room(roomJID, nick, state='joining')
+        room = Room(roomJID, nick)
         self._addRoom(room)
 
         d = MUCClientProtocol.join(self, roomJID, nick, historyOptions,

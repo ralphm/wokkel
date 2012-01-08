@@ -1663,7 +1663,7 @@ class MUCClientTest(unittest.TestCase):
 
         def cb(room):
             self.assertEqual(self.roomJID, room.roomJID)
-            self.assertTrue('joined', room.state)
+            self.assertFalse(room.locked)
 
         d = self.protocol.join(self.roomJID, self.nick)
         d.addCallback(cb)
@@ -1673,6 +1673,31 @@ class MUCClientTest(unittest.TestCase):
             <presence from='%s@%s/%s'>
               <x xmlns='http://jabber.org/protocol/muc#user'>
                 <item affiliation='member' role='participant'/>
+              </x>
+            </presence>
+        """ % (self.roomIdentifier, self.service, self.nick)
+        self.stub.send(parseXml(xml))
+        return d
+
+
+    def test_joinLocked(self):
+        """
+        A new room is locked by default.
+        """
+
+        def cb(room):
+            self.assertTrue(room.locked, "Room is not marked as locked")
+
+        d = self.protocol.join(self.roomJID, self.nick)
+        d.addCallback(cb)
+
+        # send back user presence, they joined
+        xml = """
+            <presence from='%s@%s/%s'>
+              <x xmlns='http://jabber.org/protocol/muc#user'>
+                <item affiliation='owner' role='moderator'/>
+                <status code="110"/>
+                <status code="201"/>
               </x>
             </presence>
         """ % (self.roomIdentifier, self.service, self.nick)
