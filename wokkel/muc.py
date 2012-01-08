@@ -103,7 +103,7 @@ class _FormRequest(generic.Request):
         if self.options is None:
             # This is a request for the configuration form.
             form = None
-        elif not self.options:
+        elif self.options is False:
             form = data_form.Form(formType='cancel')
         else:
             form = data_form.Form(formType='submit',
@@ -756,6 +756,8 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
             cancel.
         @type options: C{dict}
         """
+        if options is None:
+            options = False
         request = RegisterRequest(recipient=roomJID, options=options)
         return self.request(request)
 
@@ -837,10 +839,11 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         @param roomJID: The room to configure.
         @type roomJID: L{jid.JID}
 
-        @param options: A mapping of field names to values, or C{None} to cancel.
+        @param options: A mapping of field names to values, or C{None} to
+            cancel.
         @type options: C{dict}
         """
-        if not options:
+        if options is None:
             options = False
         request = ConfigureRequest(recipient=roomJID, options=options)
         return self.request(request)

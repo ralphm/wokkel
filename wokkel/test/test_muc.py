@@ -879,6 +879,28 @@ class MUCClientProtocolTest(unittest.TestCase):
         return d
 
 
+    def test_registerCancel(self):
+        """
+        Cancelling a registration request sends a cancel form.
+        """
+
+        d = self.protocol.register(self.roomJID, None)
+
+        iq = self.stub.output[-1]
+
+        query = "/iq/query[@xmlns='%s']" % muc.NS_REGISTER
+        nodes = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, nodes, 'Invalid registration request')
+
+        form = data_form.findForm(nodes[0], muc.NS_MUC_REGISTER)
+        self.assertNotIdentical(None, form, 'Missing registration form')
+        self.assertEquals('cancel', form.formType)
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
     def test_voice(self):
         """
         Client requesting voice for a room.
@@ -1013,6 +1035,29 @@ class MUCClientProtocolTest(unittest.TestCase):
         query = "/iq/query[@xmlns='%s']" % (muc.NS_MUC_OWNER)
         nodes = xpath.queryForNodes(query, iq)
         self.assertNotIdentical(None, nodes, 'Bad configure request')
+
+        form = data_form.findForm(nodes[0], muc.NS_MUC_CONFIG)
+        self.assertNotIdentical(None, form, 'Missing configuration form')
+        self.assertEquals('submit', form.formType)
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_configureEmpty(self):
+        """
+        Accept default configuration by sending an empty form.
+        """
+
+        values = {}
+
+        d = self.protocol.configure(self.roomJID, values)
+
+        iq = self.stub.output[-1]
+
+        query = "/iq/query[@xmlns='%s']" % (muc.NS_MUC_OWNER)
+        nodes = xpath.queryForNodes(query, iq)
 
         form = data_form.findForm(nodes[0], muc.NS_MUC_CONFIG)
         self.assertNotIdentical(None, form, 'Missing configuration form')
