@@ -7,7 +7,7 @@
 XMPP Multi-User Chat protocol.
 
 This protocol is specified in
-U{XEP-0045<http://www.xmpp.org/extensions/xep-0045.html>}.
+U{XEP-0045<http://xmpp.org/extensions/xep-0045.html>}.
 """
 from dateutil.tz import tzutc
 
@@ -17,7 +17,8 @@ from twisted.internet import defer
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
-from wokkel import data_form, generic, xmppim
+from wokkel import data_form, generic, iwokkel, xmppim
+from wokkel.compat import Values, ValueConstant
 from wokkel.delay import Delay, DelayMixin
 from wokkel.subprotocols import XMPPHandler
 from wokkel.iwokkel import IMUCClient
@@ -40,6 +41,41 @@ PRESENCE = '/presence'
 GROUPCHAT = MESSAGE +'[@type="groupchat"]'
 
 DEFER_TIMEOUT = 30 # basic timeout is 30 seconds
+
+class STATUS_CODE(Values):
+    REALJID_PUBLIC = ValueConstant(100)
+    AFFILIATION_CHANGED = ValueConstant(101)
+    UNAVAILABLE_SHOWN = ValueConstant(102)
+    UNAVAILABLE_NOT_SHOWN = ValueConstant(103)
+    CONFIGURATION_CHANGED = ValueConstant(104)
+    SELF_PRESENCE = ValueConstant(110)
+    LOGGING_ENABLED = ValueConstant(170)
+    LOGGING_DISABLED = ValueConstant(171)
+    NON_ANONYMOUS = ValueConstant(172)
+    SEMI_ANONYMOUS = ValueConstant(173)
+    FULLY_ANONYMOUS = ValueConstant(174)
+    ROOM_CREATED = ValueConstant(201)
+    NICK_ASSIGNED = ValueConstant(210)
+    BANNED = ValueConstant(301)
+    NEW_NICK = ValueConstant(303)
+    KICKED = ValueConstant(307)
+    REMOVED_AFFILIATION = ValueConstant(321)
+    REMOVED_MEMBERSHIP = ValueConstant(322)
+    REMOVED_SHUTDOWN = ValueConstant(332)
+
+
+class Statuses(set):
+    """
+    Container of MUC status conditions.
+
+    This is currently implemented as a set of constant values from
+    L{STATUS_CODE}. Instances of this class provide L{IMUCStatuses}, that
+    defines the supported operations. Even though this class currently derives
+    from C{set}, future versions might not. This provides an upgrade path to
+    cater for extensible status conditions, as defined in
+    U{XEP-0306<http://xmpp.org/extensions/xep-0306.html>}.
+    """
+    implements(iwokkel.IMUCStatuses)
 
 
 
@@ -353,6 +389,22 @@ class BasicPresence(xmppim.AvailabilityPresence):
 class UserPresence(xmppim.AvailabilityPresence):
     """
     Availability presence sent from MUC service to client.
+
+    @ivar affiliation: Affiliation of the entity to the room.
+    @type affiliation: C{unicode}
+
+    @ivar role: Role of the entity in the room.
+    @type role: C{unicode}
+
+    @ivar entity: The real JID of the entity this presence is from.
+    @type entity: L{jid.JID}
+
+    @ivar mucStatuses: Set of one or more status codes from L{STATUS_CODE}.
+        See L{Statuses} for usage notes.
+    @type mucStatuses: L{Statuses}
+
+    @ivar nick: The nick name of the entity in the room.
+    @type nick: C{unicode}
     """
 
     affiliation = None
@@ -360,24 +412,31 @@ class UserPresence(xmppim.AvailabilityPresence):
     entity = None
     nick = None
 
-    statusCodes = None
+    mucStatuses = None
 
     childParsers = {(NS_MUC_USER, 'x'): '_childParser_mucUser'}
 
-    def _childParser_mucUser(self, element):
-        statusCodes = set()
+    def __init__(self, *args, **kwargs):
+        self.mucStatuses = Statuses()
+        xmppim.AvailabilityPresence.__init__(self, *args, **kwargs)
 
+
+    def _childParser_mucUser(self, element):
+        """
+        Parse the MUC user extension element.
+        """
         for child in element.elements():
             if child.uri != NS_MUC_USER:
                 continue
 
             elif child.name == 'status':
                 try:
-                    statusCode = int(child.getAttribute('code'))
+                    value = int(child.getAttribute('code'))
+                    statusCode = STATUS_CODE.lookupByValue(value)
                 except (TypeError, ValueError):
                     continue
 
-                statusCodes.add(statusCode)
+                self.mucStatuses.add(statusCode)
 
             elif child.name == 'item':
                 if child.hasAttribute('jid'):
@@ -392,8 +451,6 @@ class UserPresence(xmppim.AvailabilityPresence):
 
             # TODO: destroy
 
-        if statusCodes:
-            self.statusCodes = statusCodes
 
 
 class VoiceRequest(xmppim.Message):
