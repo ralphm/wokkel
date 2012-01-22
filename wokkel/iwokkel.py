@@ -805,10 +805,9 @@ class IPubSubResource(Interface):
 
 class IMUCClient(Interface):
     """
-    Multi-User Chat Client
+    Multi-User Chat Client.
 
     A client interface to XEP-045 : http://xmpp.org/extensions/xep-0045.html
-
     """
 
     def receivedSubject(room, user, subject):
@@ -1026,4 +1025,27 @@ class IMUCClient(Interface):
 
         @param sender: The entity sending the request.
         @type sender: L{jid.JID}
+        """
+
+
+class IMUCStatuses(Interface):
+    """
+    Interface for a container of Multi-User Chat status conditions.
+    """
+
+    def __contains__(key):
+        """
+        Return if a status exists in the container.
+        """
+
+
+    def __iter__():
+        """
+        Return an iterator over the status codes.
+        """
+
+
+    def __len__():
+        """
+        Return the number of status conditions.
         """

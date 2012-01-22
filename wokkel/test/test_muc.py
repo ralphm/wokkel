@@ -42,9 +42,99 @@ def calledAsync(fn):
 
 
 
+class StatusCodeTest(unittest.TestCase):
+    """
+    Tests for L{muc.STATUS_CODE}.
+    """
+
+    def test_lookupByValue(self):
+        """
+        The registered MUC status codes map to STATUS_CODE value constants.
+
+        Note: the identifiers used in the dictionary of status codes are
+        borrowed from U{XEP-0306<http://xmpp.org/extensions/xep-0306.html>}
+        that defines Extensible Status Conditions for Multi-User Chat. If this
+        specification is implemented itself, the dictionary could move there.
+        """
+        codes = {
+            100: 'realjid-public',
+            101: 'affiliation-changed',
+            102: 'unavailable-shown',
+            103: 'unavailable-not-shown',
+            104: 'configuration-changed',
+            110: 'self-presence',
+            170: 'logging-enabled',
+            171: 'logging-disabled',
+            172: 'non-anonymous',
+            173: 'semi-anonymous',
+            174: 'fully-anonymous',
+            201: 'room-created',
+            210: 'nick-assigned',
+            301: 'banned',
+            303: 'new-nick',
+            307: 'kicked',
+            321: 'removed-affiliation',
+            322: 'removed-membership',
+            332: 'removed-shutdown',
+        }
+
+        for code, condition in codes.iteritems():
+            constantName = condition.replace('-', '_').upper()
+            self.assertEqual(getattr(muc.STATUS_CODE, constantName),
+                             muc.STATUS_CODE.lookupByValue(code))
+
+
+
+class StatusesTest(unittest.TestCase):
+    """
+    Tests for L{muc.Statuses}.
+    """
+
+    def setUp(self):
+        self.mucStatuses = muc.Statuses()
+        self.mucStatuses.add(muc.STATUS_CODE.SELF_PRESENCE)
+        self.mucStatuses.add(muc.STATUS_CODE.ROOM_CREATED)
+
+
+    def test_interface(self):
+        """
+        Instances of L{Statuses} provide L{iwokkel.IMUCStatuses}.
+        """
+        verify.verifyObject(iwokkel.IMUCStatuses, self.mucStatuses)
+
+
+    def test_contains(self):
+        """
+        The status contained are 'in' the container.
+        """
+        self.assertIn(muc.STATUS_CODE.SELF_PRESENCE, self.mucStatuses)
+        self.assertIn(muc.STATUS_CODE.ROOM_CREATED, self.mucStatuses)
+        self.assertNotIn(muc.STATUS_CODE.NON_ANONYMOUS, self.mucStatuses)
+
+
+    def test_iter(self):
+        """
+        All statuses can be iterated over.
+        """
+        statuses = set()
+        for status in self.mucStatuses:
+            statuses.add(status)
+
+        self.assertEqual(set([muc.STATUS_CODE.SELF_PRESENCE,
+                              muc.STATUS_CODE.ROOM_CREATED]), statuses)
+
+
+    def test_len(self):
+        """
+        The number of items in this container is returned by C{__len__}.
+        """
+        self.assertEqual(2, len(self.mucStatuses))
+
+
+
 class GroupChatTest(unittest.TestCase):
     """
-    Tests for {muc.GroupChat}.
+    Tests for L{muc.GroupChat}.
     """
 
 
@@ -120,13 +210,34 @@ class HistoryOptionsTest(unittest.TestCase):
                          element.getAttribute('since'))
 
 
+
 class UserPresenceTest(unittest.TestCase):
     """
     Tests for L{muc.UserPresence}.
     """
 
+    def test_fromElementNoUserElement(self):
+        """
+        Without user element, all associated attributes are None.
+        """
+        xml = """
+            <presence from='coven@chat.shakespeare.lit/thirdwitch'
+                      id='026B3509-2CCE-4D69-96D6-25F41FFDC408'
+                      to='hag66@shakespeare.lit/pda'>
+            </presence>
+        """
 
-    def test_toElementUnknownChild(self):
+        element = parseXml(xml)
+        presence = muc.UserPresence.fromElement(element)
+
+        self.assertIdentical(None, presence.affiliation)
+        self.assertIdentical(None, presence.role)
+        self.assertIdentical(None, presence.entity)
+        self.assertIdentical(None, presence.nick)
+        self.assertEqual(0, len(presence.mucStatuses))
+
+
+    def test_fromElementUnknownChild(self):
         """
         Unknown child elements are ignored.
         """
@@ -143,10 +254,10 @@ class UserPresenceTest(unittest.TestCase):
         element = parseXml(xml)
         presence = muc.UserPresence.fromElement(element)
 
-        self.assertIdentical(None, presence.statusCodes)
+        self.assertEqual(0, len(presence.mucStatuses))
 
 
-    def test_toElementStatusOne(self):
+    def test_fromElementStatusOne(self):
         """
         Status codes are extracted.
         """
@@ -164,10 +275,10 @@ class UserPresenceTest(unittest.TestCase):
         element = parseXml(xml)
         presence = muc.UserPresence.fromElement(element)
 
-        self.assertIn(110, presence.statusCodes)
+        self.assertIn(muc.STATUS_CODE.SELF_PRESENCE, presence.mucStatuses)
 
 
-    def test_toElementStatusMultiple(self):
+    def test_fromElementStatusMultiple(self):
         """
         Multiple status codes are all extracted.
         """
@@ -186,11 +297,11 @@ class UserPresenceTest(unittest.TestCase):
         element = parseXml(xml)
         presence = muc.UserPresence.fromElement(element)
 
-        self.assertIn(110, presence.statusCodes)
-        self.assertIn(100, presence.statusCodes)
+        self.assertIn(muc.STATUS_CODE.SELF_PRESENCE, presence.mucStatuses)
+        self.assertIn(muc.STATUS_CODE.REALJID_PUBLIC, presence.mucStatuses)
 
 
-    def test_toElementStatusEmpty(self):
+    def test_fromElementStatusEmpty(self):
         """
         Empty status elements are ignored.
         """
@@ -208,10 +319,10 @@ class UserPresenceTest(unittest.TestCase):
         element = parseXml(xml)
         presence = muc.UserPresence.fromElement(element)
 
-        self.assertIdentical(None, presence.statusCodes)
+        self.assertEqual(0, len(presence.mucStatuses))
 
 
-    def test_toElementStatusBad(self):
+    def test_fromElementStatusBad(self):
         """
         Bad status codes are ignored.
         """
@@ -229,12 +340,12 @@ class UserPresenceTest(unittest.TestCase):
         element = parseXml(xml)
         presence = muc.UserPresence.fromElement(element)
 
-        self.assertIdentical(None, presence.statusCodes)
+        self.assertEqual(0, len(presence.mucStatuses))
 
 
-    def test_toElementStatusUnknown(self):
+    def test_fromElementStatusUnknown(self):
         """
-        Unknown status codes are still recorded in C{statusCodes}.
+        Unknown status codes are not recorded in C{mucStatuses}.
         """
         xml = """
             <presence from='coven@chat.shakespeare.lit/thirdwitch'
@@ -250,10 +361,10 @@ class UserPresenceTest(unittest.TestCase):
         element = parseXml(xml)
         presence = muc.UserPresence.fromElement(element)
 
-        self.assertIn(999, presence.statusCodes)
+        self.assertEqual(0, len(presence.mucStatuses))
 
 
-    def test_toElementItem(self):
+    def test_fromElementItem(self):
         """
         Item attributes are parsed properly.
         """
@@ -768,6 +879,28 @@ class MUCClientProtocolTest(unittest.TestCase):
         return d
 
 
+    def test_registerCancel(self):
+        """
+        Cancelling a registration request sends a cancel form.
+        """
+
+        d = self.protocol.register(self.roomJID, None)
+
+        iq = self.stub.output[-1]
+
+        query = "/iq/query[@xmlns='%s']" % muc.NS_REGISTER
+        nodes = xpath.queryForNodes(query, iq)
+        self.assertNotIdentical(None, nodes, 'Invalid registration request')
+
+        form = data_form.findForm(nodes[0], muc.NS_MUC_REGISTER)
+        self.assertNotIdentical(None, form, 'Missing registration form')
+        self.assertEquals('cancel', form.formType)
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
     def test_voice(self):
         """
         Client requesting voice for a room.
@@ -902,6 +1035,29 @@ class MUCClientProtocolTest(unittest.TestCase):
         query = "/iq/query[@xmlns='%s']" % (muc.NS_MUC_OWNER)
         nodes = xpath.queryForNodes(query, iq)
         self.assertNotIdentical(None, nodes, 'Bad configure request')
+
+        form = data_form.findForm(nodes[0], muc.NS_MUC_CONFIG)
+        self.assertNotIdentical(None, form, 'Missing configuration form')
+        self.assertEquals('submit', form.formType)
+
+        response = toResponse(iq, 'result')
+        self.stub.send(response)
+        return d
+
+
+    def test_configureEmpty(self):
+        """
+        Accept default configuration by sending an empty form.
+        """
+
+        values = {}
+
+        d = self.protocol.configure(self.roomJID, values)
+
+        iq = self.stub.output[-1]
+
+        query = "/iq/query[@xmlns='%s']" % (muc.NS_MUC_OWNER)
+        nodes = xpath.queryForNodes(query, iq)
 
         form = data_form.findForm(nodes[0], muc.NS_MUC_CONFIG)
         self.assertNotIdentical(None, form, 'Missing configuration form')
@@ -1507,7 +1663,7 @@ class MUCClientTest(unittest.TestCase):
 
         def cb(room):
             self.assertEqual(self.roomJID, room.roomJID)
-            self.assertTrue('joined', room.state)
+            self.assertFalse(room.locked)
 
         d = self.protocol.join(self.roomJID, self.nick)
         d.addCallback(cb)
@@ -1517,6 +1673,31 @@ class MUCClientTest(unittest.TestCase):
             <presence from='%s@%s/%s'>
               <x xmlns='http://jabber.org/protocol/muc#user'>
                 <item affiliation='member' role='participant'/>
+              </x>
+            </presence>
+        """ % (self.roomIdentifier, self.service, self.nick)
+        self.stub.send(parseXml(xml))
+        return d
+
+
+    def test_joinLocked(self):
+        """
+        A new room is locked by default.
+        """
+
+        def cb(room):
+            self.assertTrue(room.locked, "Room is not marked as locked")
+
+        d = self.protocol.join(self.roomJID, self.nick)
+        d.addCallback(cb)
+
+        # send back user presence, they joined
+        xml = """
+            <presence from='%s@%s/%s'>
+              <x xmlns='http://jabber.org/protocol/muc#user'>
+                <item affiliation='owner' role='moderator'/>
+                <status code="110"/>
+                <status code="201"/>
               </x>
             </presence>
         """ % (self.roomIdentifier, self.service, self.nick)
