@@ -1,3 +1,5 @@
+# -*- test-case-name: wokkel.test.test_iwokkel -*-
+#
 # Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
@@ -5,109 +7,28 @@
 Wokkel interfaces.
 """
 
-from zope.interface import Attribute, Interface
+__all__ = ['IXMPPHandler', 'IXMPPHandlerCollection',
+           'IPubSubClient', 'IPubSubService', 'IPubSubResource',
+           'IMUCClient', 'IMUCStatuses']
 
-class IXMPPHandler(Interface):
-    """
-    Interface for XMPP protocol handlers.
+from zope.interface import Interface
+from twisted.python.deprecate import deprecatedModuleAttribute
+from twisted.python.versions import Version
+from twisted.words.protocols.jabber.ijabber import IXMPPHandler
+from twisted.words.protocols.jabber.ijabber import IXMPPHandlerCollection
 
-    Objects that provide this interface can be added to a stream manager to
-    handle of (part of) an XMPP extension protocol.
-    """
+deprecatedModuleAttribute(
+        Version("Wokkel", 0, 7, 0),
+        "Use twisted.words.protocols.jabber.ijabber.IXMPPHandler instead.",
+        __name__,
+        "IXMPPHandler")
 
-    parent = Attribute("""XML stream manager for this handler""")
-    xmlstream = Attribute("""The managed XML stream""")
-
-    def setHandlerParent(parent):
-        """
-        Set the parent of the handler.
-
-        @type parent: L{IXMPPHandlerCollection}
-        """
-
-
-    def disownHandlerParent(parent):
-        """
-        Remove the parent of the handler.
-
-        @type parent: L{IXMPPHandlerCollection}
-        """
-
-
-    def makeConnection(xs):
-        """
-        A connection over the underlying transport of the XML stream has been
-        established.
-
-        At this point, no traffic has been exchanged over the XML stream
-        given in C{xs}.
-
-        This should setup L{xmlstream} and call L{connectionMade}.
-
-        @type xs: L{XmlStream<twisted.words.protocols.jabber.XmlStream>}
-        """
-
-
-    def connectionMade():
-        """
-        Called after a connection has been established.
-
-        This method can be used to change properties of the XML Stream, its
-        authenticator or the stream manager prior to stream initialization
-        (including authentication).
-        """
-
-
-    def connectionInitialized():
-        """
-        The XML stream has been initialized.
-
-        At this point, authentication was successful, and XML stanzas can be
-        exchanged over the XML stream L{xmlstream}. This method can be
-        used to setup observers for incoming stanzas.
-        """
-
-
-    def connectionLost(reason):
-        """
-        The XML stream has been closed.
-
-        Subsequent use of L{parent.send} will result in data being queued
-        until a new connection has been established.
-
-        @type reason: L{twisted.python.failure.Failure}
-        """
-
-
-
-class IXMPPHandlerCollection(Interface):
-    """
-    Collection of handlers.
-
-    Contain several handlers and manage their connection.
-    """
-
-    def __iter__():
-        """
-        Get an iterator over all child handlers.
-        """
-
-
-    def addHandler(handler):
-        """
-        Add a child handler.
-
-        @type handler: L{IXMPPHandler}
-        """
-
-
-    def removeHandler(handler):
-        """
-        Remove a child handler.
-
-        @type handler: L{IXMPPHandler}
-        """
-
+deprecatedModuleAttribute(
+        Version("Wokkel", 0, 7, 0),
+        "Use twisted.words.protocols.jabber.ijabber.IXMPPHandlerCollection "
+                "instead.",
+        __name__,
+        "IXMPPHandlerCollection")
 
 
 class IDisco(Interface):
@@ -142,6 +63,7 @@ class IDisco(Interface):
                                The default is C{''}, meaning the root node.
         @type nodeIdentifier: C{unicode}
         """
+
 
 
 class IPubSubClient(Interface):
@@ -249,6 +171,7 @@ class IPubSubClient(Interface):
         @type items: L{list} of L{Item}
         @rtype: L{defer.Deferred}
         """
+
 
 
 class IPubSubService(Interface):
@@ -1026,6 +949,7 @@ class IMUCClient(Interface):
         @param sender: The entity sending the request.
         @type sender: L{jid.JID}
         """
+
 
 
 class IMUCStatuses(Interface):

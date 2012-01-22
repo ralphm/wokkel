@@ -7,7 +7,7 @@
 XMPP IM protocol support.
 
 This module provides generic implementations for the protocols defined in
-U{RFC 3921<http://www.xmpp.org/rfcs/rfc3921.html>} (XMPP IM).
+U{RFC 3921<http://xmpp.org/rfcs/rfc3921.html>} (XMPP IM).
 
 All of it should eventually move to Twisted.
 """

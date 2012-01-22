@@ -14,18 +14,6 @@ from twisted.words.protocols.jabber.jid import internJID as JID
 from twisted.words.protocols.jabber import component, error, xmlstream
 from twisted.words.xish import domish
 
-try:
-    #from twisted.words.protocols.jabber.xmlstream import XMPPHandler
-    from twisted.words.protocols.jabber.xmlstream import XMPPHandlerCollection
-except ImportError:
-    #from wokkel.subprotocols import XMPPHandler
-    from wokkel.subprotocols import XMPPHandlerCollection
-
-try:
-    from twisted.words.protocols.jabber.xmlstream import XmlStreamServerFactory
-except ImportError:
-    from wokkel.compat import XmlStreamServerFactory
-
 from wokkel.generic import XmlPipe
 from wokkel.subprotocols import StreamManager
 
@@ -78,7 +66,7 @@ class Component(StreamManager, service.Service):
 
 
 
-class InternalComponent(XMPPHandlerCollection, service.Service):
+class InternalComponent(xmlstream.XMPPHandlerCollection, service.Service):
     """
     Component service that connects directly to a router.
 
@@ -91,7 +79,7 @@ class InternalComponent(XMPPHandlerCollection, service.Service):
     """
 
     def __init__(self, router, domain=None):
-        XMPPHandlerCollection.__init__(self)
+        xmlstream.XMPPHandlerCollection.__init__(self)
 
         self._router = router
         self.domains = set()
@@ -137,7 +125,7 @@ class InternalComponent(XMPPHandlerCollection, service.Service):
         """
         Add a new handler and connect it to the stream.
         """
-        XMPPHandlerCollection.addHandler(self, handler)
+        xmlstream.XMPPHandlerCollection.addHandler(self, handler)
 
         if self.xmlstream:
             handler.makeConnection(self.xmlstream)
@@ -322,7 +310,7 @@ class Router(object):
 
 
 
-class XMPPComponentServerFactory(XmlStreamServerFactory):
+class XMPPComponentServerFactory(xmlstream.XmlStreamServerFactory):
     """
     XMPP Component Server factory.
 
@@ -340,7 +328,7 @@ class XMPPComponentServerFactory(XmlStreamServerFactory):
         def authenticatorFactory():
             return ListenComponentAuthenticator(self.secret)
 
-        XmlStreamServerFactory.__init__(self, authenticatorFactory)
+        xmlstream.XmlStreamServerFactory.__init__(self, authenticatorFactory)
         self.addBootstrap(xmlstream.STREAM_CONNECTED_EVENT,
                           self.makeConnection)
         self.addBootstrap(xmlstream.STREAM_AUTHD_EVENT,

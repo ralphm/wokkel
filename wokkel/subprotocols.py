@@ -7,17 +7,28 @@
 XMPP subprotocol support.
 """
 
+__all__ = ['XMPPHandler', 'XMPPHandlerCollection', 'StreamManager',
+           'IQHandlerMixin']
+
 from zope.interface import implements
 
 from twisted.internet import defer
 from twisted.internet.error import ConnectionDone
 from twisted.python import failure, log
-from twisted.words.protocols.jabber import error, xmlstream
+from twisted.python.deprecate import deprecatedModuleAttribute
+from twisted.python.versions import Version
+from twisted.words.protocols.jabber import error, ijabber, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
+from twisted.words.protocols.jabber.xmlstream import XMPPHandlerCollection
 from twisted.words.xish import xpath
 from twisted.words.xish.domish import IElement
 
-from wokkel.iwokkel import IXMPPHandler, IXMPPHandlerCollection
+deprecatedModuleAttribute(
+        Version("Wokkel", 0, 7, 0),
+        "Use twisted.words.protocols.jabber.xmlstream.XMPPHandlerCollection "
+                "instead.",
+        __name__,
+        "XMPPHandlerCollection")
 
 class XMPPHandler(object):
     """
@@ -27,7 +38,7 @@ class XMPPHandler(object):
     extension protocols, and are referred to as a subprotocol implementation.
     """
 
-    implements(IXMPPHandler)
+    implements(ijabber.IXMPPHandler)
 
     def __init__(self):
         self.parent = None
@@ -104,48 +115,6 @@ class XMPPHandler(object):
         @see: L{StreamManager.request}.
         """
         return self.parent.request(request)
-
-
-
-class XMPPHandlerCollection(object):
-    """
-    Collection of XMPP subprotocol handlers.
-
-    This allows for grouping of subprotocol handlers, but is not an
-    L{XMPPHandler} itself, so this is not recursive.
-
-    @ivar handlers: List of protocol handlers.
-    @type handlers: L{list} of objects providing
-                      L{IXMPPHandler}
-    """
-
-    implements(IXMPPHandlerCollection)
-
-    def __init__(self):
-        self.handlers = []
-
-
-    def __iter__(self):
-        """
-        Act as a container for handlers.
-        """
-        return iter(self.handlers)
-
-
-    def addHandler(self, handler):
-        """
-        Add protocol handler.
-
-        Protocol handlers are expected to provide L{IXMPPHandler}.
-        """
-        self.handlers.append(handler)
-
-
-    def removeHandler(self, handler):
-        """
-        Remove protocol handler.
-        """
-        self.handlers.remove(handler)
 
 
 
@@ -475,7 +444,7 @@ class IQHandlerMixin(object):
             raise error.StanzaError('feature-not-implemented')
 
         def fromStanzaError(failure, iq):
-            e = failure.trap(error.StanzaError)
+            failure.trap(error.StanzaError)
             return failure.value.toResponse(iq)
 
         def fromOtherError(failure, iq):

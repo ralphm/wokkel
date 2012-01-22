@@ -9,7 +9,7 @@ class Mood:
     User mood.
 
     This represents a user's mood, as defined in
-    U{XEP-0107<http://www.xmpp.org/extensions/xep-0107.html>}.
+    U{XEP-0107<http://xmpp.org/extensions/xep-0107.html>}.
 
     @ivar value: The mood value.
     @ivar text: The optional natural-language description of, or reason
@@ -60,7 +60,7 @@ class Tune:
     User tune.
 
     This represents a user's mood, as defined in
-    U{XEP-0118<http://www.xmpp.org/extensions/xep-0118.html>}.
+    U{XEP-0118<http://xmpp.org/extensions/xep-0118.html>}.
 
     @ivar artist: The artist or performer of the song or piece.
     @type artist: C{unicode}

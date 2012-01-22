@@ -7,18 +7,13 @@ Tests for L{wokkel.component}
 
 from zope.interface.verify import verifyObject
 
-from twisted.internet import defer
 from twisted.python import failure
 from twisted.trial import unittest
-from twisted.words.protocols.jabber import ijabber, xmlstream
+from twisted.words.protocols.jabber import xmlstream
+from twisted.words.protocols.jabber.ijabber import IXMPPHandlerCollection
 from twisted.words.protocols.jabber.jid import JID
+from twisted.words.protocols.jabber.xmlstream import XMPPHandler
 from twisted.words.xish import domish
-
-try:
-    from twisted.words.protocols.jabber.ijabber import IXMPPHandlerCollection
-    from twisted.words.protocols.jabber.xmlstream import XMPPHandler
-except ImportError:
-    from wokkel.subprotocols import IXMPPHandlerCollection, XMPPHandler
 
 from wokkel import component
 from wokkel.generic import XmlPipe
@@ -39,7 +34,6 @@ class InternalComponentTest(unittest.TestCase):
         L{IXMPPHandlerCollection}.
         """
         verifyObject(IXMPPHandlerCollection, self.component)
-
 
 
     def test_startServiceRunning(self):

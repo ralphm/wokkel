@@ -7,7 +7,7 @@
 XMPP Service Discovery.
 
 The XMPP service discovery protocol is documented in
-U{XEP-0030<http://www.xmpp.org/extensions/xep-0030.html>}.
+U{XEP-0030<http://xmpp.org/extensions/xep-0030.html>}.
 """
 
 from twisted.internet import defer

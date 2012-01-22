@@ -13,9 +13,41 @@ from twisted.internet import defer, task
 from twisted.internet.error import ConnectionDone
 from twisted.python import failure
 from twisted.words.xish import domish
-from twisted.words.protocols.jabber import error, xmlstream
+from twisted.words.protocols.jabber import error, ijabber, xmlstream
 
-from wokkel import generic, iwokkel, subprotocols
+from wokkel import generic, subprotocols
+
+class DeprecationTest(unittest.TestCase):
+    """
+    Deprecation test for L{wokkel.subprotocols}.
+    """
+
+    def lookForDeprecationWarning(self, testmethod, attributeName, newName):
+        """
+        Importing C{testmethod} emits a deprecation warning.
+        """
+        warningsShown = self.flushWarnings([testmethod])
+        self.assertEqual(len(warningsShown), 1)
+        self.assertIdentical(warningsShown[0]['category'], DeprecationWarning)
+        self.assertEqual(
+            warningsShown[0]['message'],
+            "wokkel.subprotocols." + attributeName + " "
+            "was deprecated in Wokkel 0.7.0: Use " + newName + " instead.")
+
+
+    def test_xmppHandlerCollection(self):
+        """
+        L{subprotocols.XMPPHandlerCollection} is deprecated.
+        """
+        from wokkel.subprotocols import XMPPHandlerCollection
+        XMPPHandlerCollection
+        self.lookForDeprecationWarning(
+                self.test_xmppHandlerCollection,
+                "XMPPHandlerCollection",
+                "twisted.words.protocols.jabber.xmlstream."
+                    "XMPPHandlerCollection")
+
+
 
 class DummyFactory(object):
     """
@@ -87,9 +119,9 @@ class XMPPHandlerTest(unittest.TestCase):
 
     def test_interface(self):
         """
-        L{xmlstream.XMPPHandler} implements L{iwokkel.IXMPPHandler}.
+        L{xmlstream.XMPPHandler} implements L{ijabber.IXMPPHandler}.
         """
-        verifyObject(iwokkel.IXMPPHandler, subprotocols.XMPPHandler())
+        verifyObject(ijabber.IXMPPHandler, subprotocols.XMPPHandler())
 
 
     def test_send(self):
@@ -154,44 +186,6 @@ class XMPPHandlerTest(unittest.TestCase):
         self.assertEquals(1, len(handler.parent.requests))
         self.assertIdentical(request, handler.parent.requests[-1])
         return d
-
-
-
-class XMPPHandlerCollectionTest(unittest.TestCase):
-    """
-    Tests for L{subprotocols.XMPPHandlerCollection}.
-    """
-
-    def setUp(self):
-        self.collection = subprotocols.XMPPHandlerCollection()
-
-
-    def test_interface(self):
-        """
-        L{subprotocols.StreamManager} implements L{iwokkel.IXMPPHandlerCollection}.
-        """
-        verifyObject(iwokkel.IXMPPHandlerCollection, self.collection)
-
-
-    def test_addHandler(self):
-        """
-        Test the addition of a protocol handler.
-        """
-        handler = DummyXMPPHandler()
-        handler.setHandlerParent(self.collection)
-        self.assertIn(handler, self.collection)
-        self.assertIdentical(self.collection, handler.parent)
-
-
-    def test_removeHandler(self):
-        """
-        Test removal of a protocol handler.
-        """
-        handler = DummyXMPPHandler()
-        handler.setHandlerParent(self.collection)
-        handler.disownHandlerParent(self.collection)
-        self.assertNotIn(handler, self.collection)
-        self.assertIdentical(None, handler.parent)
 
 
 
@@ -318,7 +312,7 @@ class StreamManagerTest(unittest.TestCase):
         sm = self.streamManager
         handler = FailureReasonXMPPHandler()
         handler.setHandlerParent(sm)
-        xs = xmlstream.XmlStream(xmlstream.Authenticator())
+        xmlstream.XmlStream(xmlstream.Authenticator())
         sm._disconnected(failure.Failure(Exception("no reason")))
         self.assertEquals(True, handler.gotFailureReason)
 

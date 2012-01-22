@@ -7,7 +7,7 @@
 XMPP Stanza Headers and Internet Metadata.
 
 This protocol is specified in
-U{XEP-0131<http://www.xmpp.org/extensions/xep-0131.html>}.
+U{XEP-0131<http://xmpp.org/extensions/xep-0131.html>}.
 """
 
 from twisted.words.xish import domish

@@ -12,14 +12,9 @@ from twisted.words.protocols.jabber.client import XMPPAuthenticator
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.xmlstream import STREAM_AUTHD_EVENT
 from twisted.words.protocols.jabber.xmlstream import INIT_FAILED_EVENT
-
-try:
-    from twisted.words.protocols.jabber.xmlstream import XMPPHandler
-except ImportError:
-    from wokkel.subprotocols import XMPPHandler
+from twisted.words.protocols.jabber.xmlstream import XMPPHandler
 
 from wokkel import client
-from wokkel.test.test_compat import BootstrapMixinTest
 
 class XMPPClientTest(unittest.TestCase):
     """
@@ -48,7 +43,7 @@ class XMPPClientTest(unittest.TestCase):
 
 
 
-class DeferredClientFactoryTest(BootstrapMixinTest):
+class DeferredClientFactoryTest(unittest.TestCase):
     """
     Tests for L{client.DeferredClientFactory}.
     """
@@ -103,7 +98,7 @@ class DeferredClientFactoryTest(BootstrapMixinTest):
         class TestException(Exception):
             pass
 
-        xs = self.factory.buildProtocol(None)
+        self.factory.buildProtocol(None)
         self.factory.clientConnectionFailed(self, TestException())
         self.assertFailure(self.factory.deferred, TestException)
         return self.factory.deferred

@@ -14,11 +14,7 @@ from twisted.python import reflect
 from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import domish, utility
-
-try:
-    from twisted.words.xish.xmlstream import BootstrapMixin
-except ImportError:
-    from wokkel.compat import BootstrapMixin
+from twisted.words.xish.xmlstream import BootstrapMixin
 
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import XMPPHandler
@@ -93,7 +89,7 @@ class VersionHandler(XMPPHandler):
     XMPP subprotocol handler for XMPP Software Version.
 
     This protocol is described in
-    U{XEP-0092<http://www.xmpp.org/extensions/xep-0092.html>}.
+    U{XEP-0092<http://xmpp.org/extensions/xep-0092.html>}.
     """
 
     implements(IDisco)
@@ -109,8 +105,8 @@ class VersionHandler(XMPPHandler):
         response = toResponse(iq, "result")
 
         query = response.addElement((NS_VERSION, "query"))
-        name = query.addElement("name", content=self.name)
-        version = query.addElement("version", content=self.version)
+        query.addElement("name", content=self.name)
+        query.addElement("version", content=self.version)
         self.send(response)
 
         iq.handled = True

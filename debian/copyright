@@ -1,7 +1,7 @@
 This package was debianized by Ralph Meijer <ralphm@ik.nu> on
-Mon, 24 Aug 2009 15:10:42 +0200.
+Sun, Jan 22 2012 14:27:12 +0100.
 
-It was downloaded from <https://svn.ik.nu/wokkel/trunk>
+It was downloaded from <https://hg.ik.nu/wokkel>
 
 Author:
 
@@ -9,7 +9,7 @@ Author:
 
 Copyright:
 
-    (C) 2003-2011 Ralph Meijer <ralphm@ik.nu>
+    (C) 2003-2012 Ralph Meijer <ralphm@ik.nu>
 
 License:
 

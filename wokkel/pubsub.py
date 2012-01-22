@@ -7,7 +7,7 @@
 XMPP publish-subscribe protocol.
 
 This protocol is specified in
-U{XEP-0060<http://www.xmpp.org/extensions/xep-0060.html>}.
+U{XEP-0060<http://xmpp.org/extensions/xep-0060.html>}.
 """
 
 from zope.interface import implements

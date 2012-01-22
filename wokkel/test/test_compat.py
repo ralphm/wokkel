@@ -7,167 +7,55 @@ Tests for L{wokkel.compat}.
 """
 
 from zope.interface import implements
-from zope.interface.verify import verifyObject
-from twisted.internet import protocol, task
-from twisted.internet.interfaces import IProtocolFactory, IReactorTime
+from twisted.internet import task
+from twisted.internet.interfaces import IReactorTime
 from twisted.trial import unittest
-from twisted.words.xish import utility
 from twisted.words.protocols.jabber import xmlstream
 
-from wokkel.compat import BootstrapMixin, IQ, XmlStreamServerFactory
+from wokkel.compat import IQ
 from wokkel.compat import NamedConstant, Names, ValueConstant, Values
 
-class DummyProtocol(protocol.Protocol, utility.EventDispatcher):
+class DeprecationTest(unittest.TestCase):
     """
-    I am a protocol with an event dispatcher without further processing.
-
-    This protocol is only used for testing BootstrapMixin to make
-    sure the bootstrap observers are added to the protocol instance.
+    Deprecation tests for L{wokkel.compat}.
     """
 
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
-        self.observers = []
-
-        utility.EventDispatcher.__init__(self)
-
-
-
-class BootstrapMixinTest(unittest.TestCase):
-    """
-    Tests for L{BootstrapMixin}.
-
-    @ivar factory: Instance of the factory or mixin under test.
-    """
-
-    def setUp(self):
-        self.factory = BootstrapMixin()
-
-
-    def test_installBootstraps(self):
+    def lookForDeprecationWarning(self, testmethod, attributeName, newName):
         """
-        Dispatching an event should fire registered bootstrap observers.
+        Importing C{testmethod} emits a deprecation warning.
         """
-        called = []
-
-        def cb(data):
-            called.append(data)
-
-        dispatcher = DummyProtocol()
-        self.factory.addBootstrap('//event/myevent', cb)
-        self.factory.installBootstraps(dispatcher)
-
-        dispatcher.dispatch(None, '//event/myevent')
-        self.assertEquals(1, len(called))
+        warningsShown = self.flushWarnings([testmethod])
+        self.assertEqual(len(warningsShown), 1)
+        self.assertIdentical(warningsShown[0]['category'], DeprecationWarning)
+        self.assertEqual(
+            warningsShown[0]['message'],
+            "wokkel.compat." + attributeName + " "
+            "was deprecated in Wokkel 0.7.0: Use " + newName + " instead.")
 
 
-    def test_addAndRemoveBootstrap(self):
+    def test_bootstrapMixinTest(self):
         """
-        Test addition and removal of a bootstrap event handler.
+        L{compat.BootstrapMixin} is deprecated.
         """
-
-        called = []
-
-        def cb(data):
-            called.append(data)
-
-        self.factory.addBootstrap('//event/myevent', cb)
-        self.factory.removeBootstrap('//event/myevent', cb)
-
-        dispatcher = DummyProtocol()
-        self.factory.installBootstraps(dispatcher)
-
-        dispatcher.dispatch(None, '//event/myevent')
-        self.assertFalse(called)
+        from wokkel.compat import BootstrapMixin
+        BootstrapMixin
+        self.lookForDeprecationWarning(
+                self.test_bootstrapMixinTest,
+                "BootstrapMixin",
+                "twisted.words.xish.xmlstream.BootstrapMixin")
 
 
-
-class XmlStreamServerFactoryTest(BootstrapMixinTest):
-    """
-    Tests for L{XmlStreamServerFactory}.
-    """
-
-    def setUp(self):
+    def test_xmlStreamServerFactory(self):
         """
-        Set up a server factory with a authenticator factory function.
+        L{compat.XmlStreamServerFactory} is deprecated.
         """
-        class TestAuthenticator(object):
-            def __init__(self):
-                self.xmlstreams = []
-
-            def associateWithStream(self, xs):
-                self.xmlstreams.append(xs)
-
-        def authenticatorFactory():
-            return TestAuthenticator()
-
-        self.factory = XmlStreamServerFactory(authenticatorFactory)
-
-
-    def test_interface(self):
-        """
-        L{XmlStreamServerFactory} is a L{Factory}.
-        """
-        verifyObject(IProtocolFactory, self.factory)
-
-
-    def test_buildProtocolAuthenticatorInstantiation(self):
-        """
-        The authenticator factory should be used to instantiate the
-        authenticator and pass it to the protocol.
-
-        The default protocol, L{XmlStream} stores the authenticator it is
-        passed, and calls its C{associateWithStream} method. so we use that to
-        check whether our authenticator factory is used and the protocol
-        instance gets an authenticator.
-        """
-        xs = self.factory.buildProtocol(None)
-        self.assertEquals([xs], xs.authenticator.xmlstreams)
-
-
-    def test_buildProtocolXmlStream(self):
-        """
-        The protocol factory creates Jabber XML Stream protocols by default.
-        """
-        xs = self.factory.buildProtocol(None)
-        self.assertIsInstance(xs, xmlstream.XmlStream)
-
-
-    def test_buildProtocolTwice(self):
-        """
-        Subsequent calls to buildProtocol should result in different instances
-        of the protocol, as well as their authenticators.
-        """
-        xs1 = self.factory.buildProtocol(None)
-        xs2 = self.factory.buildProtocol(None)
-        self.assertNotIdentical(xs1, xs2)
-        self.assertNotIdentical(xs1.authenticator, xs2.authenticator)
-
-
-    def test_buildProtocolInstallsBootstraps(self):
-        """
-        The protocol factory installs bootstrap event handlers on the protocol.
-        """
-        called = []
-
-        def cb(data):
-            called.append(data)
-
-        self.factory.addBootstrap('//event/myevent', cb)
-
-        xs = self.factory.buildProtocol(None)
-        xs.dispatch(None, '//event/myevent')
-
-        self.assertEquals(1, len(called))
-
-
-    def test_buildProtocolStoresFactory(self):
-        """
-        The protocol factory is saved in the protocol.
-        """
-        xs = self.factory.buildProtocol(None)
-        self.assertIdentical(self.factory, xs.factory)
+        from wokkel.compat import XmlStreamServerFactory
+        XmlStreamServerFactory
+        self.lookForDeprecationWarning(
+                self.test_xmlStreamServerFactory,
+                "XmlStreamServerFactory",
+                "twisted.words.protocols.jabber.xmlstream."
+                    "XmlStreamServerFactory")
 
 
 

@@ -7,9 +7,9 @@
 Data Forms.
 
 Support for Data Forms as described in
-U{XEP-0004<http://www.xmpp.org/extensions/xep-0004.html>}, along with support
+U{XEP-0004<http://xmpp.org/extensions/xep-0004.html>}, along with support
 for Field Standardization for Data Forms as described in
-U{XEP-0068<http://www.xmpp.org/extensions/xep-0068.html>}.
+U{XEP-0068<http://xmpp.org/extensions/xep-0068.html>}.
 """
 
 from zope.interface import implements

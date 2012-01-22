@@ -33,7 +33,7 @@ class VersionHandlerTest(unittest.TestCase):
         iq['from'] = 'user@example.org/Home'
         iq['to'] = 'example.org'
         iq['type'] = 'get'
-        query = iq.addElement((NS_VERSION, 'query'))
+        iq.addElement((NS_VERSION, 'query'))
         self.stub.send(iq)
 
         response = self.stub.output[-1]

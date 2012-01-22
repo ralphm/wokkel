@@ -14,11 +14,7 @@ from zope.interface import implements
 
 from twisted.words.protocols.jabber.error import StanzaError
 from twisted.words.protocols.jabber.xmlstream import IQ, toResponse
-
-try:
-    from twisted.words.protocols.xmlstream import XMPPHandler
-except ImportError:
-    from wokkel.subprotocols import XMPPHandler
+from twisted.words.protocols.jabber.xmlstream import XMPPHandler
 
 from wokkel import disco, iwokkel
 

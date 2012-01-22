@@ -55,6 +55,23 @@ Fixes
  - Reimplemented Service Discovery requests using new Request class. By reusing
    common code, this fixes a problem with requests without addressing (#73).
 
+Deprecations
+------------
+
+ - wokkel.compat.BootstrapMixin is deprecated in favor of
+   twisted.words.xish.xmlstream.BootstrapMixin (Twisted 8.2.0).
+ - wokkel.compat.XmlStreamServerFactory is deprecated in favor of
+   twisted.words.protocols.jabber.xmlstream.XmlStreamServerFactory (Twisted
+   8.2.0).
+ - wokkel.iwokkel.IXMPPHandler is deprecated in favor of
+   twisted.words.protocols.jabber.ijabber.IXMPPHandler (Twisted 8.1.0).
+ - wokkel.iwokkel.IXMPPHandlerCollection is deprecated in favor of
+   twisted.words.protocols.jabber.ijabber.IXMPPHandlerCollection (Twisted
+   8.1.0).
+ - wokkel.subprotocols.XMPPHandlerCollection is deprecated in favor of
+   twisted.words.protocols.jabber.xmlstream.XMPPHandlerCollection (Twisted
+   8.1.0).
+
 
 0.6.3 (2009-08-20)
 ==================

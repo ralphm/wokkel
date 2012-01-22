@@ -23,7 +23,6 @@ import hmac
 
 from zope.interface import implements
 
-from twisted.application import service
 from twisted.internet import defer, reactor
 from twisted.names.srvconnect import SRVConnector
 from twisted.python import log, randbytes
@@ -31,7 +30,6 @@ from twisted.words.protocols.jabber import error, ijabber, jid, xmlstream
 from twisted.words.xish import domish
 
 from wokkel.generic import DeferredXmlStreamFactory, XmlPipe
-from wokkel.compat import XmlStreamServerFactory
 
 NS_DIALBACK = 'jabber:server:dialback'
 
@@ -40,7 +38,7 @@ def generateKey(secret, receivingServer, originatingServer, streamID):
     Generate a dialback key for server-to-server XMPP Streams.
 
     The dialback key is generated using the algorithm described in
-    U{XEP-0185<http://www.xmpp.org/extensions/xep-0185.html>}. The used
+    U{XEP-0185<http://xmpp.org/extensions/xep-0185.html>}. The used
     terminology for the parameters is described in RFC-3920.
 
     @param secret: the shared secret known to the Originating Server and
@@ -477,7 +475,7 @@ def initiateS2S(factory):
 
 
 
-class XMPPS2SServerFactory(XmlStreamServerFactory):
+class XMPPS2SServerFactory(xmlstream.XmlStreamServerFactory):
     """
     XMPP Server-to-Server Server factory.
 
@@ -492,7 +490,7 @@ class XMPPS2SServerFactory(XmlStreamServerFactory):
         def authenticatorFactory():
             return XMPPServerListenAuthenticator(service)
 
-        XmlStreamServerFactory.__init__(self, authenticatorFactory)
+        xmlstream.XmlStreamServerFactory.__init__(self, authenticatorFactory)
         self.addBootstrap(xmlstream.STREAM_CONNECTED_EVENT,
                           self.onConnectionMade)
         self.addBootstrap(xmlstream.STREAM_AUTHD_EVENT,
@@ -701,7 +699,7 @@ class ServerService(object):
         else:
             try:
                 sender = jid.internJID(stanzaFrom)
-                recipient = jid.internJID(stanzaTo)
+                jid.internJID(stanzaTo)
             except jid.InvalidFormat:
                 log.msg("Dropping error stanza with malformed JID")
 
