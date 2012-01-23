@@ -2,7 +2,7 @@ wokkel (0.7.0) testing; urgency=low
 
   * Release Wokkel 0.7.0
 
- -- 
+ -- Ralph Meijer <ralphm@ik.nu>  Mon, 23 Jan 2012 16:04:44 +0100
 
 wokkel (0.6.3-0ubuntu1) jaunty; urgency=low
 
