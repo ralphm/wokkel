@@ -75,7 +75,7 @@ class InternalComponent(xmlstream.XMPPHandlerCollection, service.Service):
     allows for one-process XMPP servers.
 
     @ivar domains: Domains (as C{str}) this component will handle traffic for.
-    @type domains: L{set}
+    @type domains: C{set}
     """
 
     def __init__(self, router, domain=None):
@@ -250,9 +250,8 @@ class Router(object):
     specific route exists, will be routed to this default route.
 
     @ivar routes: Routes based on the host part of JIDs. Maps host names to the
-                  L{EventDispatcher<utility.EventDispatcher>}s that should
-                  receive the traffic. A key of C{None} means the default
-                  route.
+        L{EventDispatcher<twisted.words.xish.utility.EventDispatcher>}s that
+        should receive the traffic. A key of C{None} means the default route.
     @type routes: C{dict}
     """
 
@@ -270,9 +269,11 @@ class Router(object):
 
         @param destination: Destination of the route to be added as a host name
                             or C{None} for the default route.
-        @type destination: C{str} or C{NoneType}.
+        @type destination: C{str} or C{NoneType}
+
         @param xs: XML Stream to register the route for.
-        @type xs: L{EventDispatcher<utility.EventDispatcher>}.
+        @type xs:
+            L{EventDispatcher<twisted.words.xish.utility.EventDispatcher>}
         """
         self.routes[destination] = xs
         xs.addObserver('/*', self.route)
@@ -284,8 +285,10 @@ class Router(object):
 
         @param destination: Destination of the route that should be removed.
         @type destination: C{str}.
+
         @param xs: XML Stream to remove the route for.
-        @type xs: L{EventDispatcher<utility.EventDispatcher>}.
+        @type xs:
+            L{EventDispatcher<twisted.words.xish.utility.EventDispatcher>}
         """
         xs.removeObserver('/*', self.route)
         if (xs == self.routes[destination]):

@@ -455,9 +455,10 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
     """
     Protocol implementation for XMPP Service Discovery.
 
-    This handler will listen to XMPP service discovery requests and
-    query the other handlers in L{parent} (see L{XMPPHandlerContainer}) for
-    their identities, features and items according to L{IDisco}.
+    This handler will listen to XMPP service discovery requests and query the
+    other handlers in C{parent} (see
+    L{twisted.words.protocols.jabber.xmlstream.XMPPHandlerCollection})
+    for their identities, features and items according to L{IDisco}.
     """
 
     iqHandlers = {DISCO_INFO: '_onDiscoInfo',

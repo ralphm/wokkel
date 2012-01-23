@@ -362,7 +362,7 @@ class SubscriptionPresence(BasePresence):
     This kind of presence is used to represent requests for presence
     subscription and their replies.
 
-    Based on L{BasePresence} and {Stanza}, it just uses the L{stanzaType}
+    Based on L{BasePresence} and {Stanza}, it just uses the C{stanzaType}
     attribute to represent the type of subscription presence. This can be
     one of C{'subscribe'}, C{'unsubscribe'}, C{'subscribed'} and
     C{'unsubscribed'}.

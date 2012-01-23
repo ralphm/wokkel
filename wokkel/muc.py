@@ -227,7 +227,7 @@ class DestructionRequest(generic.Request):
     @type reason: C{unicode}.
 
     @param alternate: Optional room JID of an alternate venue.
-    @type alternate: L{jid.JID}
+    @type alternate: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
     @param password: Optional password for entering the alternate venue.
     @type password: C{unicode}
@@ -397,7 +397,7 @@ class UserPresence(xmppim.AvailabilityPresence):
     @type role: C{unicode}
 
     @ivar entity: The real JID of the entity this presence is from.
-    @type entity: L{jid.JID}
+    @type entity: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
     @ivar mucStatuses: Set of one or more status codes from L{STATUS_CODE}.
         See L{Statuses} for usage notes.
@@ -499,9 +499,8 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         """
         Called when the XML stream has been initialized.
 
-        It initializes several XPath events to handle MUC stanzas that come in.
-        After those are initialized the method L{initialized} is called to
-        signal that we have finished.
+        It initializes several XPath events to handle MUC stanzas that come
+        in.
         """
         xmppim.BasePresenceProtocol.connectionInitialized(self)
         self.xmlstream.addObserver(GROUPCHAT, self._onGroupChat)
@@ -546,7 +545,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
 
         @param timeout: The number of seconds to wait before the deferred is
             timed out.
-        @type timeout: L{int}
+        @type timeout: C{int}
 
         The deferred object L{defer.Deferred} is returned.
         """
@@ -589,7 +588,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Join a MUC room by sending presence to it.
 
         @param roomJID: The JID of the room the entity is joining.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The nick name for the entitity joining the room.
         @type nick: C{unicode}
@@ -622,7 +621,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#changenick
 
         @param roomJID: The JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The new nick name within the room.
         @type nick: C{unicode}
@@ -639,7 +638,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#changepres
 
         @param roomJID: The Room JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param show: The availability of the entity. Common values are xa,
             available, etc
@@ -661,7 +660,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#exit
 
         @param roomJID: The JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         occupantJID = self._roomOccupantMap[roomJID]
         presence = xmppim.AvailabilityPresence(recipient=occupantJID,
@@ -685,7 +684,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#privatemessage
 
         @param occupantJID: The Room JID of the other user.
-        @type occupantJID: L{jid.JID}
+        @type occupantJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         message = PrivateChat(recipient=occupantJID, body=body)
         self.send(message.toElement())
@@ -698,7 +697,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#subject-mod
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param subject: The subject you want to set.
         @type subject: C{unicode}
@@ -714,10 +713,10 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#invite
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param invitee: The entity that is being invited.
-        @type invitee: L{jid.JID}
+        @type invitee: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param reason: The reason for the invite.
         @type reason: C{unicode}
@@ -733,7 +732,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
 
         @param room: The room jabber/xmpp entity id for the requested
             registration form.
-        @type room: L{jid.JID}
+        @type room: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         def cb(response):
             form = data_form.findForm(response.query, NS_MUC_REGISTER)
@@ -750,7 +749,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Send a request to register for a room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param options: A mapping of field names to values, or C{None} to
             cancel.
@@ -767,7 +766,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Request voice for a moderated room.
 
         @param roomJID: The room jabber/xmpp entity id.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         message = VoiceRequest(recipient=roomJID)
         self.xmlstream.send(message.toElement())
@@ -780,14 +779,14 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#continue
 
         @param roomJID: The room jabber/xmpp entity id.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param messages: The history to send to the room as an ordered list of
                          message, represented by a dictionary with the keys
                          C{'stanza'}, holding the original stanza a
                          L{domish.Element}, and C{'timestamp'} with the
                          timestamp.
-        @type messages: L{list} of L{domish.Element}
+        @type messages: C{list} of L{domish.Element}
         """
 
         for message in messages:
@@ -816,7 +815,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         This sends an iq request to the room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @return: A deferred that fires with the room's configuration form as
             a L{data_form.Form} or C{None} if there are no configuration
@@ -837,7 +836,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Configure a room.
 
         @param roomJID: The room to configure.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param options: A mapping of field names to values, or C{None} to
             cancel.
@@ -884,7 +883,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Get the member list of a room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._getAffiliationList(roomJID, 'member')
 
@@ -894,7 +893,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Get the admin list of a room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._getAffiliationList(roomJID, 'admin')
 
@@ -904,7 +903,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Get an outcast list from a room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._getAffiliationList(roomJID, 'outcast')
 
@@ -914,7 +913,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Get an owner list from a room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._getAffiliationList(roomJID, 'owner')
 
@@ -924,7 +923,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Get the moderator list of a room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         d = self._getRoleList(roomJID, 'moderator')
         return d
@@ -960,16 +959,17 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Modify an affiliation list.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param entities: The list of entities to change for a room.
-        @type entities: L{list} of L{jid.JID}
+        @type entities: C{list} of
+            L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param affiliation: The affilation to the entities will acquire.
         @type affiliation: C{unicode}
 
         @param sender: The entity sending the request.
-        @type sender: L{jid.JID}
+        @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         """
         request = AdminStanza(recipient=roomJID, sender=sender,
@@ -985,7 +985,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Grant voice to an entity.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The nick name for the user in this room.
         @type nick: C{unicode}
@@ -994,7 +994,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         @type reason: C{unicode}
 
         @param sender: The entity sending the request.
-        @type sender: L{jid.JID}
+        @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._setRole(roomJID, nick=nick,
                              role='participant',
@@ -1008,7 +1008,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         This will disallow the entity to send messages to a moderated room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The nick name for the user in this room.
         @type nick: C{unicode}
@@ -1017,7 +1017,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         @type reason: C{unicode}
 
         @param sender: The entity sending the request.
-        @type sender: L{jid.JID}
+        @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._setRole(roomJID, nick=nick, role='visitor',
                              reason=reason, sender=sender)
@@ -1028,7 +1028,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Grant moderator privileges to a MUC room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The nick name for the user in this room.
         @type nick: C{unicode}
@@ -1037,7 +1037,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         @type reason: C{unicode}
 
         @param sender: The entity sending the request.
-        @type sender: L{jid.JID}
+        @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._setRole(roomJID, nick=nick, role='moderator',
                              reason=reason, sender=sender)
@@ -1048,16 +1048,16 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Ban a user from a MUC room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param entity: The bare JID of the entity to be banned.
-        @type entity: L{jid.JID}
+        @type entity: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param reason: The reason for banning the entity.
         @type reason: C{unicode}
 
         @param sender: The entity sending the request.
-        @type sender: L{jid.JID}
+        @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._setAffiliation(roomJID, entity, 'outcast',
                                     reason=reason, sender=sender)
@@ -1068,7 +1068,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Kick a user from a MUC room.
 
         @param roomJID: The bare JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The occupant to be banned.
         @type nick: C{unicode}
@@ -1077,7 +1077,7 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         @type reason: C{unicode}
 
         @param sender: The entity sending the request.
-        @type sender: L{jid.JID}
+        @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._setRole(roomJID, nick, 'none',
                              reason=reason, sender=sender)
@@ -1088,13 +1088,13 @@ class MUCClientProtocol(xmppim.BasePresenceProtocol):
         Destroy a room.
 
         @param roomJID: The JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param reason: The reason for the destruction of the room.
         @type reason: C{unicode}
 
         @param alternate: The JID of the room suggested as an alternate venue.
-        @type alternate: L{jid.JID}
+        @type alternate: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         """
         request = DestructionRequest(recipient=roomJID, reason=reason,
@@ -1128,14 +1128,14 @@ class Room(object):
     a client.
 
     @ivar roomJID: The Room JID of the MUC room.
-    @type roomJID: L{JID}
+    @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
     @ivar nick: The nick name for the client in this room.
     @type nick: C{unicode}
 
     @ivar occupantJID: The JID of the occupant in the room. Generated from
         roomJID and nick.
-    @type occupantJID: L{jid.JID}
+    @type occupantJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
     @ivar locked: Flag signalling a locked room. A locked room first needs
         to be configured before it can be used. See
@@ -1207,7 +1207,7 @@ class MUCClient(MUCClientProtocol):
     """
     Multi-User Chat client protocol.
 
-    This is a subclass of L{XMPPHandler} and implements L{IMUCCLient}.
+    This is a subclass of L{XMPPHandler} and implements L{IMUCClient}.
 
     @ivar _rooms: Collection of occupied rooms, keyed by the bare JID of the
                   room. Note that a particular entity can only join a room once
@@ -1243,7 +1243,7 @@ class MUCClient(MUCClientProtocol):
         This uses the Room ID and service parts of the given JID to look up
         the L{Room} instance associated with it.
 
-        @type occupantJID: L{jid.JID}
+        @type occupantJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         return self._rooms.get(roomJID)
 
@@ -1436,7 +1436,7 @@ class MUCClient(MUCClientProtocol):
         Join a MUC room by sending presence to it.
 
         @param roomJID: The JID of the room the entity is joining.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The nick name for the entitity joining the room.
         @type nick: C{unicode}
@@ -1480,7 +1480,7 @@ class MUCClient(MUCClientProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#changenick
 
         @param roomJID: The JID of the room, i.e. without a resource.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The new nick name within the room.
         @type nick: C{unicode}
@@ -1504,7 +1504,7 @@ class MUCClient(MUCClientProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#exit
 
         @param roomJID: The Room JID of the room to leave.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
         """
         def cb(presence):
             self._removeRoom(roomJID)
@@ -1521,7 +1521,7 @@ class MUCClient(MUCClientProtocol):
         See: http://xmpp.org/extensions/xep-0045.html#changepres
 
         @param roomJID: The Room JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param show: The availability of the entity. Common values are xa,
             available, etc
@@ -1541,13 +1541,13 @@ class MUCClient(MUCClientProtocol):
         Destroy a room.
 
         @param roomJID: The JID of the room.
-        @type roomJID: L{jid.JID}
+        @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param reason: The reason for the destruction of the room.
         @type reason: C{unicode}
 
         @param alternate: The JID of the room suggested as an alternate venue.
-        @type alternate: L{jid.JID}
+        @type alternate: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         """
         def destroyed(iq):

@@ -130,7 +130,7 @@ class StreamManager(XMPPHandlerCollection):
     @ivar xmlstream: currently managed XML stream
     @type xmlstream: L{XmlStream}
     @ivar logTraffic: if true, log all traffic.
-    @type logTraffic: L{bool}
+    @type logTraffic: C{bool}
     @ivar _initialized: Whether the stream represented by L{xmlstream} has
                         been initialized. This is used when caching outgoing
                         stanzas.
@@ -319,24 +319,26 @@ class StreamManager(XMPPHandlerCollection):
         Send an IQ request and track the response.
 
         A request is an IQ L{generic.Stanza} of type C{'get'} or C{'set'}. It
-        will have its C{toElement} called to render to a L{domish.Element}
-        which is then sent out over the current stream. If there is no such
-        stream (yet), it is queued and sent whenever a connection is
-        established and initialized, just like L{send}.
+        will have its C{toElement} called to render to a
+        L{Element<twisted.words.xish.domish.Element>} which is then sent out
+        over the current stream. If there is no such stream (yet), it is queued
+        and sent whenever a connection is established and initialized, just
+        like L{send}.
 
         If the request doesn't have an identifier, it will be assigned a fresh
         one, so the response can be tracked.
 
-        The deferred that is returned will fire with the L{domish.Element}
-        representation of the response if it is a result iq. If the response
-        is an error iq, a corresponding L{error.StanzaError} will be errbacked.
+        The deferred that is returned will fire with the
+        L{Element<twisted.words.xish.domish.Element>} representation of the
+        response if it is a result iq. If the response is an error iq, a
+        corresponding L{error.StanzaError} will be errbacked.
 
         If the connection is closed before a response was received, the deferred
         will be errbacked with the reason failure.
 
         A request may also have a timeout, either by setting a default timeout
-        in L{StreamManager.timeout} or on the C{timeout} attribute of the
-        request.
+        in L{StreamManager}'s C{timeout} attribute or on the C{timeout}
+        attribute of the request.
 
         @param request: The IQ request.
         @type request: L{generic.Request}
@@ -418,7 +420,7 @@ class IQHandlerMixin(object):
 
     @cvar iqHandlers: Mapping from XPath queries (as a string) to the method
                       name that will handle requests that match the query.
-    @type iqHandlers: L{dict}
+    @type iqHandlers: C{dict}
     """
 
     iqHandlers = None
