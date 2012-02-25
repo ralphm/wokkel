@@ -1,8 +1,18 @@
+x.x.x (yyyy-mm-dd)
+==================
+
+Fixes
+-----
+
+ - wokkel.component.Component now reconnects if first attempt failed (#75).
+
+
 0.7.0 (2012-01-23)
-======================
+==================
 
 Features
 --------
+
  - Added method wokkel.data_form.Form.typeCheck for type checking incoming Data
    Forms submissions against field definitions.
  - Added method wokkel.data_form.Form.makeFields to add fields from a

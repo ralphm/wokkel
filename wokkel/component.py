@@ -4,7 +4,7 @@
 # See LICENSE for details.
 
 """
-XMPP External Component utilities
+XMPP External Component utilities.
 """
 
 from twisted.application import service
@@ -20,6 +20,13 @@ from wokkel.subprotocols import StreamManager
 NS_COMPONENT_ACCEPT = 'jabber:component:accept'
 
 class Component(StreamManager, service.Service):
+    """
+    XMPP External Component service.
+
+    This service is a XMPP stream manager that connects as an External
+    Component to an XMPP server, as described in
+    U{XEP-0114<http://xmpp.org/extensions/xep-0114.html>}.
+    """
     def __init__(self, host, port, jid, password):
         self.host = host
         self.port = port
@@ -28,7 +35,15 @@ class Component(StreamManager, service.Service):
 
         StreamManager.__init__(self, factory)
 
+
     def _authd(self, xs):
+        """
+        Called when stream initialization has completed.
+
+        This replaces the C{send} method of the C{XmlStream} instance
+        that represents the current connection so that outgoing stanzas
+        always have a from attribute set to the JID of the component.
+        """
         old_send = xs.send
 
         def send(obj):
@@ -40,6 +55,7 @@ class Component(StreamManager, service.Service):
         xs.send = send
         StreamManager._authd(self, xs)
 
+
     def initializationFailed(self, reason):
         """
         Called when stream initialization has failed.
@@ -50,18 +66,30 @@ class Component(StreamManager, service.Service):
         self.stopService()
         reason.raiseException()
 
+
     def startService(self):
+        """
+        Start the service and connect to the server.
+        """
         service.Service.startService(self)
 
-        self.factory.stopTrying()
         self._connection = self._getConnection()
 
+
     def stopService(self):
+        """
+        Stop the service, close the connection and prevent reconnects.
+        """
         service.Service.stopService(self)
 
+        self.factory.stopTrying()
         self._connection.disconnect()
 
+
     def _getConnection(self):
+        """
+        Create a connector that connects to the server.
+        """
         return reactor.connectTCP(self.host, self.port, self.factory)
 
 

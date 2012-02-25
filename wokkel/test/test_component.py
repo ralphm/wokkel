@@ -2,11 +2,14 @@
 # See LICENSE for details.
 
 """
-Tests for L{wokkel.component}
+Tests for L{wokkel.component}.
 """
 
 from zope.interface.verify import verifyObject
 
+from twisted.internet.base import BaseConnector
+from twisted.internet.error import ConnectionRefusedError
+from twisted.internet.task import Clock
 from twisted.python import failure
 from twisted.trial import unittest
 from twisted.words.protocols.jabber import xmlstream
@@ -17,6 +20,90 @@ from twisted.words.xish import domish
 
 from wokkel import component
 from wokkel.generic import XmlPipe
+
+class FakeConnector(BaseConnector):
+    """
+    Fake connector that counts connection attempts.
+    """
+    connects = 0
+
+    def connect(self):
+        self.connects += 1
+        BaseConnector.connect(self)
+
+
+    def _makeTransport(self):
+        return None
+
+
+
+class TestableComponent(component.Component):
+    """
+    Testable component.
+
+    This component provides the created factory with a L{Clock}
+    instead of the regular reactor and uses L{FakeConnector} for testing
+    connects and reconnects.
+    """
+
+    def __init__(self, *args, **kwargs):
+        component.Component.__init__(self, *args, **kwargs)
+        self.factory.clock = Clock()
+
+
+    def _getConnection(self):
+        c = FakeConnector(self.factory, None, None)
+        c.connect()
+        return c
+
+
+
+class ComponentTest(unittest.TestCase):
+    """
+    Tests for L{component.Component}.
+    """
+    def test_startServiceReconnectAfterFailure(self):
+        """
+        When the first connection attempt fails, retry.
+        """
+        comp = TestableComponent('example.org', 5347,
+                                 'test.example.org', 'secret')
+
+        # Starting the service initiates a connection attempt.
+        comp.startService()
+        connector = comp._connection
+        self.assertEqual(1, connector.connects)
+
+        # Fail the connection.
+        connector.connectionFailed(ConnectionRefusedError())
+
+        # After a back-off delay, a new connection is attempted.
+        comp.factory.clock.advance(5)
+        self.assertEqual(2, connector.connects)
+
+
+    def test_stopServiceNoReconnect(self):
+        """
+        When the service is stopped, no reconnect is attempted.
+        """
+        comp = TestableComponent('example.org', 5347,
+                                 'test.example.org', 'secret')
+
+        # Starting the service initiates a connection attempt.
+        comp.startService()
+        connector = comp._connection
+
+        # Fail the connection.
+        connector.connectionFailed(ConnectionRefusedError())
+
+        # If the service is stopped before the back-off delay expires,
+        # no new connection is attempted.
+        comp.factory.clock.advance(1)
+        comp.stopService()
+        comp.factory.clock.advance(4)
+        self.assertEqual(1, connector.connects)
+
+
 
 class InternalComponentTest(unittest.TestCase):
     """
