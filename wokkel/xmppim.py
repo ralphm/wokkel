@@ -7,20 +7,26 @@
 XMPP IM protocol support.
 
 This module provides generic implementations for the protocols defined in
-U{RFC 3921<http://xmpp.org/rfcs/rfc3921.html>} (XMPP IM).
-
-All of it should eventually move to Twisted.
+U{RFC 6121<http://www.xmpp.org/rfcs/rfc6121.html>} (XMPP IM).
 """
 
+import warnings
+
+from twisted.internet import defer
+from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
 
-from wokkel.compat import IQ
-from wokkel.generic import ErrorStanza, Stanza
+from wokkel.generic import ErrorStanza, Stanza, Request
+from wokkel.subprotocols import IQHandlerMixin
 from wokkel.subprotocols import XMPPHandler
 
 NS_XML = 'http://www.w3.org/XML/1998/namespace'
 NS_ROSTER = 'jabber:iq:roster'
+
+XPATH_ROSTER_SET = "/iq[@type='set']/query[@xmlns='%s']" % NS_ROSTER
+
+
 
 class Presence(domish.Element):
     def __init__(self, to=None, type=None):
@@ -605,9 +611,9 @@ class RosterItem(object):
 
     This represents one contact from an XMPP contact list known as roster.
 
-    @ivar jid: The JID of the contact.
-    @type jid: L{JID}
-    @ivar name: The optional associated nickname for this contact.
+    @ivar entity: The JID of the contact.
+    @type entity: L{JID}
+    @ivar name: The associated nickname for this contact.
     @type name: C{unicode}
     @ivar subscriptionTo: Subscription state to contact's presence. If C{True},
                           the roster owner is subscribed to the presence
@@ -616,45 +622,192 @@ class RosterItem(object):
     @ivar subscriptionFrom: Contact's subscription state. If C{True}, the
                             contact is subscribed to the presence information
                             of the roster owner.
-    @type subscriptionTo: C{bool}
-    @ivar ask: Whether subscription is pending.
-    @type ask: C{bool}
+    @type subscriptionFrom: C{bool}
+    @ivar pendingOut: Whether the subscription request to this contact is
+        pending.
+    @type pendingOut: C{bool}
     @ivar groups: Set of groups this contact is categorized in. Groups are
                   represented by an opaque identifier of type C{unicode}.
     @type groups: C{set}
+    @ivar approved: Signals pre-approved subscription.
+    @type approved: C{bool}
+    @ivar remove: Signals roster item removal.
+    @type remove: C{bool}
     """
 
-    def __init__(self, jid):
-        self.jid = jid
-        self.name = None
-        self.subscriptionTo = False
-        self.subscriptionFrom = False
-        self.ask = None
-        self.groups = set()
+    __subscriptionStates = {(False, False): None,
+                            (True, False): 'to',
+                            (False, True): 'from',
+                            (True, True): 'both'}
+
+    def __init__(self, entity, subscriptionTo=False, subscriptionFrom=False,
+                       name=u'', groups=None):
+        self.entity = entity
+        self.subscriptionTo = subscriptionTo
+        self.subscriptionFrom = subscriptionFrom
+        self.name = name
+        self.groups = groups or set()
+
+        self.pendingOut = False
+        self.approved = False
+        self.remove = False
 
 
-class RosterClientProtocol(XMPPHandler):
+    def __getJID(self):
+        warnings.warn(
+            "wokkel.xmppim.RosterItem.jid is deprecated. "
+            "Use RosterItem.entity instead.",
+            DeprecationWarning)
+        return self.entity
+
+
+    def __setJID(self, value):
+        warnings.warn(
+            "wokkel.xmppim.RosterItem.jid is deprecated. "
+            "Use RosterItem.entity instead.",
+            DeprecationWarning)
+        self.entity = value
+
+
+    jid = property(__getJID, __setJID, doc="""
+            JID of the contact. Deprecated in favour of C{entity}.""")
+
+
+    def __getAsk(self):
+        warnings.warn(
+            "wokkel.xmppim.RosterItem.ask is deprecated. "
+            "Use RosterItem.pendingOut instead.",
+            DeprecationWarning)
+        return self.pendingOut
+
+
+    def __setAsk(self, value):
+        warnings.warn(
+            "wokkel.xmppim.RosterItem.ask is deprecated. "
+            "Use RosterItem.pendingOut instead.",
+            DeprecationWarning)
+        self.pendingOut = value
+
+
+    ask = property(__getAsk, __setAsk, doc="""
+            Pending out subscription. Deprecated in favour of C{pendingOut}.""")
+
+
+    def toElement(self):
+        element = domish.Element((NS_ROSTER, 'item'))
+        element['jid'] = self.entity.full()
+
+        if self.remove:
+            subscription = 'remove'
+        else:
+            subscription = self.__subscriptionStates[self.subscriptionTo,
+                                                     self.subscriptionFrom]
+
+            if self.pendingOut:
+                element['ask'] = u'subscribe'
+
+            if self.name:
+                element['name'] = self.name
+
+            if self.approved:
+                element['approved'] = u'true'
+
+            if self.groups:
+                for group in self.groups:
+                    element.addElement('group', content=group)
+
+        if subscription:
+            element['subscription'] = subscription
+
+        return element
+
+
+    @classmethod
+    def fromElement(Class, element):
+        entity = JID(element['jid'])
+        item = Class(entity)
+        subscription = element.getAttribute('subscription')
+        if subscription == 'remove':
+            item.remove = True
+        else:
+            item.name = element.getAttribute('name', u'')
+            item.subscriptionTo = subscription in ('to', 'both')
+            item.subscriptionFrom = subscription in ('from', 'both')
+            item.pendingOut = element.getAttribute('ask') == 'subscribe'
+            item.approved = element.getAttribute('approved') in ('true', '1')
+            for subElement in domish.generateElementsQNamed(element.children,
+                                                            'group', NS_ROSTER):
+                item.groups.add(unicode(subElement))
+        return item
+
+
+
+class RosterRequest(Request):
+    """
+    Roster request.
+
+    @ivar item: Roster item to be set or pushed.
+    @type item: L{RosterItem}.
+    """
+    item = None
+
+    def parseRequest(self, element):
+        for child in element.elements(NS_ROSTER, 'item'):
+            self.item = RosterItem.fromElement(child)
+            break
+
+
+    def toElement(self):
+        element = Request.toElement(self)
+        query = element.addElement((NS_ROSTER, 'query'))
+        if self.item:
+            query.addChild(self.item.toElement())
+        return element
+
+
+
+class RosterPushIgnored(Exception):
+    """
+    Raised when this entity doesn't want to accept/trust a roster push.
+
+    To avert presence leaks, a handler can raise L{RosterPushIgnored} when
+    not accepting a roster push (directly or via Deferred). This will
+    result in a C{'service-unavailable'} error being sent in return.
+    """
+
+
+
+class RosterClientProtocol(XMPPHandler, IQHandlerMixin):
     """
     Client side XMPP roster protocol.
+
+    The roster can be retrieved using L{getRoster}. Subsequent changes to the
+    roster will be pushed, resulting in calls to L{setReceived} or
+    L{removeReceived}. These methods should be overridden to handle the
+    roster pushes.
+
+    RFC 6121 specifically allows entities other than a user's server to
+    hold a roster for that user. However, how a client should deal with
+    that is currently not yet specfied.
+
+    By default roster pushes from other source. I.e. when C{request.sender}
+    is set but the sender's bare JID is different from the user's bare JID.
+    Set L{allowAnySender} to allow roster pushes from any sender. To
+    avert presence leaks, L{RosterPushIgnored} should then be raised for
+    pushes from untrusted senders.
+
+    @cvar allowAnySender: Flag to allow roster pushes from any sender.
+        C{False} by default.
+    @type allowAnySender: C{boolean}
     """
 
+    allowAnySender = False
+    iqHandlers = {XPATH_ROSTER_SET: "_onRosterSet"}
+
+
     def connectionInitialized(self):
-        ROSTER_SET = "/iq[@type='set']/query[@xmlns='%s']" % NS_ROSTER
-        self.xmlstream.addObserver(ROSTER_SET, self._onRosterSet)
+        self.xmlstream.addObserver(XPATH_ROSTER_SET, self.handleRequest)
 
-    def _parseRosterItem(self, element):
-        jid = JID(element['jid'])
-        item = RosterItem(jid)
-        item.name = element.getAttribute('name')
-        subscription = element.getAttribute('subscription')
-        item.subscriptionTo = subscription in ('to', 'both')
-        item.subscriptionFrom = subscription in ('from', 'both')
-        item.ask = element.getAttribute('ask') == 'subscribe'
-        for subElement in domish.generateElementsQNamed(element.children,
-                                                        'group', NS_ROSTER):
-            item.groups.add(unicode(subElement))
-
-        return item
 
     def getRoster(self):
         """
@@ -668,14 +821,13 @@ class RosterClientProtocol(XMPPHandler):
             roster = {}
             for element in domish.generateElementsQNamed(result.query.children,
                                                          'item', NS_ROSTER):
-                item = self._parseRosterItem(element)
-                roster[item.jid.userhost()] = item
+                item = RosterItem.fromElement(element)
+                roster[item.entity] = item
 
             return roster
 
-        iq = IQ(self.xmlstream, 'get')
-        iq.addElement((NS_ROSTER, 'query'))
-        d = iq.send()
+        request = RosterRequest(stanzaType='get')
+        d = self.request(request)
         d.addCallback(processRoster)
         return d
 
@@ -688,44 +840,63 @@ class RosterClientProtocol(XMPPHandler):
         @type entity: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @rtype: L{twisted.internet.defer.Deferred}
         """
-        iq = IQ(self.xmlstream, 'set')
-        iq.addElement((NS_ROSTER, 'query'))
-        item = iq.query.addElement('item')
-        item['jid'] = entity.full()
-        item['subscription'] = 'remove'
-        return iq.send()
+        request = RosterRequest(stanzaType='set')
+        request.item = RosterItem(entity)
+        request.item.remove = True
+        return self.request(request)
 
 
     def _onRosterSet(self, iq):
-        if iq.handled or \
-           iq.hasAttribute('from') and iq['from'] != self.xmlstream:
-            return
+        def trapIgnored(failure):
+            failure.trap(RosterPushIgnored)
+            raise error.StanzaError('service-unavailable')
 
-        iq.handled = True
+        request = RosterRequest.fromElement(iq)
 
-        itemElement = iq.query.item
-
-        if unicode(itemElement['subscription']) == 'remove':
-            self.onRosterRemove(JID(itemElement['jid']))
+        if (not self.allowAnySender and
+                request.sender and
+                request.sender.userhostJID() !=
+                self.parent.jid.userhostJID()):
+            d = defer.fail(RosterPushIgnored())
+        elif request.item.remove:
+            d = defer.maybeDeferred(self.removeReceived, request)
         else:
-            item = self._parseRosterItem(iq.query.item)
-            self.onRosterSet(item)
+            d = defer.maybeDeferred(self.setReceived, request)
+        d.addErrback(trapIgnored)
+        return d
 
-    def onRosterSet(self, item):
+
+    def setReceived(self, request):
         """
         Called when a roster push for a new or update item was received.
 
-        @param item: The pushed roster item.
-        @type item: L{RosterItem}
+        @param request: The push request.
+        @type request: L{RosterRequest}
         """
+        if hasattr(self, 'onRosterSet'):
+            warnings.warn(
+                "wokkel.xmppim.RosterClientProtocol.onRosterSet "
+                "is deprecated. "
+                "Use RosterClientProtocol.setReceived instead.",
+                DeprecationWarning)
+            return defer.maybeDeferred(self.onRosterSet, request.item)
 
-    def onRosterRemove(self, entity):
+
+    def removeReceived(self, request):
         """
         Called when a roster push for the removal of an item was received.
 
-        @param entity: The entity for which the roster item has been removed.
-        @type entity: L{JID}
+        @param request: The push request.
+        @type request: L{RosterRequest}
         """
+        if hasattr(self, 'onRosterRemove'):
+            warnings.warn(
+                "wokkel.xmppim.RosterClientProtocol.onRosterRemove "
+                "is deprecated. "
+                "Use RosterClientProtocol.removeReceived instead.",
+                DeprecationWarning)
+            return defer.maybeDeferred(self.onRosterRemove,
+                                       request.item.entity)
 
 
 
