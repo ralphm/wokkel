@@ -90,6 +90,78 @@ class XmlPipeTest(unittest.TestCase):
 
 
 
+class StanzaTest(unittest.TestCase):
+    """
+    Tests for L{generic.Stanza}.
+    """
+
+    def test_fromElement(self):
+        xml = """
+        <message type='chat' from='other@example.org' to='user@example.org'/>
+        """
+
+        stanza = generic.Stanza.fromElement(generic.parseXml(xml))
+        self.assertEqual('chat', stanza.stanzaType)
+        self.assertEqual(JID('other@example.org'), stanza.sender)
+        self.assertEqual(JID('user@example.org'), stanza.recipient)
+
+
+    def test_fromElementChildParser(self):
+        """
+        Child elements for which no parser is defined are ignored.
+        """
+        xml = """
+        <message from='other@example.org' to='user@example.org'>
+          <x xmlns='http://example.org/'/>
+        </message>
+        """
+
+        class Message(generic.Stanza):
+            childParsers = {('http://example.org/', 'x'): '_childParser_x'}
+            elements = []
+
+            def _childParser_x(self, element):
+                self.elements.append(element)
+
+        message = Message.fromElement(generic.parseXml(xml))
+        self.assertEqual(1, len(message.elements))
+
+
+    def test_fromElementChildParserAll(self):
+        """
+        Child elements for which no parser is defined are ignored.
+        """
+        xml = """
+        <message from='other@example.org' to='user@example.org'>
+          <x xmlns='http://example.org/'/>
+        </message>
+        """
+
+        class Message(generic.Stanza):
+            childParsers = {None: '_childParser'}
+            elements = []
+
+            def _childParser(self, element):
+                self.elements.append(element)
+
+        message = Message.fromElement(generic.parseXml(xml))
+        self.assertEqual(1, len(message.elements))
+
+
+    def test_fromElementChildParserUnknown(self):
+        """
+        Child elements for which no parser is defined are ignored.
+        """
+        xml = """
+        <message from='other@example.org' to='user@example.org'>
+          <x xmlns='http://example.org/'/>
+        </message>
+        """
+        generic.Stanza.fromElement(generic.parseXml(xml))
+
+
+
+
 class RequestTest(unittest.TestCase):
     """
     Tests for L{generic.Request}.
@@ -97,6 +169,26 @@ class RequestTest(unittest.TestCase):
 
     def setUp(self):
         self.request = generic.Request()
+
+
+    def test_requestParser(self):
+        """
+        The request's child element is passed to requestParser.
+        """
+        xml = """
+        <iq type='get'>
+          <query xmlns='jabber:iq:version'/>
+        </iq>
+        """
+
+        class VersionRequest(generic.Request):
+            elements = []
+
+            def parseRequest(self, element):
+                self.elements.append((element.uri, element.name))
+
+        request = VersionRequest.fromElement(generic.parseXml(xml))
+        self.assertEqual([(NS_VERSION, 'query')], request.elements)
 
 
     def test_toElementStanzaKind(self):

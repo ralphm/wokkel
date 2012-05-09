@@ -183,12 +183,32 @@ class Stanza(object):
 
     @classmethod
     def fromElement(Class, element):
+        """
+        Create a stanza from a L{domish.Element}.
+        """
         stanza = Class()
         stanza.parseElement(element)
         return stanza
 
 
     def parseElement(self, element):
+        """
+        Parse the stanza element.
+
+        This is called with the stanza's element when a L{Stanza} is
+        created using L{fromElement}. It parses the stanza's core attributes
+        (addressing, type and id), strips the namespace from the stanza
+        element for easier transport across streams and passes on
+        child elements for further parsing.
+
+        Child element parsers are defined by providing a C{childParsers}
+        attribute on a subclass, as a mapping from (URI, name) to the name
+        of the handler on C{self}. C{parseElement} will accumulate
+        C{childParsers} from its class hierarchy, iterate over the child
+        elements and pass it to matching handlers based on the child element's
+        URI and name. The special key of C{None} can be used to pass all
+        child elements to.
+        """
         if element.hasAttribute('from'):
             self.sender = jid.internJID(element['from'])
         if element.hasAttribute('to'):
@@ -208,9 +228,12 @@ class Stanza(object):
             try:
                 handler = handlers[child.uri, child.name]
             except KeyError:
-                pass
-            else:
-                getattr(self, handler)(child)
+                try:
+                    handler = handlers[None]
+                except KeyError:
+                    continue
+
+            getattr(self, handler)(child)
 
 
     def toElement(self):
@@ -234,6 +257,7 @@ class ErrorStanza(Stanza):
         self.exception = error.exceptionFromStanza(element)
 
 
+
 class Request(Stanza):
     """
     IQ request stanza.
@@ -246,9 +270,21 @@ class Request(Stanza):
     stanzaType = 'get'
     timeout = None
 
+    childParsers = {None: 'parseRequest'}
+
     def __init__(self, recipient=None, sender=None, stanzaType='get'):
         Stanza.__init__(self, recipient=recipient, sender=sender)
         self.stanzaType = stanzaType
+
+
+    def parseRequest(self, element):
+        """
+        Called with the request's child element for parsing.
+
+        When a request instance is created using L{fromElement}, this method
+        is called with the child element of the iq. Override this method for
+        parsing the request's payload.
+        """
 
 
     def toElement(self):
