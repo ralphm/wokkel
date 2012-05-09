@@ -693,28 +693,39 @@ class RosterItem(object):
             Pending out subscription. Deprecated in favour of C{pendingOut}.""")
 
 
-    def toElement(self):
+    def toElement(self, rosterSet=False):
+        """
+        Render to a DOM representation.
+
+        If C{rosterSet} is set, some attributes, that may not be sent
+        as a roster set, will not be rendered.
+
+        @type rosterSet: C{boolean}.
+        """
         element = domish.Element((NS_ROSTER, 'item'))
         element['jid'] = self.entity.full()
 
         if self.remove:
             subscription = 'remove'
         else:
-            subscription = self.__subscriptionStates[self.subscriptionTo,
-                                                     self.subscriptionFrom]
-
-            if self.pendingOut:
-                element['ask'] = u'subscribe'
-
             if self.name:
                 element['name'] = self.name
-
-            if self.approved:
-                element['approved'] = u'true'
 
             if self.groups:
                 for group in self.groups:
                     element.addElement('group', content=group)
+
+            if rosterSet:
+                subscription = None
+            else:
+                subscription = self.__subscriptionStates[self.subscriptionTo,
+                                                         self.subscriptionFrom]
+
+                if self.pendingOut:
+                    element['ask'] = u'subscribe'
+
+                if self.approved:
+                    element['approved'] = u'true'
 
         if subscription:
             element['subscription'] = subscription
@@ -754,9 +765,15 @@ class RosterRequest(Request):
         should only be set if the recipient is known to support roster
         versioning.
     @type version: C{unicode}
+
+    @ivar rosterSet: If set, this is a roster set request. This flag is used
+        to make sure some attributes of the roster item are not rendered by
+        L{toElement}.
+    @type roster: C{boolean}
     """
     item = None
     version = None
+    rosterSet = False
 
     def parseRequest(self, element):
         self.version = element.getAttribute('ver')
@@ -772,7 +789,7 @@ class RosterRequest(Request):
         if self.version is not None:
             query['ver'] = self.version
         if self.item:
-            query.addChild(self.item.toElement())
+            query.addChild(self.item.toElement(rosterSet=self.rosterSet))
         return element
 
 
@@ -892,18 +909,38 @@ class RosterClientProtocol(XMPPHandler, IQHandlerMixin):
         return d
 
 
+    def setItem(self, item):
+        """
+        Add or modify a roster item.
+
+        Note that RFC 6121 doesn't allow all properties of a roster item to
+        be sent when setting a roster item. Only the C{name} and C{groups}
+        attributes from C{item} are sent to the server. Presence subscription
+        management must be done through L{PresenceProtocol}.
+
+        @param item: The roster item to be set.
+        @type item: L{RosterItem}.
+
+        @rtype: L{twisted.internet.defer.Deferred}
+        """
+        request = RosterRequest(stanzaType='set')
+        request.rosterSet = True
+        request.item = item
+        return self.request(request)
+
+
     def removeItem(self, entity):
         """
         Remove an item from the contact list.
 
         @param entity: The contact to remove the roster item for.
         @type entity: L{JID<twisted.words.protocols.jabber.jid.JID>}
+
         @rtype: L{twisted.internet.defer.Deferred}
         """
-        request = RosterRequest(stanzaType='set')
-        request.item = RosterItem(entity)
-        request.item.remove = True
-        return self.request(request)
+        item = RosterItem(entity)
+        item.remove = True
+        return self.setItem(item)
 
 
     def _onRosterSet(self, iq):

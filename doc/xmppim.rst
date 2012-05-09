@@ -25,6 +25,13 @@ Receiving roster pushes
    :language: python
    :linenos:
 
+Set the name of a contact
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. literalinclude:: listings/xmppim/roster_client_set_name.py
+   :language: python
+   :linenos:
+
 Remove a contact
 ^^^^^^^^^^^^^^^^
 

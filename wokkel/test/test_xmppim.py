@@ -965,6 +965,71 @@ class RosterClientProtocolTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.service.setHandlerParent(self.client)
 
 
+    def test_setItem(self):
+        """
+        Setting a roster item renders the item and sends it out.
+        """
+        item = xmppim.RosterItem(JID('test@example.org'),
+                                 name='Joe User',
+                                 groups=set(['Friends', 'Jabber']))
+        d = self.service.setItem(item)
+
+        # Inspect outgoing iq request
+
+        iq = self.stub.output[-1]
+        self.assertEqual('set', iq.getAttribute('type'))
+        self.assertNotIdentical(None, iq.query)
+        self.assertEqual(NS_ROSTER, iq.query.uri)
+
+        children = list(domish.generateElementsQNamed(iq.query.children,
+                                                      'item', NS_ROSTER))
+        self.assertEqual(1, len(children))
+        child = children[0]
+        self.assertEqual('test@example.org', child['jid'])
+        self.assertIdentical(None, child.getAttribute('subscription'))
+
+        # Fake successful response
+
+        response = toResponse(iq, 'result')
+        d.callback(response)
+        return d
+
+
+    def test_setItemIgnoreAttributes(self):
+        """
+        Certain attributes should be rendered for roster set.
+        """
+        item = xmppim.RosterItem(JID('test@example.org'),
+                                 subscriptionTo=True,
+                                 subscriptionFrom=False,
+                                 name='Joe User',
+                                 groups=set(['Friends', 'Jabber']))
+        item.pendingOut = True
+        item.approved = True
+        d = self.service.setItem(item)
+
+        # Inspect outgoing iq request
+
+        iq = self.stub.output[-1]
+        self.assertEqual('set', iq.getAttribute('type'))
+        self.assertNotIdentical(None, iq.query)
+        self.assertEqual(NS_ROSTER, iq.query.uri)
+
+        children = list(domish.generateElementsQNamed(iq.query.children,
+                                                      'item', NS_ROSTER))
+        self.assertEqual(1, len(children))
+        child = children[0]
+        self.assertIdentical(None, child.getAttribute('ask'))
+        self.assertIdentical(None, child.getAttribute('approved'))
+        self.assertIdentical(None, child.getAttribute('subscription'))
+
+        # Fake successful response
+
+        response = toResponse(iq, 'result')
+        d.callback(response)
+        return d
+
+
     def test_removeItem(self):
         """
         Removing a roster item is setting an item with subscription C{remove}.
