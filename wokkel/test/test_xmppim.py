@@ -837,6 +837,7 @@ class RosterRequestTest(unittest.TestCase):
         self.assertEqual(JID('this@example.org/Home'), request.recipient)
         self.assertEqual(JID('this@example.org'), request.sender)
         self.assertEqual(None, request.item)
+        self.assertEqual(None, request.version)
 
 
     def test_fromElementItem(self):
@@ -854,6 +855,34 @@ class RosterRequestTest(unittest.TestCase):
         request = xmppim.RosterRequest.fromElement(parseXml(xml))
         self.assertNotIdentical(None, request.item)
         self.assertEqual(JID('user@example.org'), request.item.entity)
+
+
+    def test_fromElementVersion(self):
+        """
+        If a ver attribute is present, put it in the request version.
+        """
+        xml = """
+            <iq type='set' to='this@example.org/Home' from='this@example.org'>
+              <query xmlns='jabber:iq:roster' ver='ver72'>
+                <item jid='user@example.org'/>
+              </query>
+            </iq>
+        """
+        request = xmppim.RosterRequest.fromElement(parseXml(xml))
+        self.assertEqual('ver72', request.version)
+
+
+    def test_fromElementVersionEmpty(self):
+        """
+        The ver attribute may be empty.
+        """
+        xml = """
+            <iq type='get' to='this@example.org/Home' from='this@example.org'>
+              <query xmlns='jabber:iq:roster' ver=''/>
+            </iq>
+        """
+        request = xmppim.RosterRequest.fromElement(parseXml(xml))
+        self.assertEqual('', request.version)
 
 
     def test_toElement(self):
@@ -903,6 +932,26 @@ class FakeClient(object):
         handler.connectionInitialized()
 
 
+    def test_toElementVersion(self):
+        """
+        If the roster version is set, a 'ver' attribute is added.
+        """
+        request = xmppim.RosterRequest()
+        request.version = 'ver72'
+        element = request.toElement()
+        self.assertEqual('ver72', element.query.getAttribute('ver'))
+
+
+    def test_toElementVersionEmpty(self):
+        """
+        If the roster version is the empty string, it should add 'ver', too.
+        """
+        request = xmppim.RosterRequest()
+        request.version = ''
+        element = request.toElement()
+        self.assertEqual('', element.query.getAttribute('ver'))
+
+
 
 class RosterClientProtocolTest(unittest.TestCase, TestableRequestHandlerMixin):
     """
@@ -949,6 +998,7 @@ class RosterClientProtocolTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
         def cb(roster):
             self.assertIn(JID('user@example.org'), roster)
+            self.assertIdentical(None, getattr(roster, 'version'))
 
         d = self.service.getRoster()
         d.addCallback(cb)
@@ -959,6 +1009,7 @@ class RosterClientProtocolTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.assertEqual('get', iq.getAttribute('type'))
         self.assertNotIdentical(None, iq.query)
         self.assertEqual(NS_ROSTER, iq.query.uri)
+        self.assertFalse(iq.query.hasAttribute('ver'))
 
         # Fake successful response
         response = toResponse(iq, 'result')
@@ -966,6 +1017,52 @@ class RosterClientProtocolTest(unittest.TestCase, TestableRequestHandlerMixin):
         item = query.addElement('item')
         item['jid'] = 'user@example.org'
 
+        d.callback(response)
+        return d
+
+
+    def test_getRosterVer(self):
+        """
+        A request for the roster with version passes the version on.
+        """
+        def cb(roster):
+            self.assertEqual('ver96', getattr(roster, 'version'))
+
+        d = self.service.getRoster(version='ver72')
+        d.addCallback(cb)
+
+        # Inspect outgoing iq request
+
+        iq = self.stub.output[-1]
+        self.assertEqual('ver72', iq.query.getAttribute('ver'))
+
+        # Fake successful response
+        response = toResponse(iq, 'result')
+        query = response.addElement((NS_ROSTER, 'query'))
+        query['ver'] = 'ver96'
+        item = query.addElement('item')
+        item['jid'] = 'user@example.org'
+
+        d.callback(response)
+        return d
+
+
+    def test_getRosterVerEmptyResult(self):
+        """
+        An empty response is returned as None.
+        """
+        def cb(response):
+            self.assertIdentical(None, response)
+
+        d = self.service.getRoster(version='ver72')
+        d.addCallback(cb)
+
+        # Inspect outgoing iq request
+
+        iq = self.stub.output[-1]
+
+        # Fake successful response
+        response = toResponse(iq, 'result')
         d.callback(response)
         return d
 

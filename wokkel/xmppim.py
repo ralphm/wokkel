@@ -748,10 +748,19 @@ class RosterRequest(Request):
 
     @ivar item: Roster item to be set or pushed.
     @type item: L{RosterItem}.
+
+    @ivar version: Roster version identifier for roster pushes and
+        retrieving the roster as a delta from a known cached version. This
+        should only be set if the recipient is known to support roster
+        versioning.
+    @type version: C{unicode}
     """
     item = None
+    version = None
 
     def parseRequest(self, element):
+        self.version = element.getAttribute('ver')
+
         for child in element.elements(NS_ROSTER, 'item'):
             self.item = RosterItem.fromElement(child)
             break
@@ -760,6 +769,8 @@ class RosterRequest(Request):
     def toElement(self):
         element = Request.toElement(self)
         query = element.addElement((NS_ROSTER, 'query'))
+        if self.version is not None:
+            query['ver'] = self.version
         if self.item:
             query.addChild(self.item.toElement())
         return element
@@ -774,6 +785,22 @@ class RosterPushIgnored(Exception):
     not accepting a roster push (directly or via Deferred). This will
     result in a C{'service-unavailable'} error being sent in return.
     """
+
+
+
+class Roster(dict):
+    """
+    In-memory roster container.
+
+    This provides a roster as a mapping from L{JID} to L{RosterItem}. If
+    roster versioning is used, the C{version} attribute holds the version
+    identifier for this version of the roster.
+
+    @ivar version: Roster version identifier.
+    @type version: C{unicode}.
+    """
+
+    version = None
 
 
 
@@ -796,6 +823,13 @@ class RosterClientProtocol(XMPPHandler, IQHandlerMixin):
     avert presence leaks, L{RosterPushIgnored} should then be raised for
     pushes from untrusted senders.
 
+    If roster versioning is supported by the server, the roster and
+    subsequent pushes are annotated with a version identifier. This can be
+    used to cache the roster on the client side. Upon reconnect, the client
+    can request the roster with the version identifier of the cached version.
+    The server may then choose to only send roster pushes for the changes
+    since that version, instead of a complete roster.
+
     @cvar allowAnySender: Flag to allow roster pushes from any sender.
         C{False} by default.
     @type allowAnySender: C{boolean}
@@ -809,24 +843,50 @@ class RosterClientProtocol(XMPPHandler, IQHandlerMixin):
         self.xmlstream.addObserver(XPATH_ROSTER_SET, self.handleRequest)
 
 
-    def getRoster(self):
+    def getRoster(self, version=None):
         """
         Retrieve contact list.
+
+        The returned deferred fires with the result of the roster request as
+        L{Roster}, a mapping from contact JID to L{RosterItem}.
+
+        If roster versioning is supported, the recipient responds with either
+        a the complete roster or with an empty result. In case of complete
+        roster, the L{Roster} is annotated with a C{version} attribute that
+        holds the version identifier for this version of the roster. This
+        identifier should be used for caching.
+
+        If the recipient responds with an empty result, the returned deferred
+        fires with C{None}. This indicates that any roster modifications
+        since C{version} will be sent as roster pushes.
+
+        Note that the empty result (C{None}) is different from an empty
+        roster (L{Roster} with no items).
+
+        @param version: Optional version identifier of the last cashed
+            version of the roster. This shall only be set if the recipient is
+            known to support roster versioning. If there is no (valid) cached
+            version of the roster, but roster versioning is desired,
+            C{version} should be set to the empty string (C{u''}).
+        @type version: C{unicode}
 
         @return: Roster as a mapping from L{JID} to L{RosterItem}.
         @rtype: L{twisted.internet.defer.Deferred}
         """
 
         def processRoster(result):
-            roster = {}
-            for element in domish.generateElementsQNamed(result.query.children,
-                                                         'item', NS_ROSTER):
-                item = RosterItem.fromElement(element)
-                roster[item.entity] = item
-
-            return roster
+            if result.query is not None:
+                roster = Roster()
+                roster.version = result.query.getAttribute('ver')
+                for element in result.query.elements(NS_ROSTER, 'item'):
+                    item = RosterItem.fromElement(element)
+                    roster[item.entity] = item
+                return roster
+            else:
+                return None
 
         request = RosterRequest(stanzaType='get')
+        request.version = version
         d = self.request(request)
         d.addCallback(processRoster)
         return d

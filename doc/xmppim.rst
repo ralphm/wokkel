@@ -31,3 +31,22 @@ Remove a contact
 .. literalinclude:: listings/xmppim/roster_client_remove.py
    :language: python
    :linenos:
+
+Roster versioning
+^^^^^^^^^^^^^^^^^
+
+Some XMPP servers support roster versioning. A client can keep a cache of the
+roster by requesting it and applying changes as roster pushes come in. Each
+version of the roster is marked with a version identifier. This can be used
+to request the roster upon reconnect. The server can then choose to send the
+difference between the requested and current version as roster pushed,
+instead of returning the complete roster.
+
+When no roster was cached by the client, yet, a client passes the empty
+string (``''``) to ``getRoster`` to bootstrap the process.
+
+This example will force a reconnect 15 seconds after authentication.
+
+.. literalinclude:: listings/xmppim/roster_client_versioning.py
+   :language: python
+   :linenos:
