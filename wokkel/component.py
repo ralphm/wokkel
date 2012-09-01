@@ -332,12 +332,24 @@ class Router(object):
         """
         destination = JID(stanza['to'])
 
-        log.msg("Routing to %s: %r" % (destination.full(), stanza.toXml()))
 
         if destination.host in self.routes:
+            log.msg("Routing to %s: %r" % (destination.full(),
+                                           stanza.toXml()))
             self.routes[destination.host].send(stanza)
-        else:
+        elif None in self.routes:
+            log.msg("Routing to %s (default route): %r" % (destination.full(),
+                                                           stanza.toXml()))
             self.routes[None].send(stanza)
+        else:
+            log.msg("No route to %s: %r" % (destination.full(),
+                                            stanza.toXml()))
+            if stanza.getAttribute('type') not in ('result', 'error'):
+                # No route, send back error
+                exc = error.StanzaError('remote-server-timeout', type='wait')
+                exc.code = '504'
+                response = exc.toResponse(stanza)
+                self.route(response)
 
 
 
