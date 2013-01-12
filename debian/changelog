@@ -1,3 +1,9 @@
+wokkel (0.7.1) testing; urgency=low
+
+ * Release Wokkel 0.7.1
+
+ -- Ralph Meijer <ralphm@ik.nu>  Sat, 12 Jan 2013 21:49:48 +0100
+
 wokkel (0.7.0) testing; urgency=low
 
   * Release Wokkel 0.7.0

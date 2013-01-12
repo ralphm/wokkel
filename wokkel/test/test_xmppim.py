@@ -767,8 +767,9 @@ class RosterItemTest(unittest.TestCase):
         """
         item = xmppim.RosterItem(JID('user@example.org'))
         entity = self.assertWarns(DeprecationWarning,
-                                  "wokkel.xmppim.RosterItem.jid is deprecated. "
-                                  "Use RosterItem.entity instead.",
+                                  "wokkel.xmppim.RosterItem.jid was "
+                                  "deprecated in Wokkel 0.7.1; "
+                                  "please use RosterItem.entity instead.",
                                   xmppim.__file__,
                                   getattr, item, 'jid')
         self.assertIdentical(entity, item.entity)
@@ -780,8 +781,9 @@ class RosterItemTest(unittest.TestCase):
         """
         item = xmppim.RosterItem(JID('user@example.org'))
         self.assertWarns(DeprecationWarning,
-                         "wokkel.xmppim.RosterItem.jid is deprecated. "
-                         "Use RosterItem.entity instead.",
+                         "wokkel.xmppim.RosterItem.jid was deprecated "
+                         "in Wokkel 0.7.1; "
+                         "please use RosterItem.entity instead.",
                          xmppim.__file__,
                          setattr, item, 'jid',
                          JID('other@example.org'))
@@ -795,8 +797,9 @@ class RosterItemTest(unittest.TestCase):
         item = xmppim.RosterItem(JID('user@example.org'))
         item.pendingOut = True
         ask = self.assertWarns(DeprecationWarning,
-                               "wokkel.xmppim.RosterItem.ask is deprecated. "
-                               "Use RosterItem.pendingOut instead.",
+                               "wokkel.xmppim.RosterItem.ask was "
+                               "deprecated in Wokkel 0.7.1; "
+                               "please use RosterItem.pendingOut instead.",
                                xmppim.__file__,
                                getattr, item, 'ask')
         self.assertTrue(ask)
@@ -808,8 +811,9 @@ class RosterItemTest(unittest.TestCase):
         """
         item = xmppim.RosterItem(JID('user@example.org'))
         self.assertWarns(DeprecationWarning,
-                         "wokkel.xmppim.RosterItem.ask is deprecated. "
-                         "Use RosterItem.pendingOut instead.",
+                         "wokkel.xmppim.RosterItem.ask was "
+                         "deprecated in Wokkel 0.7.1; "
+                         "please use RosterItem.pendingOut instead.",
                          xmppim.__file__,
                          setattr, item, 'ask',
                          True)
@@ -1157,8 +1161,9 @@ class RosterClientProtocolTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         d = self.assertWarns(DeprecationWarning,
                              "wokkel.xmppim.RosterClientProtocol.onRosterSet "
-                             "is deprecated. "
-                             "Use RosterClientProtocol.setReceived instead.",
+                             "was deprecated in Wokkel 0.7.1; "
+                             "please use RosterClientProtocol.setReceived "
+                             "instead.",
                              xmppim.__file__,
                              self.handleRequest, xml)
         d.addCallback(cb)
@@ -1189,8 +1194,9 @@ class RosterClientProtocolTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         d = self.assertWarns(DeprecationWarning,
                              "wokkel.xmppim.RosterClientProtocol.onRosterRemove "
-                             "is deprecated. "
-                             "Use RosterClientProtocol.removeReceived instead.",
+                             "was deprecated in Wokkel 0.7.1; "
+                             "please use RosterClientProtocol.removeReceived "
+                             "instead.",
                              xmppim.__file__,
                              self.handleRequest, xml)
         d.addCallback(cb)

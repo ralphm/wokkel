@@ -655,42 +655,46 @@ class RosterItem(object):
 
     def __getJID(self):
         warnings.warn(
-            "wokkel.xmppim.RosterItem.jid is deprecated. "
-            "Use RosterItem.entity instead.",
+            "wokkel.xmppim.RosterItem.jid was deprecated in Wokkel 0.7.1; "
+            "please use RosterItem.entity instead.",
             DeprecationWarning)
         return self.entity
 
 
     def __setJID(self, value):
         warnings.warn(
-            "wokkel.xmppim.RosterItem.jid is deprecated. "
-            "Use RosterItem.entity instead.",
+            "wokkel.xmppim.RosterItem.jid was deprecated in Wokkel 0.7.1; "
+            "please use RosterItem.entity instead.",
             DeprecationWarning)
         self.entity = value
 
 
-    jid = property(__getJID, __setJID, doc="""
-            JID of the contact. Deprecated in favour of C{entity}.""")
+    jid = property(__getJID, __setJID,
+                   doc="JID of the contact. "
+                       "Deprecated in Wokkel 0.7.1; "
+                       "please use C{entity} instead.")
 
 
     def __getAsk(self):
         warnings.warn(
-            "wokkel.xmppim.RosterItem.ask is deprecated. "
-            "Use RosterItem.pendingOut instead.",
+            "wokkel.xmppim.RosterItem.ask was deprecated in Wokkel 0.7.1; "
+            "please use RosterItem.pendingOut instead.",
             DeprecationWarning)
         return self.pendingOut
 
 
     def __setAsk(self, value):
         warnings.warn(
-            "wokkel.xmppim.RosterItem.ask is deprecated. "
-            "Use RosterItem.pendingOut instead.",
+            "wokkel.xmppim.RosterItem.ask was deprecated in Wokkel 0.7.1; "
+            "please use RosterItem.pendingOut instead.",
             DeprecationWarning)
         self.pendingOut = value
 
 
-    ask = property(__getAsk, __setAsk, doc="""
-            Pending out subscription. Deprecated in favour of C{pendingOut}.""")
+    ask = property(__getAsk, __setAsk,
+                   doc="Pending out subscription. "
+                       "Deprecated in Wokkel 0.7.1; "
+                       "please use C{pendingOut} instead.")
 
 
     def toElement(self, rosterSet=False):
@@ -973,8 +977,8 @@ class RosterClientProtocol(XMPPHandler, IQHandlerMixin):
         if hasattr(self, 'onRosterSet'):
             warnings.warn(
                 "wokkel.xmppim.RosterClientProtocol.onRosterSet "
-                "is deprecated. "
-                "Use RosterClientProtocol.setReceived instead.",
+                "was deprecated in Wokkel 0.7.1; "
+                "please use RosterClientProtocol.setReceived instead.",
                 DeprecationWarning)
             return defer.maybeDeferred(self.onRosterSet, request.item)
 
@@ -989,8 +993,8 @@ class RosterClientProtocol(XMPPHandler, IQHandlerMixin):
         if hasattr(self, 'onRosterRemove'):
             warnings.warn(
                 "wokkel.xmppim.RosterClientProtocol.onRosterRemove "
-                "is deprecated. "
-                "Use RosterClientProtocol.removeReceived instead.",
+                "was deprecated in Wokkel 0.7.1; "
+                "please use RosterClientProtocol.removeReceived instead.",
                 DeprecationWarning)
             return defer.maybeDeferred(self.onRosterRemove,
                                        request.item.entity)

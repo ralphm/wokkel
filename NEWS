@@ -1,10 +1,50 @@
-x.x.x (yyyy-mm-dd)
+0.7.1 (2013-01-12)
 ==================
 
+Features
+--------
+
+ - wokkel.generic.Request.parseRequest is a new convenience hook for parsing
+   the payload of incoming requests using fromElement.
+ - wokkel.xmppim.RosterItem can now represent item removals and has methods
+   for XML (de-)serialization (#71).
+ - wokkel.xmppim.RosterRequest is a new class to represent roster request
+   stanzas (#71).
+ - wokkel.xmppim.RosterClientProtocol.getRoster now returns the roster
+   indexed by JID (#71).
+ - wokkel.xmppim.RosterClientProtocol uses the new RosterRequest for sending
+   outgoing requests, using the new request semantics (#71).
+ - wokkel.xmppim.RosterClientProtocol uses the new RosterRequest to provide
+   access to addressing and roster version information in the new callbacks
+   for roster pushes (#71).
+ - wokkel.xmppim.RosterPushIgnored can be raised for unwanted roster pushes
+   (#71).
+ - wokkel.xmppim.RosterClientProtocol and RosterRequest now support roster
+   versioning.
+ - With the new wokkel.xmppim.RosterClientProtocol.setItem roster items can
+   be added or updated (#56).
+ 
 Fixes
 -----
 
  - wokkel.component.Component now reconnects if first attempt failed (#75).
+ - wokkel.xmppim.RosterClientProtocol now properly checks sender addresses
+   for roster pushes (#71).
+ - Make sure twistd plugins are installed properly (#76).
+ - wokkel.component.Router.route now sends back an error if there is no known
+   route to the stanza's destination.
+ - Properly encode IDN domain names for establishing client and server
+   connections. This resolves an issue with Twisted 12.3.0 that made it
+   impossible to initiate any connection using Wokkel (#77).
+
+Deprecations
+------------
+ - wokkel.xmppim.RosterItem.jid is deprecated in favor of entity (#71).
+ - wokkel.xmppim.RosterItem.ask is deprecated in favor of pendingOut (#71).
+ - wokkel.xmppim.RosterClientProtocol.onRosterSet is deprecated in favor of
+   setReceived (#71).
+ - wokkel.xmppim.RosterClientProtocol.onRosterRemove is deprecated in favor
+   of removeReceived (#71).
 
 
 0.7.0 (2012-01-23)

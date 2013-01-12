@@ -28,7 +28,7 @@ else:
     egg_info.write_toplevel_names = _hacked_write_toplevel_names
 
 setup(name='wokkel',
-      version='0.7.0',
+      version='0.7.1',
       description='Twisted Jabber support library',
       author='Ralph Meijer',
       author_email='ralphm@ik.nu',
