@@ -42,6 +42,14 @@ class XMPPClientTest(unittest.TestCase):
         self.assertEquals(JID('user@example.org/test'), self.client.jid)
 
 
+    def test_domain(self):
+        """
+        The domain to connect to is a byte string derived from the JID host.
+        """
+        self.assertIsInstance(self.client.domain, bytes)
+        self.assertEqual(b'example.org', self.client.domain)
+
+
 
 class DeferredClientFactoryTest(unittest.TestCase):
     """
@@ -142,7 +150,8 @@ class ClientCreatorTest(unittest.TestCase):
 
         def cb(connector):
             self.assertEqual('xmpp-client', connector.service)
-            self.assertEqual('example.org', connector.domain)
+            self.assertIsInstance(connector.domain, bytes)
+            self.assertEqual(b'example.org', connector.domain)
             self.assertEqual(factory, connector.factory)
 
         def connect(connector):

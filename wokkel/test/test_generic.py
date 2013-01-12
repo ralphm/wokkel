@@ -268,3 +268,58 @@ class RequestTest(unittest.TestCase):
         The default is no timeout.
         """
         self.assertIdentical(None, self.request.timeout)
+
+
+
+class PrepareIDNNameTests(unittest.TestCase):
+    """
+    Tests for L{wokkel.generic.prepareIDNName}.
+    """
+
+    def test_bytestring(self):
+        """
+        An ASCII-encoded byte string is left as-is.
+        """
+        name = b"example.com"
+        result = generic.prepareIDNName(name)
+        self.assertEqual(b"example.com", result)
+
+
+    def test_unicode(self):
+        """
+        A unicode all-ASCII name is converted to an ASCII byte string.
+        """
+        name = u"example.com"
+        result = generic.prepareIDNName(name)
+        self.assertEqual(b"example.com", result)
+
+
+    def test_unicodeNonASCII(self):
+        """
+        A unicode with non-ASCII is converted to its ACE equivalent.
+        """
+        name = u"\u00e9chec.example.com"
+        result = generic.prepareIDNName(name)
+        self.assertEqual(b"xn--chec-9oa.example.com", result)
+
+
+    def test_unicodeHalfwidthIdeographicFullStop(self):
+        """
+        Exotic dots in unicode names are converted to Full Stop.
+        """
+        name = u"\u00e9chec.example\uff61com"
+        result = generic.prepareIDNName(name)
+        self.assertEqual(b"xn--chec-9oa.example.com", result)
+
+
+    def test_unicodeTrailingDot(self):
+        """
+        Unicode names with trailing dots retain the trailing dot.
+
+        L{encodings.idna.ToASCII} doesn't allow the empty string as the input,
+        hence the implementation needs to strip a trailing dot, and re-add it
+        after encoding the labels.
+        """
+        name = u"example.com."
+        result = generic.prepareIDNName(name)
+        self.assertEqual(b"example.com.", result)

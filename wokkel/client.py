@@ -87,7 +87,7 @@ class XMPPClient(StreamManager, service.Service):
 
     def __init__(self, jid, password, host=None, port=5222):
         self.jid = jid
-        self.domain = jid.host
+        self.domain = generic.prepareIDNName(jid.host)
         self.host = host
         self.port = port
 
@@ -182,7 +182,7 @@ class XMPPClientConnector(SRVConnector):
 
 
 def clientCreator(factory):
-    domain = factory.authenticator.jid.host
+    domain = generic.prepareIDNName(factory.authenticator.jid.host)
     c = XMPPClientConnector(reactor, domain, factory)
     c.connect()
     return factory.deferred
