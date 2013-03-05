@@ -3262,7 +3262,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
 
         def affiliationsGet(request):
-            self.assertIdentical('', request.nodeIdentifier)
+            self.assertEqual('', request.nodeIdentifier)
             return defer.succeed({})
 
         def cb(element):
