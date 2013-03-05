@@ -141,8 +141,9 @@ class Field(object):
         self.label = label
 
         try:
-            self.options = [Option(value, label)
-                            for value, label in options.iteritems()]
+            self.options = [Option(optionValue, optionLabel)
+                            for optionValue, optionLabel
+                            in options.iteritems()]
         except AttributeError:
             self.options = options or []
 
