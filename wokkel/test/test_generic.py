@@ -5,7 +5,12 @@
 Tests for L{wokkel.generic}.
 """
 
+import re
+
+from twisted.python import deprecate
+from twisted.python.versions import Version
 from twisted.trial import unittest
+from twisted.trial.util import suppress as SUPPRESS
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber.jid import JID
 
@@ -275,6 +280,24 @@ class PrepareIDNNameTests(unittest.TestCase):
     """
     Tests for L{wokkel.generic.prepareIDNName}.
     """
+
+    suppress = [SUPPRESS(category=DeprecationWarning,
+                         message=re.escape(
+                             deprecate.getDeprecationWarningString(
+                                 generic.prepareIDNName,
+                                 Version("Wokkel", 0, 8, 0),
+                                 replacement="unicode.encode('idna')")))]
+
+
+    def test_deprecated(self):
+        """
+        prepareIDNName is deprecated.
+        """
+        self.callDeprecated((Version("Wokkel", 0, 8, 0),
+                             "unicode.encode('idna')"),
+                            generic.prepareIDNName, (b"example.com"))
+    test_deprecated.suppress = []
+
 
     def test_bytestring(self):
         """
