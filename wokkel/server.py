@@ -29,7 +29,7 @@ from twisted.python import log, randbytes
 from twisted.words.protocols.jabber import error, ijabber, jid, xmlstream
 from twisted.words.xish import domish
 
-from wokkel.generic import DeferredXmlStreamFactory, XmlPipe, prepareIDNName
+from wokkel.generic import DeferredXmlStreamFactory, XmlPipe
 
 NS_DIALBACK = 'jabber:server:dialback'
 
@@ -468,7 +468,7 @@ class DeferredS2SClientFactory(DeferredXmlStreamFactory):
 
 
 def initiateS2S(factory):
-    domain = prepareIDNName(factory.authenticator.otherHost)
+    domain = factory.authenticator.otherHost.encode('idna')
     c = XMPPServerConnector(reactor, domain, factory)
     c.connect()
     return factory.deferred

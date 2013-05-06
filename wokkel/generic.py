@@ -7,12 +7,12 @@
 Generic XMPP protocol helpers.
 """
 
-from encodings import idna
-
 from zope.interface import implements
 
 from twisted.internet import defer, protocol
 from twisted.python import reflect
+from twisted.python.deprecate import deprecated
+from twisted.python.versions import Version
 from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import domish, utility
@@ -332,6 +332,7 @@ class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):
 
 
 
+@deprecated(Version("Wokkel", 0, 8, 0), "unicode.encode('idna')")
 def prepareIDNName(name):
     """
     Encode a unicode IDN Domain Name into its ACE equivalent.
@@ -341,16 +342,4 @@ def prepareIDNName(name):
     result is an ASCII byte string of the encoded labels, separated by the
     standard full stop.
     """
-    result = []
-    labels = idna.dots.split(name)
-
-    if labels and len(labels[-1]) == 0:
-        trailing_dot = b'.'
-        del labels[-1]
-    else:
-        trailing_dot = b''
-
-    for label in labels:
-        result.append(idna.ToASCII(label))
-
-    return b'.'.join(result) + trailing_dot
+    return name.encode('idna')
