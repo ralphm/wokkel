@@ -1390,7 +1390,7 @@ class MUCClientProtocolTest(unittest.TestCase):
 
         iq = self.stub.output[-1]
 
-        query = ("/iq/query[@xmlns='%s']/destroy[@xmlns='%s']" %
+        query = ("/iq[@type='set']/query[@xmlns='%s']/destroy[@xmlns='%s']" %
                  (muc.NS_MUC_OWNER, muc.NS_MUC_OWNER))
 
         nodes = xpath.queryForNodes(query, iq)
