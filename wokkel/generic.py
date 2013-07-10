@@ -274,9 +274,10 @@ class Request(Stanza):
 
     childParsers = {None: 'parseRequest'}
 
-    def __init__(self, recipient=None, sender=None, stanzaType='get'):
+    def __init__(self, recipient=None, sender=None, stanzaType=None):
         Stanza.__init__(self, recipient=recipient, sender=sender)
-        self.stanzaType = stanzaType
+        if stanzaType is not None:
+            self.stanzaType = stanzaType
 
 
     def parseRequest(self, element):

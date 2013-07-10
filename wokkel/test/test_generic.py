@@ -275,6 +275,30 @@ class RequestTest(unittest.TestCase):
         self.assertIdentical(None, self.request.timeout)
 
 
+    def test_stanzaTypeInit(self):
+        """
+        If stanzaType is passed in __init__, it overrides the class variable.
+        """
+
+        class SetRequest(generic.Request):
+            stanzaType = 'set'
+
+        request = SetRequest(stanzaType='get')
+        self.assertEqual('get', request.stanzaType)
+
+
+    def test_stanzaTypeClass(self):
+        """
+        If stanzaType is not passed in __init__, the class variable is used.
+        """
+
+        class SetRequest(generic.Request):
+            stanzaType = 'set'
+
+        request = SetRequest()
+        self.assertEqual('set', request.stanzaType)
+
+
 
 class PrepareIDNNameTests(unittest.TestCase):
     """
