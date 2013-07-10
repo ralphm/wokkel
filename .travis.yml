@@ -6,9 +6,11 @@ python:
     - pypy
 
 env:
-    - TWISTED=Twisted==12.3
-    - TWISTED=svn+svn://svn.twistedmatrix.com/svn/Twisted/trunk
-    - PYFLAKES_NODOCTEST=1
+    global:
+        - PYFLAKES_NODOCTEST=1
+    matrix:
+        - TWISTED=Twisted==12.3
+        - TWISTED=svn+svn://svn.twistedmatrix.com/svn/Twisted/trunk
 
 install:
     - pip install pyflakes --use-mirrors
