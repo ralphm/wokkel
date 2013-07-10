@@ -27,7 +27,7 @@ class XmlStreamStub(object):
     dispatched in the stubbed XmlStream as if it was received over the wire, so
     that registered observers will be called.
 
-    Example:
+    Example::
 
         >>> stub = XmlStreamStub()
         >>> stub.xmlstream.send(domish.Element((None, 'presence')))
