@@ -50,6 +50,26 @@ class XMPPClientTest(unittest.TestCase):
         self.assertEqual(b'example.org', self.client.domain)
 
 
+    def test_bindAddress(self):
+        """
+        Make sure we can specify a different bindAddress when connecting client
+        """
+        from twisted.internet import reactor
+
+        bind_client = client.XMPPClient(JID('user@example.org'), 'secret',
+                                        host='localhost',
+                                        bindAddress=('127.0.0.1', 5000))
+
+        d = defer.Deferred()
+        bind_client.startService()
+        bind_client.stopService()
+
+        # start and stop service don't fire any callbacks
+        # wait 100ms to properly open connection during test
+        # we need to keep reactor clean for tests
+        reactor.callLater(0.1, lambda: d.callback(None))
+        return d
+
 
 class DeferredClientFactoryTest(unittest.TestCase):
     """
