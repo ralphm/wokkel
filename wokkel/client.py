@@ -84,7 +84,7 @@ class XMPPClient(StreamManager, service.Service):
     """
     Service that initiates an XMPP client connection.
 
-    Twisted can use an optionnal argument bindAddress when binding a socket.
+    Twisted can use an optional argument bindAddress when binding a socket.
     This argument can be used in case of multiple network interfaces
     to specify which interface we want to bind to the socket.
     """
