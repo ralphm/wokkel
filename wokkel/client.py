@@ -87,14 +87,21 @@ class XMPPClient(StreamManager, service.Service):
     Twisted can use an optional argument bindAddress when binding a socket.
     This argument can be used in case of multiple network interfaces
     to specify which interface we want to bind to the socket.
+
+    Argument _reactor is used by tests
     """
 
-    def __init__(self, jid, password, host=None, port=5222, bindAddress=None):
+    def __init__(self, jid, password, host=None, port=5222, bindAddress=None,
+                 _reactor=None):
         self.jid = jid
         self.domain = jid.host.encode('idna')
         self.host = host
         self.port = port
         self.bindAddress = bindAddress
+        if _reactor is not None:
+            self.reactor = _reactor
+        else:
+            self.reactor = reactor
 
         factory = HybridClientFactory(jid, password)
 
@@ -139,10 +146,10 @@ class XMPPClient(StreamManager, service.Service):
 
     def _getConnection(self):
         if self.host:
-            return reactor.connectTCP(self.host, self.port, self.factory,
+            return self.reactor.connectTCP(self.host, self.port, self.factory,
                                       bindAddress=self.bindAddress)
         else:
-            c = XMPPClientConnector(reactor, self.domain, self.factory,
+            c = XMPPClientConnector(self.reactor, self.domain, self.factory,
                                     bindAddress=self.bindAddress)
             c.connect()
             return c
