@@ -85,11 +85,14 @@ class XMPPClient(StreamManager, service.Service):
     Service that initiates an XMPP client connection.
     """
 
-    def __init__(self, jid, password, host=None, port=5222):
+    def __init__(self, jid, password, host=None, port=5222, use_ssl=False,
+                 context=None):
         self.jid = jid
         self.domain = jid.host.encode('idna')
         self.host = host
         self.port = port
+        self.use_ssl = use_ssl
+        self.context = context
 
         factory = HybridClientFactory(jid, password)
 
@@ -134,29 +137,16 @@ class XMPPClient(StreamManager, service.Service):
 
     def _getConnection(self):
         if self.host:
-            return reactor.connectTCP(self.host, self.port, self.factory)
+            if self.use_ssl:
+                self.context = self.context or ssl.ClientContextFactory()
+                return reactor.connectSSL(self.host, self.port, self.factory,
+                                          self.context)
+            else:
+                return reactor.connectTCP(self.host, self.port, self.factory)
         else:
             c = XMPPClientConnector(reactor, self.domain, self.factory)
             c.connect()
             return c
-
-
-
-class SSLXMPPClient(XMPPClient):
-    """
-    Service that initiates an XMPP client connection with support for old SSL conenctions.
-    The host must be specified for SSL to be used.
-    """
-
-    def __init__(self, jid, password, host=None, port=5223, context=None):
-        XMPPClient.__init__(self, jid, password, host, port)
-        self.context = context or ssl.ClientContextFactory()
-
-    def _getConnection(self):
-        if self.host:
-            return reactor.connectSSL(self.host, self.port, self.factory, self.context)
-        else:
-            return XMPPClient._getConnection(self)
 
 
 
