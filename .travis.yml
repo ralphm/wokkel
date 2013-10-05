@@ -13,6 +13,7 @@ env:
         - TWISTED=svn+svn://svn.twistedmatrix.com/svn/Twisted/trunk
 
 install:
+    - pip install pyopenssl#
     - pip install pyflakes --use-mirrors
     - pip install -q $TWISTED --use-mirrors
     - python setup.py install

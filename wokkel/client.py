@@ -11,7 +11,7 @@ that should probably eventually move there.
 """
 
 from twisted.application import service
-from twisted.internet import reactor
+from twisted.internet import reactor, ssl
 from twisted.names.srvconnect import SRVConnector
 from twisted.words.protocols.jabber import client, sasl, xmlstream
 
@@ -85,11 +85,14 @@ class XMPPClient(StreamManager, service.Service):
     Service that initiates an XMPP client connection.
     """
 
-    def __init__(self, jid, password, host=None, port=5222):
+    def __init__(self, jid, password, host=None, port=5222, use_ssl=False,
+                 context=None):
         self.jid = jid
         self.domain = jid.host.encode('idna')
         self.host = host
         self.port = port
+        self.use_ssl = use_ssl
+        self.context = context
 
         factory = HybridClientFactory(jid, password)
 
@@ -134,7 +137,12 @@ class XMPPClient(StreamManager, service.Service):
 
     def _getConnection(self):
         if self.host:
-            return reactor.connectTCP(self.host, self.port, self.factory)
+            if self.use_ssl:
+                self.context = self.context or ssl.ClientContextFactory()
+                return reactor.connectSSL(self.host, self.port, self.factory,
+                                          self.context)
+            else:
+                return reactor.connectTCP(self.host, self.port, self.factory)
         else:
             c = XMPPClientConnector(reactor, self.domain, self.factory)
             c.connect()
