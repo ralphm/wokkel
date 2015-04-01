@@ -80,7 +80,7 @@ class Delay(object):
             # Assume UTC if no timezone was given
             if stamp.tzinfo is None:
                 stamp = stamp.replace(tzinfo=tzutc())
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, TypeError):
             stamp = None
 
         try:
