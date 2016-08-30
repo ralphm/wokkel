@@ -695,6 +695,8 @@ class PubSubClient(XMPPHandler):
 
     implements(IPubSubClient)
 
+    _request_class = PubSubRequest
+
     def connectionInitialized(self):
         self.xmlstream.addObserver('/message/event[@xmlns="%s"]' %
                                    NS_PUBSUB_EVENT, self._onEvent)
@@ -774,7 +776,7 @@ class PubSubClient(XMPPHandler):
         @param options: Optional node configuration options.
         @type options: C{dict}
         """
-        request = PubSubRequest('create')
+        request = self._request_class('create')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.sender = sender
@@ -807,7 +809,7 @@ class PubSubClient(XMPPHandler):
         @param nodeIdentifier: The identifier of the node.
         @type nodeIdentifier: C{unicode}
         """
-        request = PubSubRequest('delete')
+        request = self._request_class('delete')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.sender = sender
@@ -836,7 +838,7 @@ class PubSubClient(XMPPHandler):
             L{SubscriptionPending} or L{SubscriptionUnconfigured}.
         @rtype: L{defer.Deferred}
         """
-        request = PubSubRequest('subscribe')
+        request = self._request_class('subscribe')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.subscriber = subscriber
@@ -883,7 +885,7 @@ class PubSubClient(XMPPHandler):
         @param subscriptionIdentifier: Optional subscription identifier.
         @type subscriptionIdentifier: C{unicode}
         """
-        request = PubSubRequest('unsubscribe')
+        request = self._request_class('unsubscribe')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.subscriber = subscriber
@@ -903,7 +905,7 @@ class PubSubClient(XMPPHandler):
         @param items: Optional list of L{Item}s to publish.
         @type items: C{list}
         """
-        request = PubSubRequest('publish')
+        request = self._request_class('publish')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.items = items
@@ -930,7 +932,7 @@ class PubSubClient(XMPPHandler):
             the results to the specific subscription.
         @type subscriptionIdentifier: C{unicode}
         """
-        request = PubSubRequest('items')
+        request = self._request_class('items')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         if maxItems:
@@ -969,7 +971,7 @@ class PubSubClient(XMPPHandler):
 
         @rtype: L{data_form.Form}
         """
-        request = PubSubRequest('optionsGet')
+        request = self._request_class('optionsGet')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.subscriber = subscriber
@@ -1007,7 +1009,7 @@ class PubSubClient(XMPPHandler):
         @param subscriptionIdentifier: Optional subscription identifier.
         @type subscriptionIdentifier: C{unicode}
         """
-        request = PubSubRequest('optionsSet')
+        request = self._request_class('optionsSet')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.subscriber = subscriber
@@ -1083,6 +1085,8 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         'delete': ('delete', ['sender', 'recipient', 'nodeIdentifier']),
     }
 
+    _request_class = PubSubRequest
+
     hideNodes = False
 
     def __init__(self, resource=None):
@@ -1125,7 +1129,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
         info = []
 
-        request = PubSubRequest('discoInfo')
+        request = self._request_class('discoInfo')
 
         if self.resource is not None:
             resource = self.resource.locateResource(request)
@@ -1157,7 +1161,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         if self.hideNodes:
             d = defer.succeed([])
         elif self.resource is not None:
-            request = PubSubRequest('discoInfo')
+            request = self._request_class('discoInfo')
             resource = self.resource.locateResource(request)
             d = resource.getNodes(requestor, target, nodeIdentifier)
         elif nodeIdentifier:
@@ -1171,7 +1175,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
 
 
     def _onPubSubRequest(self, iq):
-        request = PubSubRequest.fromElement(iq)
+        request = self._request_class.fromElement(iq)
 
         if self.resource is not None:
             resource = self.resource.locateResource(request)
@@ -1188,7 +1192,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             if request is None:
                 return defer.succeed(None)
 
-        # Process the request itself, 
+        # Process the request itself,
         if resource is not self:
             try:
                 handler = getattr(resource, request.verb)
