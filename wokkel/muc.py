@@ -1309,7 +1309,9 @@ class MUCClient(MUCClientProtocol):
             nick = presence.sender.resource
             user = User(nick, presence.entity)
 
-        # Update user status
+        # Update user data
+        user.role = presence.role
+        user.affiliation = presence.affiliation
         user.status = presence.status
         user.show = presence.show
 
