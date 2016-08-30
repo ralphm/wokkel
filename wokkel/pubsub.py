@@ -40,6 +40,9 @@ PUBSUB_REQUEST = '/iq[@type="get" or @type="set"]/' + \
                     'pubsub[@xmlns="' + NS_PUBSUB + '" or ' + \
                            '@xmlns="' + NS_PUBSUB_OWNER + '"]'
 
+BOOL_TRUE = ('1','true')
+BOOL_FALSE = ('0','false')
+
 class SubscriptionPending(Exception):
     """
     Raised when the requested subscription is pending acceptance.
@@ -249,6 +252,7 @@ class PubSubRequest(generic.Stanza):
     subscriptionIdentifier = None
     subscriptions = None
     affiliations = None
+    notify = None
 
     # Map request iq type and subelement name to request verb
     _requestVerbMap = {
@@ -290,7 +294,7 @@ class PubSubRequest(generic.Stanza):
         'configureGet': ['nodeOrEmpty'],
         'configureSet': ['nodeOrEmpty', 'configure'],
         'items': ['node', 'maxItems', 'itemIdentifiers', 'subidOrNone'],
-        'retract': ['node', 'itemIdentifiers'],
+        'retract': ['node', 'notify', 'itemIdentifiers'],
         'purge': ['node'],
         'delete': ['node'],
         'affiliationsGet': ['nodeOrEmpty'],
@@ -561,6 +565,23 @@ class PubSubRequest(generic.Stanza):
                     raise BadRequest(text='Missing affiliation attribute')
 
                 self.affiliations[entity] = affiliation
+
+
+    def _parse_notify(self, verbElement):
+        value = verbElement.getAttribute('notify')
+
+        if value:
+            if value in BOOL_TRUE:
+                self.notify = True
+            elif value in BOOL_FALSE:
+                self.notify = False
+            else:
+                raise BadRequest(text="Field notify must be a boolean value")
+
+
+    def _render_notify(self, verbElement):
+        if self.notify is not None:
+            verbElement['notify'] = "true" if self.notify else "false"
 
 
     def parseElement(self, element):
@@ -949,6 +970,26 @@ class PubSubClient(XMPPHandler):
         d.addCallback(cb)
         return d
 
+    def retractItems(self, service, nodeIdentifier, itemIdentifiers, notify=None, sender=None):
+        """
+        Retract items from a publish subscribe node.
+
+        @param service: The publish subscribe service to delete the node from.
+        @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @param nodeIdentifier: The identifier of the node.
+        @type nodeIdentifier: C{unicode}
+        @param itemIdentifiers: Identifiers of the items to be retracted.
+        @type itemIdentifiers: C{set}
+        @param notify: True if notification is required
+        @type notify: C{unicode}
+        """
+        request = self._request_class('retract')
+        request.recipient = service
+        request.nodeIdentifier = nodeIdentifier
+        request.itemIdentifiers = itemIdentifiers
+        request.notify = notify
+        request.sender = sender
+        return request.send(self.xmlstream)
 
     def getOptions(self, service, nodeIdentifier, subscriber,
                          subscriptionIdentifier=None, sender=None):
@@ -1369,6 +1410,18 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
             for item in items:
                 item.uri = NS_PUBSUB_EVENT
                 message.event.items.addChild(item)
+            self.send(message)
+
+
+    def notifyRetract(self, service, nodeIdentifier, notifications):
+        for subscriber, subscriptions, items in notifications:
+            message = self._createNotification('items', service,
+                                               nodeIdentifier, subscriber,
+                                               subscriptions)
+            for item in items:
+                retract = domish.Element((None, "retract"))
+                retract['id'] = item['id']
+                message.event.items.addChild(retract)
             self.send(message)
 
 

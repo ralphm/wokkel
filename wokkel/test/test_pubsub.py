@@ -840,6 +840,47 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_retractItems(self):
+        """
+        Test sending items retraction.
+        """
+        d = self.protocol.retractItems(JID('pubsub.example.org'), 'test',
+                                       itemIdentifiers=['item1', 'item2'])
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'retract', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+        itemIdentifiers = [item.getAttribute('id') for item in
+                           domish.generateElementsQNamed(child.children, 'item',
+                                                         NS_PUBSUB)]
+        self.assertEquals(['item1', 'item2'], itemIdentifiers)
+
+        self.stub.send(toResponse(iq, 'result'))
+        return d
+
+
+    def test_retractItemsWithSender(self):
+        """
+        Test retracting items request from a specific JID.
+        """
+        d = self.protocol.retractItems(JID('pubsub.example.org'), 'test',
+                                       itemIdentifiers=['item1', 'item2'],
+                                       sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('user@example.org', iq['from'])
+
+        self.stub.send(toResponse(iq, 'result'))
+        return d
+
+
     def test_getOptions(self):
         def cb(form):
             self.assertEqual('form', form.formType)
