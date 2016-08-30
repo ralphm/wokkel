@@ -911,7 +911,7 @@ class PubSubClient(XMPPHandler):
         return request.send(self.xmlstream)
 
 
-    def items(self, service, nodeIdentifier, maxItems=None,
+    def items(self, service, nodeIdentifier, maxItems=None, itemIdentifiers=None,
               subscriptionIdentifier=None, sender=None):
         """
         Retrieve previously published items from a publish subscribe node.
@@ -925,6 +925,9 @@ class PubSubClient(XMPPHandler):
         @param maxItems: Optional limit on the number of retrieved items.
         @type maxItems: C{int}
 
+        @param itemIdentifiers: Identifiers of the items to be retrieved.
+        @type itemIdentifiers: C{set}
+
         @param subscriptionIdentifier: Optional subscription identifier. In
             case the node has been subscribed to multiple times, this narrows
             the results to the specific subscription.
@@ -937,6 +940,7 @@ class PubSubClient(XMPPHandler):
             request.maxItems = str(int(maxItems))
         request.subscriptionIdentifier = subscriptionIdentifier
         request.sender = sender
+        request.itemIdentifiers = itemIdentifiers
 
         def cb(iq):
             items = []
