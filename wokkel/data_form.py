@@ -12,7 +12,7 @@ for Field Standardization for Data Forms as described in
 U{XEP-0068<http://xmpp.org/extensions/xep-0068.html>}.
 """
 
-from zope.interface import implements
+from zope.interface import implementer
 from zope.interface.common import mapping
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
@@ -354,6 +354,10 @@ class Field(object):
 
 
 
+@implementer(mapping.IIterableMapping,
+             mapping.IEnumerableMapping,
+             mapping.IReadMapping,
+             mapping.IItemMapping)
 class Form(object):
     """
     Data Form.
@@ -395,11 +399,6 @@ class Form(object):
         C{fields}, this is meant to be used for reading, only.
     @type fieldList: C{list}
     """
-
-    implements(mapping.IIterableMapping,
-               mapping.IEnumerableMapping,
-               mapping.IReadMapping,
-               mapping.IItemMapping)
 
     def __init__(self, formType, title=None, instructions=None,
                        formNamespace=None, fields=None):

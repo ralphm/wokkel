@@ -54,7 +54,10 @@ class IQ(xmlstream.IQ):
 
 
 _unspecified = object()
-_constantOrder = count().next
+try:
+    _constantOrder = count().__next__
+except AttributeError:
+    _constantOrder = count().next
 
 
 class _Constant(object):
