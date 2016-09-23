@@ -5,6 +5,8 @@
 Tests for L{wokkel.generic}.
 """
 
+import six
+
 import re
 
 from twisted.python import deprecate
@@ -49,11 +51,11 @@ class VersionHandlerTest(unittest.TestCase):
         elements = list(domish.generateElementsQNamed(response.query.children,
                                                       'name', NS_VERSION))
         self.assertEquals(1, len(elements))
-        self.assertEquals('Test', unicode(elements[0]))
+        self.assertEquals('Test', six.text_type(elements[0]))
         elements = list(domish.generateElementsQNamed(response.query.children,
                                                       'version', NS_VERSION))
         self.assertEquals(1, len(elements))
-        self.assertEquals('0.1.0', unicode(elements[0]))
+        self.assertEquals('0.1.0', six.text_type(elements[0]))
 
 
 
@@ -332,7 +334,7 @@ class PrepareIDNNameTests(unittest.TestCase):
         self.assertEqual(b"example.com", result)
 
 
-    def test_unicode(self):
+    def test_six.text_type(self):
         """
         A unicode all-ASCII name is converted to an ASCII byte string.
         """

@@ -5,6 +5,8 @@
 Tests for {wokkel.data_form}.
 """
 
+import six
+
 from zope.interface import verify
 from zope.interface.common.mapping import IIterableMapping
 
@@ -31,7 +33,7 @@ class OptionTest(unittest.TestCase):
         self.assertEqual('option', element.name)
         self.assertEqual(NS_X_DATA, element.uri)
         self.assertEqual(NS_X_DATA, element.value.uri)
-        self.assertEqual('value', unicode(element.value))
+        self.assertEqual('value', six.text_type(element.value))
         self.assertFalse(element.hasAttribute('label'))
 
 
@@ -45,7 +47,7 @@ class OptionTest(unittest.TestCase):
         self.assertEqual('option', element.name)
         self.assertEqual(NS_X_DATA, element.uri)
         self.assertEqual(NS_X_DATA, element.value.uri)
-        self.assertEqual('value', unicode(element.value))
+        self.assertEqual('value', six.text_type(element.value))
         self.assertEqual('label', element['label'])
 
 
@@ -222,7 +224,7 @@ class FieldTest(unittest.TestCase):
         child = element.children[0]
         self.assertEqual('desc', child.name)
         self.assertEqual(NS_X_DATA, child.uri)
-        self.assertEqual(u'My desc', unicode(child))
+        self.assertEqual(u'My desc', six.text_type(child))
 
 
     def test_toElementRequired(self):
@@ -245,7 +247,7 @@ class FieldTest(unittest.TestCase):
         field = data_form.Field(fieldType='jid-single', var='test',
                                 value=jid.JID(u'test@example.org'))
         element = field.toElement()
-        self.assertEqual(u'test@example.org', unicode(element.value))
+        self.assertEqual(u'test@example.org', six.text_type(element.value))
 
 
     def test_toElementJIDTextSingle(self):
@@ -255,7 +257,7 @@ class FieldTest(unittest.TestCase):
         field = data_form.Field(fieldType='text-single', var='test',
                                 value=jid.JID(u'test@example.org'))
         element = field.toElement()
-        self.assertEqual(u'test@example.org', unicode(element.value))
+        self.assertEqual(u'test@example.org', six.text_type(element.value))
 
 
     def test_toElementBoolean(self):
@@ -265,7 +267,7 @@ class FieldTest(unittest.TestCase):
         field = data_form.Field(fieldType='boolean', var='test',
                                 value=True)
         element = field.toElement()
-        self.assertEqual(u'true', unicode(element.value))
+        self.assertEqual(u'true', six.text_type(element.value))
 
 
     def test_toElementBooleanTextSingle(self):
@@ -274,7 +276,7 @@ class FieldTest(unittest.TestCase):
         """
         field = data_form.Field(var='test', value=True)
         element = field.toElement()
-        self.assertEqual(u'true', unicode(element.value))
+        self.assertEqual(u'true', six.text_type(element.value))
 
 
     def test_toElementNoType(self):
@@ -558,7 +560,7 @@ class FormTest(unittest.TestCase):
         title = elements[0]
         self.assertEqual('title', title.name)
         self.assertEqual(NS_X_DATA, title.uri)
-        self.assertEqual('Bot configuration', unicode(title))
+        self.assertEqual('Bot configuration', six.text_type(title))
 
 
     def test_toElementInstructions(self):
@@ -573,7 +575,7 @@ class FormTest(unittest.TestCase):
         instructions = elements[0]
         self.assertEqual('instructions', instructions.name)
         self.assertEqual(NS_X_DATA, instructions.uri)
-        self.assertEqual('Fill out this form!', unicode(instructions))
+        self.assertEqual('Fill out this form!', six.text_type(instructions))
 
 
     def test_toElementInstructionsMultiple(self):
@@ -590,10 +592,10 @@ class FormTest(unittest.TestCase):
         instructions2 = elements[1]
         self.assertEqual('instructions', instructions1.name)
         self.assertEqual(NS_X_DATA, instructions1.uri)
-        self.assertEqual('Fill out this form!', unicode(instructions1))
+        self.assertEqual('Fill out this form!', six.text_type(instructions1))
         self.assertEqual('instructions', instructions2.name)
         self.assertEqual(NS_X_DATA, instructions2.uri)
-        self.assertEqual('no really', unicode(instructions2))
+        self.assertEqual('no really', six.text_type(instructions2))
 
 
     def test_toElementFormType(self):
@@ -610,7 +612,7 @@ class FormTest(unittest.TestCase):
         self.assertEqual(NS_X_DATA, formTypeField.uri)
         self.assertEqual('FORM_TYPE', formTypeField['var'])
         self.assertEqual('hidden', formTypeField['type'])
-        self.assertEqual('jabber:bot', unicode(formTypeField.value))
+        self.assertEqual('jabber:bot', six.text_type(formTypeField.value))
 
 
     def test_toElementFields(self):

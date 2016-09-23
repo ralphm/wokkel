@@ -10,6 +10,8 @@ The XMPP service discovery protocol is documented in
 U{XEP-0030<http://xmpp.org/extensions/xep-0030.html>}.
 """
 
+import six
+
 from twisted.internet import defer
 from twisted.words.protocols.jabber import error, jid
 from twisted.words.xish import domish
@@ -26,7 +28,7 @@ IQ_GET = '/iq[@type="get"]'
 DISCO_INFO = IQ_GET + '/query[@xmlns="' + NS_DISCO_INFO + '"]'
 DISCO_ITEMS = IQ_GET + '/query[@xmlns="' + NS_DISCO_ITEMS + '"]'
 
-class DiscoFeature(unicode):
+class DiscoFeature(six.text_type):
     """
     XMPP service discovery feature.
 
@@ -41,7 +43,7 @@ class DiscoFeature(unicode):
         @rtype: L{domish.Element}.
         """
         element = domish.Element((NS_DISCO_INFO, 'feature'))
-        element['var'] = unicode(self)
+        element['var'] = six.text_type(self)
         return element
 
 

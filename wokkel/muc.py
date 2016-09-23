@@ -9,6 +9,9 @@ XMPP Multi-User Chat protocol.
 This protocol is specified in
 U{XEP-0045<http://xmpp.org/extensions/xep-0045.html>}.
 """
+
+import six
+
 from dateutil.tz import tzutc
 
 from zope.interface import implementer
@@ -188,7 +191,7 @@ class AdminItem(object):
         item.role = element.getAttribute('role')
 
         for child in element.elements(NS_MUC_ADMIN, 'reason'):
-            item.reason = unicode(child)
+            item.reason = six.text_type(child)
 
         return item
 
@@ -447,7 +450,7 @@ class UserPresence(xmppim.AvailabilityPresence):
                 self.role = child.getAttribute('role')
 
                 for reason in child.elements(NS_MUC_ADMIN, 'reason'):
-                    self.reason = unicode(reason)
+                    self.reason = six.text_type(reason)
 
             # TODO: destroy
 

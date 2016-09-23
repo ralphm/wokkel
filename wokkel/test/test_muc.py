@@ -5,6 +5,8 @@
 Tests for L{wokkel.muc}
 """
 
+import six
+
 from datetime import datetime
 from dateutil.tz import tzutc
 
@@ -754,7 +756,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         self.assertEquals('message', message.name)
         self.assertEquals(self.roomJID.full(), message.getAttribute('to'))
         self.assertEquals('groupchat', message.getAttribute('type'))
-        self.assertEquals(u'This is a test', unicode(message.body))
+        self.assertEquals(u'This is a test', six.text_type(message.body))
 
 
     def test_chat(self):
@@ -770,7 +772,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         self.assertEquals('message', message.name)
         self.assertEquals(otherOccupantJID.full(), message.getAttribute('to'))
         self.assertEquals('chat', message.getAttribute('type'))
-        self.assertEquals(u'This is a test', unicode(message.body))
+        self.assertEquals(u'This is a test', six.text_type(message.body))
 
 
     def test_subject(self):
@@ -784,7 +786,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         self.assertEquals('message', message.name)
         self.assertEquals(self.roomJID.full(), message.getAttribute('to'))
         self.assertEquals('groupchat', message.getAttribute('type'))
-        self.assertEquals(u'This is a test', unicode(message.subject))
+        self.assertEquals(u'This is a test', six.text_type(message.subject))
 
 
     def test_invite(self):
@@ -803,7 +805,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         self.assertEquals(muc.NS_MUC_USER, message.x.invite.uri)
         self.assertEquals(invitee.full(), message.x.invite.getAttribute('to'))
         self.assertEquals(muc.NS_MUC_USER, message.x.invite.reason.uri)
-        self.assertEquals(u'This is a test', unicode(message.x.invite.reason))
+        self.assertEquals(u'This is a test', six.text_type(message.x.invite.reason))
 
 
     def test_getRegisterForm(self):
@@ -1396,7 +1398,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         nodes = xpath.queryForNodes(query, iq)
         self.assertNotIdentical(None, nodes, 'Bad configure request')
         destroy = nodes[0]
-        self.assertEquals('Time to leave', unicode(destroy.reason))
+        self.assertEquals('Time to leave', six.text_type(destroy.reason))
 
         response = toResponse(iq, 'result')
         self.stub.send(response)

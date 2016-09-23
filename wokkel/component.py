@@ -7,6 +7,8 @@
 XMPP External Component utilities.
 """
 
+import six
+
 from twisted.application import service
 from twisted.internet import reactor
 from twisted.python import log
@@ -237,7 +239,7 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
         L{onHandshake}.
         """
         if (element.uri, element.name) == (self.namespace, 'handshake'):
-            self.onHandshake(unicode(element))
+            self.onHandshake(six.text_type(element))
         else:
             exc = error.StreamError('not-authorized')
             self.xmlstream.sendStreamError(exc)
@@ -253,7 +255,7 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
         be exchanged.
         """
         calculatedHash = xmlstream.hashPassword(self.xmlstream.sid,
-                                                unicode(self.secret))
+                                                six.text_type(self.secret))
         if handshake != calculatedHash:
             exc = error.StreamError('not-authorized', text='Invalid hash')
             self.xmlstream.sendStreamError(exc)

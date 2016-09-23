@@ -11,6 +11,8 @@ as described in XMPP Core (RFC 3920). Refer to that document for the meaning
 of the used terminology.
 """
 
+import six
+
 # hashlib is new in Python 2.5, try that first.
 try:
     from hashlib import sha256
@@ -386,7 +388,7 @@ class XMPPServerListenAuthenticator(xmlstream.ListenAuthenticator):
             raise error.StreamError('invalid-from')
 
         streamID = verify.getAttribute('id', '')
-        key = unicode(verify)
+        key = six.text_type(verify)
 
         calculatedKey = generateKey(self.service.secret, receivingServer,
                                     originatingServer, streamID)
@@ -422,7 +424,7 @@ class XMPPServerListenAuthenticator(xmlstream.ListenAuthenticator):
 
         receivingServer = result['to']
         originatingServer = result['from']
-        key = unicode(result)
+        key = six.text_type(result)
 
         d = self.service.validateConnection(receivingServer, originatingServer,
                                             self.xmlstream.sid, key)

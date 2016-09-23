@@ -10,6 +10,8 @@ This protocol is specified in
 U{XEP-0131<http://xmpp.org/extensions/xep-0131.html>}.
 """
 
+import six
+
 from twisted.words.xish import domish
 
 NS_SHIM = "http://jabber.org/protocol/shim"
@@ -35,6 +37,6 @@ def extractHeaders(stanza):
                                                  'headers', NS_SHIM):
         for header in domish.generateElementsQNamed(element.children,
                                                     'header', NS_SHIM):
-            headers.setdefault(header['name'], []).append(unicode(header))
+            headers.setdefault(header['name'], []).append(six.text_type(header))
 
     return headers
