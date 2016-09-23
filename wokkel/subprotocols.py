@@ -276,7 +276,11 @@ class StreamManager(XMPPHandlerCollection):
         # deferreds will never be fired.
         iqDeferreds = self._iqDeferreds
         self._iqDeferreds = {}
-        for d in iqDeferreds.itervalues():
+        try:
+            values = iqDeferreds.values()
+        except AttributeError:
+            values = iqDeferreds.itervalues()
+        for d in values:
             d.errback(reason)
 
 
