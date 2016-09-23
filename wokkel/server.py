@@ -77,7 +77,7 @@ def trapStreamError(xs, observer):
     def wrappedObserver(element):
         try:
             observer(element)
-        except error.StreamError, exc:
+        except error.StreamError as exc:
             xs.sendStreamError(exc)
         except:
             log.err()
@@ -352,7 +352,7 @@ class XMPPServerListenAuthenticator(xmlstream.ListenAuthenticator):
 
             if targetDomain and targetDomain not in self.service.domains:
                 raise error.StreamError('host-unknown')
-        except error.StreamError, exc:
+        except error.StreamError as exc:
             prepareStream(self.service.defaultDomain)
             self.xmlstream.sendStreamError(exc)
             return
