@@ -15,7 +15,7 @@ env:
 
 install:
     - pip install pyflakes
-    - pip install -q $TWISTED
+    - pip install $TWISTED
     - python setup.py install
 
 script:
