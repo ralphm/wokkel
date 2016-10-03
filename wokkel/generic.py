@@ -7,7 +7,7 @@
 Generic XMPP protocol helpers.
 """
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.internet import defer, protocol
 from twisted.python import reflect
@@ -86,6 +86,7 @@ class FallbackHandler(XMPPHandler):
 
 
 
+@implementer(IDisco)
 class VersionHandler(XMPPHandler):
     """
     XMPP subprotocol handler for XMPP Software Version.
@@ -93,8 +94,6 @@ class VersionHandler(XMPPHandler):
     This protocol is described in
     U{XEP-0092<http://xmpp.org/extensions/xep-0092.html>}.
     """
-
-    implements(IDisco)
 
     def __init__(self, name, version):
         self.name = name

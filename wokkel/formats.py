@@ -1,6 +1,8 @@
 # Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
+import six
+
 NS_MOOD = 'http://jabber.org/protocol/mood'
 NS_TUNE = 'http://jabber.org/protocol/tune'
 
@@ -44,7 +46,7 @@ class Mood:
                 continue
 
             if child.name == 'text':
-                text = unicode(child)
+                text = six.text_type(child)
             else:
                 value = child.name
 
@@ -109,10 +111,10 @@ class Tune:
                 continue
 
             if child.name in ('artist', 'source', 'title', 'track', 'uri'):
-                setattr(tune, child.name, unicode(child))
+                setattr(tune, child.name, six.text_type(child))
             elif child.name == 'length':
                 try:
-                    tune.length = int(unicode(child))
+                    tune.length = int(six.text_type(child))
                 except ValueError:
                     pass
 

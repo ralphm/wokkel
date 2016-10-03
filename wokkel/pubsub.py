@@ -10,6 +10,8 @@ This protocol is specified in
 U{XEP-0060<http://xmpp.org/extensions/xep-0060.html>}.
 """
 
+import six
+
 from zope.interface import implements
 
 from twisted.internet import defer
@@ -104,20 +106,20 @@ class Subscription(object):
 
     @ivar nodeIdentifier: The identifier of the node subscribed to.  The root
         node is denoted by C{None}.
-    @type nodeIdentifier: C{unicode}
+    @type nodeIdentifier: C{str}
 
     @ivar subscriber: The subscribing entity.
     @type subscriber: L{jid.JID}
 
     @ivar state: The subscription state. One of C{'subscribed'}, C{'pending'},
                  C{'unconfigured'}.
-    @type state: C{unicode}
+    @type state: C{str}
 
     @ivar options: Optional list of subscription options.
     @type options: C{dict}
 
     @ivar subscriptionIdentifier: Optional subscription identifier.
-    @type subscriptionIdentifier: C{unicode}
+    @type subscriptionIdentifier: C{str}
     """
 
     def __init__(self, nodeIdentifier, subscriber, state, options=None,
@@ -147,7 +149,7 @@ class Subscription(object):
         element = domish.Element((defaultUri, 'subscription'))
         if self.nodeIdentifier:
             element['node'] = self.nodeIdentifier
-        element['jid'] = unicode(self.subscriber)
+        element['jid'] = six.text_type(self.subscriber)
         element['subscription'] = self.state
         if self.subscriptionIdentifier:
             element['subid'] = self.subscriptionIdentifier
@@ -484,7 +486,7 @@ class PubSubRequest(generic.Stanza):
         Render maximum items into an items request.
         """
         if self.maxItems:
-            verbElement['max_items'] = unicode(self.maxItems)
+            verbElement['max_items'] = six.text_type(self.maxItems)
 
 
     def _parse_subidOrNone(self, verbElement):

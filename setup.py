@@ -46,5 +46,6 @@ setup(name='wokkel',
       install_requires=[
           'Twisted >= 10.0.0',
           'python-dateutil',
+          'six',
       ],
 )

@@ -10,7 +10,7 @@ XMPP subprotocol support.
 __all__ = ['XMPPHandler', 'XMPPHandlerCollection', 'StreamManager',
            'IQHandlerMixin']
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.internet import defer
 from twisted.internet.error import ConnectionDone
@@ -30,6 +30,7 @@ deprecatedModuleAttribute(
         __name__,
         "XMPPHandlerCollection")
 
+@implementer(ijabber.IXMPPHandler)
 class XMPPHandler(object):
     """
     XMPP protocol handler.
@@ -37,8 +38,6 @@ class XMPPHandler(object):
     Classes derived from this class implement (part of) one or more XMPP
     extension protocols, and are referred to as a subprotocol implementation.
     """
-
-    implements(ijabber.IXMPPHandler)
 
     def __init__(self):
         self.parent = None
@@ -277,7 +276,11 @@ class StreamManager(XMPPHandlerCollection):
         # deferreds will never be fired.
         iqDeferreds = self._iqDeferreds
         self._iqDeferreds = {}
-        for d in iqDeferreds.itervalues():
+        try:
+            values = iqDeferreds.values()
+        except AttributeError:
+            values = iqDeferreds.itervalues()
+        for d in values:
             d.errback(reason)
 
 

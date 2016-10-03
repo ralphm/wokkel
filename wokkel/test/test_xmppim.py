@@ -5,6 +5,8 @@
 Tests for L{wokkel.xmppim}.
 """
 
+import six
+
 from twisted.internet import defer
 from twisted.trial import unittest
 from twisted.words.protocols.jabber import error
@@ -52,7 +54,7 @@ class PresenceClientProtocolTest(unittest.TestCase):
         self.assertEquals(None, presence.uri)
         self.assertEquals("user@example.com", presence.getAttribute('to'))
         self.assertEquals("unavailable", presence.getAttribute('type'))
-        self.assertEquals("Disconnected", unicode(presence.status))
+        self.assertEquals("Disconnected", six.text_type(presence.status))
 
     def test_unavailableBroadcast(self):
         """
@@ -295,9 +297,9 @@ class PresenceProtocolTest(unittest.TestCase):
         element = self.output[-1]
         self.assertEquals("user@example.com", element.getAttribute('to'))
         self.assertIdentical(None, element.getAttribute('type'))
-        self.assertEquals(u'chat', unicode(element.show))
-        self.assertEquals(u'Talk to me!', unicode(element.status))
-        self.assertEquals(u'50', unicode(element.priority))
+        self.assertEquals(u'chat', six.text_type(element.show))
+        self.assertEquals(u'Talk to me!', six.text_type(element.status))
+        self.assertEquals(u'50', six.text_type(element.priority))
 
     def test_availableLanguages(self):
         """
@@ -311,19 +313,19 @@ class PresenceProtocolTest(unittest.TestCase):
         element = self.output[-1]
         self.assertEquals("user@example.com", element.getAttribute('to'))
         self.assertIdentical(None, element.getAttribute('type'))
-        self.assertEquals(u'chat', unicode(element.show))
+        self.assertEquals(u'chat', six.text_type(element.show))
 
         statuses = {}
         for status in element.elements():
             if status.name == 'status':
                 lang = status.getAttribute((NS_XML, 'lang'))
-                statuses[lang] = unicode(status)
+                statuses[lang] = six.text_type(status)
 
         self.assertIn(None, statuses)
         self.assertEquals(u'Talk to me!', statuses[None])
         self.assertIn('nl', statuses)
         self.assertEquals(u'Praat met me!', statuses['nl'])
-        self.assertEquals(u'50', unicode(element.priority))
+        self.assertEquals(u'50', six.text_type(element.priority))
 
 
     def test_availableSender(self):
@@ -360,7 +362,7 @@ class PresenceProtocolTest(unittest.TestCase):
         self.assertEquals(None, element.uri)
         self.assertEquals("user@example.com", element.getAttribute('to'))
         self.assertEquals("unavailable", element.getAttribute('type'))
-        self.assertEquals("Disconnected", unicode(element.status))
+        self.assertEquals("Disconnected", six.text_type(element.status))
 
 
     def test_unavailableBroadcast(self):
@@ -565,7 +567,7 @@ class RosterItemTest(unittest.TestCase):
         foundGroups = set()
         for child in element.elements():
             if child.uri == NS_ROSTER and child.name == 'group':
-                foundGroups.add(unicode(child))
+                foundGroups.add(six.text_type(child))
 
         self.assertEqual(groups, foundGroups)
 

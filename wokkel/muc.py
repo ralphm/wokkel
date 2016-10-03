@@ -9,9 +9,12 @@ XMPP Multi-User Chat protocol.
 This protocol is specified in
 U{XEP-0045<http://xmpp.org/extensions/xep-0045.html>}.
 """
+
+import six
+
 from dateutil.tz import tzutc
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.internet import defer
 from twisted.words.protocols.jabber import jid, error, xmlstream
@@ -64,6 +67,7 @@ class STATUS_CODE(Values):
     REMOVED_SHUTDOWN = ValueConstant(332)
 
 
+@implementer(iwokkel.IMUCStatuses)
 class Statuses(set):
     """
     Container of MUC status conditions.
@@ -75,7 +79,6 @@ class Statuses(set):
     cater for extensible status conditions, as defined in
     U{XEP-0306<http://xmpp.org/extensions/xep-0306.html>}.
     """
-    implements(iwokkel.IMUCStatuses)
 
 
 
@@ -188,7 +191,7 @@ class AdminItem(object):
         item.role = element.getAttribute('role')
 
         for child in element.elements(NS_MUC_ADMIN, 'reason'):
-            item.reason = unicode(child)
+            item.reason = six.text_type(child)
 
         return item
 
@@ -447,7 +450,7 @@ class UserPresence(xmppim.AvailabilityPresence):
                 self.role = child.getAttribute('role')
 
                 for reason in child.elements(NS_MUC_ADMIN, 'reason'):
-                    self.reason = unicode(reason)
+                    self.reason = six.text_type(reason)
 
             # TODO: destroy
 
@@ -1203,6 +1206,7 @@ class Room(object):
 
 
 
+@implementer(IMUCClient)
 class MUCClient(MUCClientProtocol):
     """
     Multi-User Chat client protocol.
@@ -1214,8 +1218,6 @@ class MUCClient(MUCClientProtocol):
                   at a time.
     @type _rooms: C{dict}
     """
-
-    implements(IMUCClient)
 
     def __init__(self, reactor=None):
         MUCClientProtocol.__init__(self, reactor)

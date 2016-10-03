@@ -10,6 +10,8 @@ The XMPP Ping protocol is documented in
 U{XEP-0199<http://xmpp.org/extensions/xep-0199.html>}.
 """
 
+import six
+
 from zope.interface import implements
 
 from twisted.words.protocols.jabber.error import StanzaError
@@ -56,7 +58,7 @@ class PingClientProtocol(XMPPHandler):
         request.addElement((NS_PING, 'ping'))
 
         if sender is not None:
-            request['from'] = unicode(sender)
+            request['from'] = six.text_type(sender)
 
         d = request.send(entity.full())
         d.addCallbacks(cb, eb)

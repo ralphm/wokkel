@@ -12,7 +12,9 @@ for Field Standardization for Data Forms as described in
 U{XEP-0068<http://xmpp.org/extensions/xep-0068.html>}.
 """
 
-from zope.interface import implements
+import six
+
+from zope.interface import implementer
 from zope.interface.common import mapping
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
@@ -87,7 +89,7 @@ class Option(object):
             raise Error("Option has no value")
 
         label = element.getAttribute('label')
-        return Option(unicode(valueElements[0]), label)
+        return Option(six.text_type(valueElements[0]), label)
 
 
 class Field(object):
@@ -259,9 +261,9 @@ class Field(object):
 
         for value in self.values:
             if isinstance(value, bool):
-                value = unicode(value).lower()
+                value = six.text_type(value).lower()
             else:
-                value = unicode(value)
+                value = six.text_type(value)
 
             field.addElement('value', content=value)
 
@@ -284,7 +286,7 @@ class Field(object):
 
     @staticmethod
     def _parse_desc(field, element):
-        desc = unicode(element)
+        desc = six.text_type(element)
         if desc:
             field.desc = desc
 
@@ -301,7 +303,7 @@ class Field(object):
 
     @staticmethod
     def _parse_value(field, element):
-        value = unicode(element)
+        value = six.text_type(element)
         field.values.append(value)
 
 
@@ -354,6 +356,10 @@ class Field(object):
 
 
 
+@implementer(mapping.IIterableMapping,
+             mapping.IEnumerableMapping,
+             mapping.IReadMapping,
+             mapping.IItemMapping)
 class Form(object):
     """
     Data Form.
@@ -395,11 +401,6 @@ class Form(object):
         C{fields}, this is meant to be used for reading, only.
     @type fieldList: C{list}
     """
-
-    implements(mapping.IIterableMapping,
-               mapping.IEnumerableMapping,
-               mapping.IReadMapping,
-               mapping.IItemMapping)
 
     def __init__(self, formType, title=None, instructions=None,
                        formNamespace=None, fields=None):
@@ -538,14 +539,14 @@ class Form(object):
 
     @staticmethod
     def _parse_title(form, element):
-        title = unicode(element)
+        title = six.text_type(element)
         if title:
             form.title = title
 
 
     @staticmethod
     def _parse_instructions(form, element):
-        instructions = unicode(element)
+        instructions = six.text_type(element)
         if instructions:
             form.instructions.append(instructions)
 

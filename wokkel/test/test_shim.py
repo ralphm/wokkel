@@ -7,6 +7,8 @@
 Tests for {wokkel.shim}.
 """
 
+import six
+
 from twisted.trial import unittest
 from wokkel import shim
 from wokkel.generic import parseXml
@@ -32,7 +34,7 @@ class HeadersTest(unittest.TestCase):
         self.assertEquals(NS_SHIM, header.uri)
         self.assertEquals('header', header.name)
         self.assertEquals('Urgency', header['name'])
-        self.assertEquals('high', unicode(header))
+        self.assertEquals('high', six.text_type(header))
 
 
     def test_headerRepeated(self):
@@ -43,7 +45,7 @@ class HeadersTest(unittest.TestCase):
                            ('Collection', 'node2')])
         elements = list(headers.elements())
         self.assertEquals(2, len(elements))
-        collections = set((unicode(element) for element in elements
+        collections = set((six.text_type(element) for element in elements
                            if element['name'] == 'Collection'))
         self.assertIn('node1', collections)
         self.assertIn('node2', collections)

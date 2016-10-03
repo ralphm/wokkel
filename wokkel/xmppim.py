@@ -51,7 +51,7 @@ class AvailablePresence(Presence):
                     s[(NS_XML, "lang")] = lang
 
         if priority != 0:
-            self.addElement('priority', content=unicode(int(priority)))
+            self.addElement('priority', content=six.text_type(int(priority)))
 
 class UnavailablePresence(Presence):
     def __init__(self, to=None, statuses=None):
@@ -73,7 +73,7 @@ class PresenceClientProtocol(XMPPHandler):
         for element in presence.elements():
             if element.name == 'status':
                 lang = element.getAttribute((NS_XML, 'lang'))
-                text = unicode(element)
+                text = six.text_type(element)
                 statuses[lang] = text
         return statuses
 
@@ -89,14 +89,14 @@ class PresenceClientProtocol(XMPPHandler):
     def _onPresenceAvailable(self, presence):
         entity = JID(presence["from"])
 
-        show = unicode(presence.show or '')
+        show = six.text_type(presence.show or '')
         if show not in ['away', 'xa', 'chat', 'dnd']:
             show = None
 
         statuses = self._getStatuses(presence)
 
         try:
-            priority = int(unicode(presence.priority or '')) or 0
+            priority = int(six.text_type(presence.priority or '')) or 0
         except ValueError:
             priority = 0
 
@@ -315,20 +315,20 @@ class AvailabilityPresence(BasePresence):
 
 
     def _childParser_show(self, element):
-        show = unicode(element)
+        show = six.text_type(element)
         if show in ('chat', 'away', 'xa', 'dnd'):
             self.show = show
 
 
     def _childParser_status(self, element):
         lang = element.getAttribute((NS_XML, 'lang'), None)
-        text = unicode(element)
+        text = six.text_type(element)
         self.statuses[lang] = text
 
 
     def _childParser_priority(self, element):
         try:
-            self.priority = int(unicode(element))
+            self.priority = int(six.text_type(element))
         except ValueError:
             pass
 
@@ -350,7 +350,7 @@ class AvailabilityPresence(BasePresence):
             if self.show in ('chat', 'away', 'xa', 'dnd'):
                 presence.addElement('show', content=self.show)
             if self.priority != 0:
-                presence.addElement('priority', content=unicode(self.priority))
+                presence.addElement('priority', content=six.text_type(self.priority))
 
         for lang, text in self.statuses.iteritems():
             status = presence.addElement('status', content=text)
@@ -752,7 +752,7 @@ class RosterItem(object):
             item.approved = element.getAttribute('approved') in ('true', '1')
             for subElement in domish.generateElementsQNamed(element.children,
                                                             'group', NS_ROSTER):
-                item.groups.add(unicode(subElement))
+                item.groups.add(six.text_type(subElement))
         return item
 
 
@@ -1020,11 +1020,11 @@ class Message(Stanza):
 
 
     def _childParser_body(self, element):
-        self.body = unicode(element)
+        self.body = six.text_type(element)
 
 
     def _childParser_subject(self, element):
-        self.subject = unicode(element)
+        self.subject = six.text_type(element)
 
 
     def toElement(self):
