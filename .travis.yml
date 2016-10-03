@@ -22,8 +22,8 @@ matrix:
           env: TWISTED=Twisted==15.5
 
 install:
-    - pip install pyflakes --use-mirrors
-    - pip install -q $TWISTED --use-mirrors
+    - pip install pyflakes
+    - pip install -q $TWISTED
     - python setup.py install
 
 script:
