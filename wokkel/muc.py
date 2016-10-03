@@ -11,14 +11,14 @@ U{XEP-0045<http://xmpp.org/extensions/xep-0045.html>}.
 """
 from dateutil.tz import tzutc
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.internet import defer
+from twisted.python.constants import Values, ValueConstant
 from twisted.words.protocols.jabber import jid, error, xmlstream
 from twisted.words.xish import domish
 
 from wokkel import data_form, generic, iwokkel, xmppim
-from wokkel.compat import Values, ValueConstant
 from wokkel.delay import Delay, DelayMixin
 from wokkel.subprotocols import XMPPHandler
 from wokkel.iwokkel import IMUCClient
@@ -64,6 +64,7 @@ class STATUS_CODE(Values):
     REMOVED_SHUTDOWN = ValueConstant(332)
 
 
+@implementer(iwokkel.IMUCStatuses)
 class Statuses(set):
     """
     Container of MUC status conditions.
@@ -75,7 +76,6 @@ class Statuses(set):
     cater for extensible status conditions, as defined in
     U{XEP-0306<http://xmpp.org/extensions/xep-0306.html>}.
     """
-    implements(iwokkel.IMUCStatuses)
 
 
 
@@ -1203,6 +1203,7 @@ class Room(object):
 
 
 
+@implementer(IMUCClient)
 class MUCClient(MUCClientProtocol):
     """
     Multi-User Chat client protocol.
@@ -1214,8 +1215,6 @@ class MUCClient(MUCClientProtocol):
                   at a time.
     @type _rooms: C{dict}
     """
-
-    implements(IMUCClient)
 
     def __init__(self, reactor=None):
         MUCClientProtocol.__init__(self, reactor)
