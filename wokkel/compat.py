@@ -9,8 +9,6 @@ Compatibility module to provide backwards compatibility with Twisted features.
 
 from __future__ import division, absolute_import
 
-from twisted.python.deprecate import deprecatedModuleAttribute
-from twisted.python.versions import Version
 from twisted.words.protocols.jabber import xmlstream
 
 class IQ(xmlstream.IQ):
