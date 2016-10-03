@@ -117,6 +117,30 @@ class SubscriptionTest(unittest.TestCase):
 
 
 
+class ItemTests(unittest.TestCase):
+    """
+    Tests for L{pubsub.Item}.
+    """
+
+    def test_payloadRaw(self):
+        """
+        Adding a payload as a string assumes serialized XML.
+        """
+        payload = "<test xmlns='foo'/>"
+        item = pubsub.Item(payload=payload)
+        self.assertEqual(payload, item.children[0])
+
+
+    def test_payloadElement(self):
+        """
+        Adding a payload as an domish Element, just adds that element as child.
+        """
+        payload = domish.Element(('foo', 'test'))
+        item = pubsub.Item(payload=payload)
+        self.assertIs(payload, item.children[0])
+
+
+
 class PubSubClientTest(unittest.TestCase):
     timeout = 2
 

@@ -16,7 +16,7 @@ from zope.interface import implementer
 
 from twisted.internet import defer
 from twisted.python import log
-from twisted.python.compat import iteritems, unicode
+from twisted.python.compat import StringType, iteritems, unicode
 from twisted.words.protocols.jabber import jid, error
 from twisted.words.xish import domish
 
@@ -181,7 +181,7 @@ class Item(domish.Element):
         if id is not None:
             self['id'] = id
         if payload is not None:
-            if isinstance(payload, basestring):
+            if isinstance(payload, StringType):
                 self.addRawXml(payload)
             else:
                 self.addChild(payload)
