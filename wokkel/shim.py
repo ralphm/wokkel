@@ -10,6 +10,9 @@ This protocol is specified in
 U{XEP-0131<http://xmpp.org/extensions/xep-0131.html>}.
 """
 
+from __future__ import division, absolute_import
+
+from twisted.python.compat import unicode
 from twisted.words.xish import domish
 
 NS_SHIM = "http://jabber.org/protocol/shim"
