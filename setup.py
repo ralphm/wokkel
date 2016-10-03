@@ -34,7 +34,7 @@ else:
     requiredTwisted = "16.4.0"
 
 setup(name='wokkel',
-      version='16.0.0',
+      version='0.7.1',
       description='Twisted Jabber support library',
       author='Ralph Meijer',
       author_email='ralphm@ik.nu',
