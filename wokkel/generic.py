@@ -7,6 +7,8 @@
 Generic XMPP protocol helpers.
 """
 
+from __future__ import division, absolute_import
+
 from zope.interface import implementer
 
 from twisted.internet import defer, protocol
@@ -112,16 +114,16 @@ class VersionHandler(XMPPHandler):
 
         iq.handled = True
 
-    def getDiscoInfo(self, requestor, target, node):
+    def getDiscoInfo(self, requestor, target, nodeIdentifier=''):
         info = set()
 
-        if not node:
+        if not nodeIdentifier:
             from wokkel import disco
             info.add(disco.DiscoFeature(NS_VERSION))
 
         return defer.succeed(info)
 
-    def getDiscoItems(self, requestor, target, node):
+    def getDiscoItems(self, requestor, target, nodeIdentifier=''):
         return defer.succeed([])
 
 
