@@ -7,14 +7,14 @@
 XMPP subprotocol support.
 """
 
-__all__ = ['XMPPHandler', 'XMPPHandlerCollection', 'StreamManager',
-           'IQHandlerMixin']
+from __future__ import division, absolute_import
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.internet import defer
 from twisted.internet.error import ConnectionDone
 from twisted.python import failure, log
+from twisted.python.compat import iteritems, itervalues
 from twisted.python.deprecate import deprecatedModuleAttribute
 from twisted.python.versions import Version
 from twisted.words.protocols.jabber import error, ijabber, xmlstream
@@ -30,6 +30,7 @@ deprecatedModuleAttribute(
         __name__,
         "XMPPHandlerCollection")
 
+@implementer(ijabber.IXMPPHandler)
 class XMPPHandler(object):
     """
     XMPP protocol handler.
@@ -37,8 +38,6 @@ class XMPPHandler(object):
     Classes derived from this class implement (part of) one or more XMPP
     extension protocols, and are referred to as a subprotocol implementation.
     """
-
-    implements(ijabber.IXMPPHandler)
 
     def __init__(self):
         self.parent = None
@@ -277,7 +276,7 @@ class StreamManager(XMPPHandlerCollection):
         # deferreds will never be fired.
         iqDeferreds = self._iqDeferreds
         self._iqDeferreds = {}
-        for d in iqDeferreds.itervalues():
+        for d in itervalues(iqDeferreds):
             d.errback(reason)
 
 
@@ -455,7 +454,7 @@ class IQHandlerMixin(object):
             return error.StanzaError('internal-server-error').toResponse(iq)
 
         handler = None
-        for queryString, method in self.iqHandlers.iteritems():
+        for queryString, method in iteritems(self.iqHandlers):
             if xpath.internQuery(queryString).matches(iq):
                 handler = getattr(self, method)
 
@@ -472,3 +471,8 @@ class IQHandlerMixin(object):
         d.addCallback(self.send)
 
         iq.handled = True
+
+
+
+__all__ = ['XMPPHandler', 'XMPPHandlerCollection', 'StreamManager',
+           'IQHandlerMixin']
