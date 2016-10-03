@@ -5,7 +5,9 @@
 Tests for L{wokkel.disco}.
 """
 
-from zope.interface import implements
+from __future__ import division, absolute_import
+
+from zope.interface import implementer
 
 from twisted.internet import defer
 from twisted.trial import unittest
@@ -846,8 +848,8 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
                       disco.DiscoFeature('jabber:iq:version')
         ]
 
+        @implementer(disco.IDisco)
         class DiscoResponder(XMPPHandler):
-            implements(disco.IDisco)
 
             def getDiscoInfo(self, requestor, target, nodeIdentifier):
                 if not nodeIdentifier:
@@ -873,8 +875,8 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
                       disco.DiscoFeature('jabber:iq:version')
         ]
 
+        @implementer(disco.IDisco)
         class DiscoResponder(XMPPHandler):
-            implements(disco.IDisco)
 
             def getDiscoInfo(self, requestor, target, nodeIdentifier):
                 if not nodeIdentifier:
@@ -897,8 +899,8 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
         discoItems = [disco.DiscoItem(JID('example.com'), 'test', 'Test node')]
 
+        @implementer(disco.IDisco)
         class DiscoResponder(XMPPHandler):
-            implements(disco.IDisco)
 
             def getDiscoItems(self, requestor, target, nodeIdentifier):
                 if not nodeIdentifier:
@@ -921,8 +923,8 @@ class DiscoHandlerTest(unittest.TestCase, TestableRequestHandlerMixin):
         """
         discoItems = [disco.DiscoItem(JID('example.com'), 'test', 'Test node')]
 
+        @implementer(disco.IDisco)
         class DiscoResponder(XMPPHandler):
-            implements(disco.IDisco)
 
             def getDiscoItems(self, requestor, target, nodeIdentifier):
                 if not nodeIdentifier:
