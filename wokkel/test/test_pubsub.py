@@ -5,6 +5,8 @@
 Tests for L{wokkel.pubsub}
 """
 
+from __future__ import division, absolute_import
+
 from zope.interface import verify
 
 from twisted.trial import unittest
@@ -2913,7 +2915,7 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
 
         def configureSet(request):
             self.assertEquals(['pubsub#deliver_payloads'],
-                              request.options.keys())
+                              list(request.options.keys()))
 
         self.resource.getConfigurationOptions = getConfigurationOptions
         self.resource.configureSet = configureSet
