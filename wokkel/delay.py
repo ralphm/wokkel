@@ -11,6 +11,8 @@ U{XEP-0203<http://xmpp.org/extensions/xep-0203.html>} and its predecessor
 U{XEP-0091<http://xmpp.org/extensions/xep-0091.html>}.
 """
 
+from __future__ import division, absolute_import
+
 from dateutil.parser import parse
 from dateutil.tz import tzutc
 

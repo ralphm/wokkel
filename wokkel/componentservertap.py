@@ -9,6 +9,8 @@ and accepts and initiates server-to-server connections for the specified
 domain(s).
 """
 
+from __future__ import division, absolute_import
+
 from twisted.application import service, strports
 from twisted.python import usage
 from twisted.words.protocols.jabber import component

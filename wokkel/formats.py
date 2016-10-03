@@ -1,6 +1,8 @@
 # Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
+from __future__ import division, absolute_import
+
 NS_MOOD = 'http://jabber.org/protocol/mood'
 NS_TUNE = 'http://jabber.org/protocol/tune'
 
