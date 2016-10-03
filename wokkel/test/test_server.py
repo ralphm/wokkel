@@ -5,6 +5,7 @@
 Tests for L{wokkel.server}.
 """
 
+from __future__ import division, absolute_import
 from twisted.internet import defer
 from twisted.python import failure
 from twisted.test.proto_helpers import StringTransport
@@ -448,3 +449,10 @@ class ServerServiceTest(unittest.TestCase):
         self.service.dispatch(self.xmlstream, stanza)
 
         self.assertEqual(1, len(errors))
+
+
+    def test_generatedSecret(self):
+        self.router = component.Router()
+        self.service = server.ServerService(self.router,
+                                            domain='example.org')
+        self.assertEqual(32, len(self.service.secret))
