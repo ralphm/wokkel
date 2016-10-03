@@ -5,9 +5,12 @@
 Tests for {wokkel.data_form}.
 """
 
+from __future__ import division, absolute_import
+
 from zope.interface import verify
 from zope.interface.common.mapping import IIterableMapping
 
+from twisted.python.compat import unicode, _PY3
 from twisted.trial import unittest
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import jid
@@ -1134,7 +1137,8 @@ class FormTest(unittest.TestCase):
                                                 values=['news', 'search'])]
         form = data_form.Form('submit', fields=fields)
         keys = form.keys()
-        self.assertIsInstance(keys, list)
+        if not _PY3:
+            self.assertIsInstance(keys, list)
         self.assertEqual(set(['botname', 'public', 'features']),
                          set(keys))
 
@@ -1147,7 +1151,8 @@ class FormTest(unittest.TestCase):
                   data_form.Field('boolean', var='public', value=True)]
         form = data_form.Form('submit', fields=fields)
         values = form.values()
-        self.assertIsInstance(values, list)
+        if not _PY3:
+            self.assertIsInstance(values, list)
         self.assertEqual(set(['The Jabber Bot', True]), set(values))
 
 
@@ -1159,7 +1164,8 @@ class FormTest(unittest.TestCase):
                   data_form.Field('boolean', var='public', value=True)]
         form = data_form.Form('submit', fields=fields)
         items = form.items()
-        self.assertIsInstance(items, list)
+        if not _PY3:
+            self.assertIsInstance(items, list)
         self.assertEqual(set([('botname', 'The Jabber Bot'),
                               ('public', True)]),
                          set(items))
