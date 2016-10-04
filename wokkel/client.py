@@ -10,6 +10,8 @@ This module holds several improvements on top of Twisted's XMPP support
 that should probably eventually move there.
 """
 
+from __future__ import division, absolute_import
+
 from twisted.application import service
 from twisted.internet import reactor
 from twisted.names.srvconnect import SRVConnector

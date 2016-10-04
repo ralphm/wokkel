@@ -5,7 +5,10 @@
 Unit test helpers.
 """
 
+from __future__ import division, absolute_import
+
 from twisted.internet import defer
+from twisted.python.compat import iteritems
 from twisted.words.xish import xpath
 from twisted.words.xish.utility import EventDispatcher
 
@@ -34,7 +37,7 @@ class XmlStreamStub(object):
         >>> stub.output[-1].toXml()
         u'<presence/>'
         >>> def cb(stanza):
-        ...     print "Got: %r" stanza.toXml()
+        ...     print("Got: %r" stanza.toXml())
         >>> stub.xmlstream.addObserver('/presence')
         >>> stub.send(domish.Element((None, 'presence')))
         Got: u'<presence/>'
@@ -83,7 +86,7 @@ class TestableRequestHandlerMixin(object):
         """
         handler = None
         iq = parseXml(xml)
-        for queryString, method in self.service.iqHandlers.iteritems():
+        for queryString, method in iteritems(self.service.iqHandlers):
             if xpath.internQuery(queryString).matches(iq):
                 handler = getattr(self.service, method)
 

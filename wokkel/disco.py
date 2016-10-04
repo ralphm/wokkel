@@ -10,7 +10,10 @@ The XMPP service discovery protocol is documented in
 U{XEP-0030<http://xmpp.org/extensions/xep-0030.html>}.
 """
 
+from __future__ import division, absolute_import
+
 from twisted.internet import defer
+from twisted.python.compat import iteritems, unicode
 from twisted.words.protocols.jabber import error, jid
 from twisted.words.xish import domish
 
@@ -363,7 +366,7 @@ class _DiscoRequest(generic.Request):
             NS_DISCO_ITEMS: 'items',
             }
 
-    _verbRequestMap = dict(((v, k) for k, v in _requestVerbMap.iteritems()))
+    _verbRequestMap = dict(((v, k) for k, v in iteritems(_requestVerbMap)))
 
     def __init__(self, verb=None, nodeIdentifier='',
                        recipient=None, sender=None):

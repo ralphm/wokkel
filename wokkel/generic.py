@@ -7,7 +7,9 @@
 Generic XMPP protocol helpers.
 """
 
-from zope.interface import implements
+from __future__ import division, absolute_import
+
+from zope.interface import implementer
 
 from twisted.internet import defer, protocol
 from twisted.python import reflect
@@ -86,6 +88,7 @@ class FallbackHandler(XMPPHandler):
 
 
 
+@implementer(IDisco)
 class VersionHandler(XMPPHandler):
     """
     XMPP subprotocol handler for XMPP Software Version.
@@ -93,8 +96,6 @@ class VersionHandler(XMPPHandler):
     This protocol is described in
     U{XEP-0092<http://xmpp.org/extensions/xep-0092.html>}.
     """
-
-    implements(IDisco)
 
     def __init__(self, name, version):
         self.name = name
@@ -113,16 +114,16 @@ class VersionHandler(XMPPHandler):
 
         iq.handled = True
 
-    def getDiscoInfo(self, requestor, target, node):
+    def getDiscoInfo(self, requestor, target, nodeIdentifier=''):
         info = set()
 
-        if not node:
+        if not nodeIdentifier:
             from wokkel import disco
             info.add(disco.DiscoFeature(NS_VERSION))
 
         return defer.succeed(info)
 
-    def getDiscoItems(self, requestor, target, node):
+    def getDiscoItems(self, requestor, target, nodeIdentifier=''):
         return defer.succeed([])
 
 
