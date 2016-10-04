@@ -989,7 +989,7 @@ class PubSubClient(XMPPHandler):
         @param notify: True if notification is required
         @type notify: C{unicode}
         """
-        request = self._request_class('retract')
+        request = PubSubRequest('retract')
         request.recipient = service
         request.nodeIdentifier = nodeIdentifier
         request.itemIdentifiers = itemIdentifiers
