@@ -1493,6 +1493,47 @@ class MUCClientTest(unittest.TestCase):
         self._testPresence(sender=otherOccupantJID)
 
 
+    def test_availableReceivedSetsUserRole(self):
+        """
+        The role received in a presence update is stored on the user.
+        """
+        room = self._createRoom()
+        user = muc.User(self.nick)
+        room.addUser(user)
+        self.assertEquals('none', user.role)
+
+        xml = u"""
+            <presence to='%s' from='%s'>
+              <x xmlns='http://jabber.org/protocol/muc#user'>
+                <item affiliation='member' role='participant'/>
+              </x>
+            </presence>
+        """ % (self.userJID, self.occupantJID)
+        self.stub.send(parseXml(xml))
+
+        self.assertEquals('participant', user.role)
+
+
+    def test_availableReceivedSetsUserAffiliation(self):
+        """
+        The affiliation received in a presence update is stored on the user.
+        """
+        room = self._createRoom()
+        user = muc.User(self.nick)
+        room.addUser(user)
+        self.assertEquals('none', user.affiliation)
+
+        xml = u"""
+            <presence to='%s' from='%s'>
+              <x xmlns='http://jabber.org/protocol/muc#user'>
+                <item affiliation='member' role='participant'/>
+              </x>
+            </presence>
+        """ % (self.userJID, self.occupantJID)
+        self.stub.send(parseXml(xml))
+        self.assertEquals('member', user.affiliation)
+
+
     def test_unavailableReceivedEmptySender(self):
         """
         Availability presence from empty sender is ignored.
