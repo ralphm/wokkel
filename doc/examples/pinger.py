@@ -15,8 +15,8 @@ class Pinger(PingClientProtocol):
 
     def connectionInitialized(self):
         def cb(response):
-            print "*** Pong ***"
+            print("*** Pong ***")
 
-        print "*** Ping ***"
+        print("*** Ping ***")
         d = self.ping(self.entity, sender=self.sender)
         d.addCallback(cb)

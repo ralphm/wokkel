@@ -5,6 +5,8 @@
 Tests for L{wokkel.muc}
 """
 
+from __future__ import division, absolute_import
+
 from datetime import datetime
 from dateutil.tz import tzutc
 
@@ -12,6 +14,7 @@ from zope.interface import verify
 
 from twisted.trial import unittest
 from twisted.internet import defer, task
+from twisted.python.compat import iteritems, unicode
 from twisted.words.xish import domish, xpath
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.error import StanzaError
@@ -78,7 +81,7 @@ class StatusCodeTest(unittest.TestCase):
             332: 'removed-shutdown',
         }
 
-        for code, condition in codes.iteritems():
+        for code, condition in iteritems(codes):
             constantName = condition.replace('-', '_').upper()
             self.assertEqual(getattr(muc.STATUS_CODE, constantName),
                              muc.STATUS_CODE.lookupByValue(code))
@@ -823,7 +826,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         nodes = xpath.queryForNodes(query, iq)
         self.assertNotIdentical(None, nodes, 'Missing query element')
 
-        self.assertRaises(StopIteration, nodes[0].elements().next)
+        self.assertRaises(StopIteration, next, nodes[0].elements())
 
         xml = u"""
             <iq from='%s' id='%s' to='%s' type='result'>
@@ -969,7 +972,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         nodes = xpath.queryForNodes(query, iq)
         self.assertNotIdentical(None, nodes, 'Missing query element')
 
-        self.assertRaises(StopIteration, nodes[0].elements().next)
+        self.assertRaises(StopIteration, next, nodes[0].elements())
 
         xml = u"""
             <iq from='%s' id='%s' to='%s' type='result'>

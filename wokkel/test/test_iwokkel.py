@@ -5,6 +5,8 @@
 Tests for L{wokkel.iwokkel}
 """
 
+from __future__ import division, absolute_import
+
 from twisted.trial import unittest
 
 class DeprecationTest(unittest.TestCase):

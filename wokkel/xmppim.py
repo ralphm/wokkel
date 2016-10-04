@@ -10,9 +10,12 @@ This module provides generic implementations for the protocols defined in
 U{RFC 6121<http://www.xmpp.org/rfcs/rfc6121.html>} (XMPP IM).
 """
 
+from __future__ import division, absolute_import
+
 import warnings
 
 from twisted.internet import defer
+from twisted.python.compat import iteritems, itervalues, unicode
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
@@ -45,7 +48,7 @@ class AvailablePresence(Presence):
             self.addElement('show', content=show)
 
         if statuses is not None:
-            for lang, status in statuses.iteritems():
+            for lang, status in iteritems(statuses):
                 s = self.addElement('status', content=status)
                 if lang:
                     s[(NS_XML, "lang")] = lang
@@ -58,7 +61,7 @@ class UnavailablePresence(Presence):
         Presence.__init__(self, to, type='unavailable')
 
         if statuses is not None:
-            for lang, status in statuses.iteritems():
+            for lang, status in iteritems(statuses):
                 s = self.addElement('status', content=status)
                 if lang:
                     s[(NS_XML, "lang")] = lang
@@ -306,7 +309,7 @@ class AvailabilityPresence(BasePresence):
         if None in self.statuses:
             return self.statuses[None]
         elif self.statuses:
-            for status in self.status.itervalues():
+            for status in itervalues(self.status):
                 return status
         else:
             return None
@@ -352,7 +355,7 @@ class AvailabilityPresence(BasePresence):
             if self.priority != 0:
                 presence.addElement('priority', content=unicode(self.priority))
 
-        for lang, text in self.statuses.iteritems():
+        for lang, text in iteritems(self.statuses):
             status = presence.addElement('status', content=text)
             if lang:
                 status[(NS_XML, 'lang')] = lang
