@@ -5,6 +5,8 @@
 Tests for L{wokkel.delay}.
 """
 
+from __future__ import division, absolute_import
+
 from datetime import datetime
 import dateutil.tz
 

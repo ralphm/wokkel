@@ -7,9 +7,12 @@
 XMPP External Component utilities.
 """
 
+from __future__ import division, absolute_import
+
 from twisted.application import service
 from twisted.internet import reactor
 from twisted.python import log
+from twisted.python.compat import unicode
 from twisted.words.protocols.jabber.jid import internJID as JID
 from twisted.words.protocols.jabber import component, error, xmlstream
 from twisted.words.xish import domish
@@ -102,8 +105,9 @@ class InternalComponent(xmlstream.XMPPHandlerCollection, service.Service):
     components of this type connect to a router in the same process. This
     allows for one-process XMPP servers.
 
-    @ivar domains: Domains (as C{str}) this component will handle traffic for.
-    @type domains: C{set}
+    @ivar domains: Domains (as L{unicode}) this component will handle traffic
+        for.
+    @type domains: L{set}
     """
 
     def __init__(self, router, domain=None):
@@ -173,7 +177,7 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
     Authenticator for accepting components.
 
     @ivar secret: The shared used to authorized incoming component connections.
-    @type secret: C{unicode}.
+    @type secret: L{unicode}.
     """
 
     namespace = NS_COMPONENT_ACCEPT
@@ -274,13 +278,13 @@ class Router(object):
     Connected components are trusted to have correct addressing in the
     stanzas they offer for routing.
 
-    A route destination of C{None} adds a default route. Traffic for which no
+    A route destination of L{None} adds a default route. Traffic for which no
     specific route exists, will be routed to this default route.
 
     @ivar routes: Routes based on the host part of JIDs. Maps host names to the
         L{EventDispatcher<twisted.words.xish.utility.EventDispatcher>}s that
-        should receive the traffic. A key of C{None} means the default route.
-    @type routes: C{dict}
+        should receive the traffic. A key of L{None} means the default route.
+    @type routes: L{dict}
     """
 
     def __init__(self):
@@ -296,8 +300,8 @@ class Router(object):
         C{destination} will be passed to this stream.
 
         @param destination: Destination of the route to be added as a host name
-                            or C{None} for the default route.
-        @type destination: C{str} or C{NoneType}
+                            or L{None} for the default route.
+        @type destination: L{unicode} or L{NoneType}
 
         @param xs: XML Stream to register the route for.
         @type xs:
@@ -312,7 +316,7 @@ class Router(object):
         Remove a route.
 
         @param destination: Destination of the route that should be removed.
-        @type destination: C{str}.
+        @type destination: L{unicode}
 
         @param xs: XML Stream to remove the route for.
         @type xs:

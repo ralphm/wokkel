@@ -8,6 +8,7 @@ send back messages sent to it.
 """
 
 from twisted.application import service, strports
+from twisted.python.compat import unicode
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from wokkel import component, server, xmppim
 

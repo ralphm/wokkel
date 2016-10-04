@@ -5,9 +5,14 @@
 Tests for L{wokkel.generic}.
 """
 
+from __future__ import division, absolute_import
+
 import re
 
+from zope.interface.verify import verifyObject
+
 from twisted.python import deprecate
+from twisted.python.compat import unicode
 from twisted.python.versions import Version
 from twisted.trial import unittest
 from twisted.trial.util import suppress as SUPPRESS
@@ -15,6 +20,7 @@ from twisted.words.xish import domish
 from twisted.words.protocols.jabber.jid import JID
 
 from wokkel import generic
+from wokkel.iwokkel import IDisco
 from wokkel.test.helpers import XmlStreamStub
 
 NS_VERSION = 'jabber:iq:version'
@@ -24,12 +30,22 @@ class VersionHandlerTest(unittest.TestCase):
     Tests for L{wokkel.generic.VersionHandler}.
     """
 
+    def setUp(self):
+        self.protocol = generic.VersionHandler('Test', '0.1.0')
+
+
+    def test_interface(self):
+        """
+        L{generic.VersionHandler} implements {IDisco}.
+        """
+        verifyObject(IDisco, self.protocol)
+
+
     def test_onVersion(self):
         """
         Test response to incoming version request.
         """
         self.stub = XmlStreamStub()
-        self.protocol = generic.VersionHandler('Test', '0.1.0')
         self.protocol.xmlstream = self.stub.xmlstream
         self.protocol.send = self.stub.xmlstream.send
         self.protocol.connectionInitialized()
@@ -319,17 +335,8 @@ class PrepareIDNNameTests(unittest.TestCase):
         """
         self.callDeprecated((Version("Wokkel", 0, 8, 0),
                              "unicode.encode('idna')"),
-                            generic.prepareIDNName, (b"example.com"))
+                            generic.prepareIDNName, ("example.com"))
     test_deprecated.suppress = []
-
-
-    def test_bytestring(self):
-        """
-        An ASCII-encoded byte string is left as-is.
-        """
-        name = b"example.com"
-        result = generic.prepareIDNName(name)
-        self.assertEqual(b"example.com", result)
 
 
     def test_unicode(self):

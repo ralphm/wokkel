@@ -3,6 +3,7 @@
 # Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
+import sys
 from setuptools import setup
 
 # Make sure 'twisted' doesn't appear in top_level.txt
@@ -27,6 +28,11 @@ else:
 
     egg_info.write_toplevel_names = _hacked_write_toplevel_names
 
+if sys.version_info < (3, 0):
+    requiredTwisted = "15.5.0"
+else:
+    requiredTwisted = "16.4.0"
+
 setup(name='wokkel',
       version='0.7.1',
       description='Twisted Jabber support library',
@@ -44,7 +50,7 @@ setup(name='wokkel',
       package_data={'twisted.plugins': ['twisted/plugins/server.py']},
       zip_safe=False,
       install_requires=[
-          'Twisted >= 10.0.0',
+          'Twisted >= %s' % requiredTwisted,
           'python-dateutil',
       ],
 )

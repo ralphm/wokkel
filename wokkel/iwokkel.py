@@ -7,9 +7,7 @@
 Wokkel interfaces.
 """
 
-__all__ = ['IXMPPHandler', 'IXMPPHandlerCollection',
-           'IPubSubClient', 'IPubSubService', 'IPubSubResource',
-           'IMUCClient', 'IMUCStatuses']
+from __future__ import division, absolute_import
 
 from zope.interface import Interface
 from twisted.python.deprecate import deprecatedModuleAttribute
@@ -982,3 +980,9 @@ class IMUCStatuses(Interface):
         """
         Return the number of status conditions.
         """
+
+
+
+__all__ = ['IXMPPHandler', 'IXMPPHandlerCollection',
+           'IPubSubClient', 'IPubSubService', 'IPubSubResource',
+           'IMUCClient', 'IMUCStatuses']

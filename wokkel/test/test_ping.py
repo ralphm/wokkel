@@ -5,6 +5,8 @@
 Tests for L{wokkel.ping}.
 """
 
+from __future__ import division, absolute_import
+
 from zope.interface import verify
 
 from twisted.internet import defer

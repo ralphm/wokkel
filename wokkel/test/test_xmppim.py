@@ -5,8 +5,11 @@
 Tests for L{wokkel.xmppim}.
 """
 
+from __future__ import division, absolute_import
+
 from twisted.internet import defer
 from twisted.trial import unittest
+from twisted.python.compat import unicode
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.xmlstream import toResponse
@@ -896,7 +899,7 @@ class RosterRequestTest(unittest.TestCase):
         request = xmppim.RosterRequest()
         element = request.toElement()
         children = element.elements()
-        child = children.next()
+        child = next(children)
         self.assertEqual(NS_ROSTER, child.uri)
         self.assertEqual('query', child.name)
 
@@ -909,7 +912,7 @@ class RosterRequestTest(unittest.TestCase):
         request.item = xmppim.RosterItem(JID('user@example.org'))
         element = request.toElement()
         children = element.query.elements()
-        child = children.next()
+        child = next(children)
         self.assertEqual(NS_ROSTER, child.uri)
         self.assertEqual('item', child.name)
 

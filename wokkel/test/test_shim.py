@@ -7,7 +7,11 @@
 Tests for {wokkel.shim}.
 """
 
+from __future__ import division, absolute_import
+
+from twisted.python.compat import unicode
 from twisted.trial import unittest
+
 from wokkel import shim
 from wokkel.generic import parseXml
 

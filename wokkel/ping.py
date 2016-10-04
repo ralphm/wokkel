@@ -10,7 +10,9 @@ The XMPP Ping protocol is documented in
 U{XEP-0199<http://xmpp.org/extensions/xep-0199.html>}.
 """
 
-from zope.interface import implements
+from __future__ import division, absolute_import
+
+from zope.interface import implementer
 
 from twisted.words.protocols.jabber.error import StanzaError
 from twisted.words.protocols.jabber.xmlstream import IQ, toResponse
@@ -56,7 +58,7 @@ class PingClientProtocol(XMPPHandler):
         request.addElement((NS_PING, 'ping'))
 
         if sender is not None:
-            request['from'] = unicode(sender)
+            request['from'] = sender.full()
 
         d = request.send(entity.full())
         d.addCallbacks(cb, eb)
@@ -64,14 +66,13 @@ class PingClientProtocol(XMPPHandler):
 
 
 
+@implementer(iwokkel.IDisco)
 class PingHandler(XMPPHandler):
     """
     Ping responder.
 
     This handler waits for XMPP Ping requests and sends a response.
     """
-
-    implements(iwokkel.IDisco)
 
     def connectionInitialized(self):
         """
