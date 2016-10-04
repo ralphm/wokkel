@@ -827,6 +827,46 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_itemsWithItemIdentifiers(self):
+        """
+        Test sending items request with item identifiers.
+        """
+        def cb(items):
+            self.assertEquals(2, len(items))
+            self.assertEquals([item1, item2], items)
+
+        d = self.protocol.items(JID('pubsub.example.org'), 'test',
+                                itemIdentifiers=['item1', 'item2'])
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('get', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'items', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+        itemIdentifiers = [item.getAttribute('id') for item in
+                           domish.generateElementsQNamed(child.children, 'item',
+                                                         NS_PUBSUB)]
+        self.assertEquals(['item1', 'item2'], itemIdentifiers)
+
+        response = toResponse(iq, 'result')
+        items = response.addElement((NS_PUBSUB, 'pubsub')).addElement('items')
+        items['node'] = 'test'
+        item1 = items.addElement('item')
+        item1['id'] = 'item1'
+        item2 = items.addElement('item')
+        item2['id'] = 'item2'
+
+        self.stub.send(response)
+
+        return d
+
+
     def test_itemsWithSubscriptionIdentifier(self):
         """
         Test sending items request with a subscription identifier.

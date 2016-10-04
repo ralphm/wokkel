@@ -914,7 +914,7 @@ class PubSubClient(XMPPHandler):
 
 
     def items(self, service, nodeIdentifier, maxItems=None,
-              subscriptionIdentifier=None, sender=None):
+              subscriptionIdentifier=None, sender=None, itemIdentifiers=None):
         """
         Retrieve previously published items from a publish subscribe node.
 
@@ -931,6 +931,9 @@ class PubSubClient(XMPPHandler):
             case the node has been subscribed to multiple times, this narrows
             the results to the specific subscription.
         @type subscriptionIdentifier: L{unicode}
+
+        @param itemIdentifiers: Identifiers of the items to be retrieved.
+        @type itemIdentifiers: L{set} of L{unicode}
         """
         request = PubSubRequest('items')
         request.recipient = service
@@ -939,6 +942,7 @@ class PubSubClient(XMPPHandler):
             request.maxItems = str(int(maxItems))
         request.subscriptionIdentifier = subscriptionIdentifier
         request.sender = sender
+        request.itemIdentifiers = itemIdentifiers
 
         def cb(iq):
             items = []
