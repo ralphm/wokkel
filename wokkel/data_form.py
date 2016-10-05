@@ -12,8 +12,12 @@ for Field Standardization for Data Forms as described in
 U{XEP-0068<http://xmpp.org/extensions/xep-0068.html>}.
 """
 
-from zope.interface import implements
+from __future__ import division, absolute_import
+
+from zope.interface import implementer
 from zope.interface.common import mapping
+
+from twisted.python.compat import iteritems, unicode, _PY3
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
 
@@ -47,9 +51,9 @@ class Option(object):
     Data Forms field option.
 
     @ivar value: Value of this option.
-    @type value: C{unicode}
+    @type value: L{unicode}
     @ivar label: Optional label for this option.
-    @type label: C{unicode} or C{NoneType}
+    @type label: L{unicode} or L{NoneType}
     """
 
     def __init__(self, value, label=None):
@@ -100,22 +104,22 @@ class Field(object):
                      C{'text-private'}, C{'text-single'}.
 
                      The default is C{'text-single'}.
-    @type fieldType: C{str}
+    @type fieldType: L{str}
     @ivar var: Field name. Optional if C{fieldType} is C{'fixed'}.
-    @type var: C{str}
+    @type var: L{str}
     @ivar label: Human readable label for this field.
-    @type label: C{unicode}
+    @type label: L{unicode}
     @ivar values: The values for this field, for multi-valued field
-                  types, as a list of C{bool}, C{unicode} or L{JID}.
-    @type values: C{list}
+                  types, as a list of L{bool}, L{unicode} or L{JID}.
+    @type values: L{list}
     @ivar options: List of possible values to choose from in a response
                    to this form as a list of L{Option}s.
-    @type options: C{list}
+    @type options: L{list}
     @ivar desc: Human readable description for this field.
-    @type desc: C{unicode}
+    @type desc: L{unicode}
     @ivar required: Whether the field is required to be provided in a
                     response to this form.
-    @type required: C{bool}
+    @type required: L{bool}
     """
 
     def __init__(self, fieldType='text-single', var=None, value=None,
@@ -126,7 +130,7 @@ class Field(object):
 
         See the identically named instance variables for descriptions.
 
-        If C{value} is not C{None}, it overrides C{values}, setting the
+        If C{value} is not L{None}, it overrides C{values}, setting the
         given value as the only value for this field.
         """
 
@@ -143,7 +147,7 @@ class Field(object):
         try:
             self.options = [Option(optionValue, optionLabel)
                             for optionValue, optionLabel
-                            in options.iteritems()]
+                            in iteritems(options)]
         except AttributeError:
             self.options = options or []
 
@@ -181,7 +185,7 @@ class Field(object):
 
         Sets C{value} as the only element of L{values}.
 
-        @type value: C{bool}, C{unicode} or L{JID}
+        @type value: L{bool}, L{unicode} or L{JID}
         """
         self.values = [value]
 
@@ -190,7 +194,7 @@ class Field(object):
         """
         Getter of value property.
 
-        Returns the first element of L{values}, if present, or C{None}.
+        Returns the first element of L{values}, if present, or L{None}.
         """
 
         if self.values:
@@ -309,9 +313,9 @@ class Field(object):
     def fromElement(element):
         field = Field(None)
 
-        for eAttr, fAttr in {'type': 'fieldType',
-                             'var': 'var',
-                             'label': 'label'}.iteritems():
+        for eAttr, fAttr in iteritems({'type': 'fieldType',
+                                       'var': 'var',
+                                       'label': 'label'}):
             value = element.getAttribute(eAttr)
             if value:
                 setattr(field, fAttr, value)
@@ -346,13 +350,18 @@ class Field(object):
 
         if 'options' in fieldDict:
             options = []
-            for value, label in fieldDict['options'].iteritems():
+            for value, label in iteritems(fieldDict['options']):
                 options.append(Option(value, label))
             kwargs['options'] = options
 
         return Field(**kwargs)
 
 
+
+@implementer(mapping.IIterableMapping,
+             mapping.IEnumerableMapping,
+             mapping.IReadMapping,
+             mapping.IItemMapping)
 
 class Form(object):
     """
@@ -373,33 +382,28 @@ class Form(object):
 
     @ivar formType: Type of form. One of C{'form'}, C{'submit'}, {'cancel'},
                     or {'result'}.
-    @type formType: C{str}
+    @type formType: L{str}
 
     @ivar title: Natural language title of the form.
-    @type title: C{unicode}
+    @type title: L{unicode}
 
-    @ivar instructions: Natural language instructions as a list of C{unicode}
+    @ivar instructions: Natural language instructions as a list of L{unicode}
         strings without line breaks.
-    @type instructions: C{list}
+    @type instructions: L{list}
 
     @ivar formNamespace: The optional namespace of the field names for this
         form. This goes in the special field named C{'FORM_TYPE'}, if set.
-    @type formNamespace: C{str}
+    @type formNamespace: L{str}
 
     @ivar fields: Dictionary of named fields. Note that this is meant to be
         used for reading, only. One should use L{addField} or L{makeFields} and
         L{removeField} for adding and removing fields.
-    @type fields: C{dict}
+    @type fields: L{dict}
 
     @ivar fieldList: List of all fields, in the order they are added. Like
         C{fields}, this is meant to be used for reading, only.
-    @type fieldList: C{list}
+    @type fieldList: L{list}
     """
-
-    implements(mapping.IIterableMapping,
-               mapping.IEnumerableMapping,
-               mapping.IReadMapping,
-               mapping.IItemMapping)
 
     def __init__(self, formType, title=None, instructions=None,
                        formNamespace=None, fields=None):
@@ -468,32 +472,32 @@ class Form(object):
         This creates fields from a mapping of name to value(s) and adds them to
         this form. It is typically used for generating outgoing forms.
 
-        If C{fieldDefs} is not C{None}, this is used to fill in
+        If C{fieldDefs} is not L{None}, this is used to fill in
         additional properties of fields, like the field types, labels and
         possible options.
 
-        If C{filterUnknown} is C{True} and C{fieldDefs} is not C{None}, fields
+        If C{filterUnknown} is L{True} and C{fieldDefs} is not L{None}, fields
         will only be created from C{values} with a corresponding entry in
         C{fieldDefs}.
 
-        If the field type is unknown, the field type is C{None}. When the form
+        If the field type is unknown, the field type is L{None}. When the form
         is rendered using L{toElement}, these fields will have no C{'type'}
         attribute, and it is up to the receiving party to interpret the values
         properly (e.g. by knowing about the FORM_TYPE in C{formNamespace} and
         the field name).
 
         @param values: Values to create fields from.
-        @type values: C{dict}
+        @type values: L{dict}
 
         @param fieldDefs: Field definitions as a dictionary. See
             L{wokkel.iwokkel.IPubSubService.getConfigurationOptions}
-        @type fieldDefs: C{dict}
+        @type fieldDefs: L{dict}
 
-        @param filterUnknown: If C{True}, ignore fields that are not in
+        @param filterUnknown: If L{True}, ignore fields that are not in
             C{fieldDefs}.
-        @type filterUnknown: C{bool}
+        @type filterUnknown: L{bool}
         """
-        for name, value in values.iteritems():
+        for name, value in iteritems(values):
             fieldDict = {'var': name,
                          'type': None}
 
@@ -633,17 +637,21 @@ class Form(object):
         for key in self:
             yield (key, self[key])
 
+    if _PY3:
+        keys = iterkeys
+        values = itervalues
+        items = iteritems
+    else:
+        def keys(self):
+            return list(self)
 
-    def keys(self):
-        return list(self)
+
+        def values(self):
+            return list(self.itervalues())
 
 
-    def values(self):
-        return list(self.itervalues())
-
-
-    def items(self):
-        return list(self.iteritems())
+        def items(self):
+            return list(self.iteritems())
 
 
     def getValues(self):
@@ -652,10 +660,10 @@ class Form(object):
 
         For all named fields, the corresponding value or values are
         returned in a dictionary keyed by the field name. This is equivalent
-        do C{dict(f)}, where C{f} is a L{Form}.
+        do L{dict(f)}, where C{f} is a L{Form}.
 
         @see: L{__getitem__}
-        @rtype: C{dict}
+        @rtype: L{dict}
         """
         return dict(self)
 
@@ -668,10 +676,10 @@ class Form(object):
         type, and is typically used for forms received from other entities. The
         field definition in C{fieldDefs} is used to check the field type.
 
-        If C{filterUnknown} is C{True}, fields that are not present in
+        If C{filterUnknown} is L{True}, fields that are not present in
         C{fieldDefs} are removed from the form.
 
-        If the field type is C{None} (when not set by the sending entity),
+        If the field type is L{None} (when not set by the sending entity),
         the type from the field definitition is used, or C{'text-single'} if
         that is not set.
 
@@ -681,11 +689,11 @@ class Form(object):
 
         @param fieldDefs: Field definitions as a dictionary. See
             L{wokkel.iwokkel.IPubSubService.getConfigurationOptions}
-        @type fieldDefs: C{dict}
+        @type fieldDefs: L{dict}
 
-        @param filterUnknown: If C{True}, remove fields that are not in
+        @param filterUnknown: If L{True}, remove fields that are not in
             C{fieldDefs}.
-        @type filterUnknown: C{bool}
+        @type filterUnknown: L{bool}
         """
 
         if fieldDefs is None:
@@ -693,7 +701,7 @@ class Form(object):
 
         filtered = []
 
-        for name, field in self.fields.iteritems():
+        for name, field in iteritems(self.fields):
             if name in fieldDefs:
                 fieldDef = fieldDefs[name]
                 if 'type' not in fieldDef:

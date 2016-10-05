@@ -1,5 +1,15 @@
+# -*- test-case-name: wokkel.test.test_formats -*-
+#
 # Copyright (c) Ralph Meijer.
 # See LICENSE for details.
+
+"""
+Generic payload formats.
+"""
+
+from __future__ import division, absolute_import
+
+from twisted.python.compat import unicode
 
 NS_MOOD = 'http://jabber.org/protocol/mood'
 NS_TUNE = 'http://jabber.org/protocol/tune'
@@ -19,6 +29,7 @@ class Mood:
     def __init__(self, value, text=None):
         self.value = value
         self.text = text
+
 
     def fromXml(self, element):
         """
@@ -54,6 +65,8 @@ class Mood:
             return None
 
     fromXml = classmethod(fromXml)
+
+
 
 class Tune:
     """
