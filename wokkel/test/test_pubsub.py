@@ -3193,6 +3193,34 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.assertEquals('current', itemElements[0].getAttribute('id'))
 
 
+    def test_notifyRetract(self):
+        """
+        Items retraction notifications are sent to the subscribers.
+        """
+        subscriber = JID('user@example.org')
+        subscriptions = [pubsub.Subscription('test', subscriber, 'subscribed')]
+        items = [pubsub.Item('current')]
+        notifications = [(subscriber, subscriptions, items)]
+        self.service.notifyRetract(JID('pubsub.example.org'), 'test',
+                                   notifications)
+        message = self.stub.output[-1]
+
+        self.assertEquals('message', message.name)
+        self.assertIdentical(None, message.uri)
+        self.assertEquals('user@example.org', message['to'])
+        self.assertEquals('pubsub.example.org', message['from'])
+        self.assertTrue(message.event)
+        self.assertEquals(NS_PUBSUB_EVENT, message.event.uri)
+        self.assertTrue(message.event.items)
+        self.assertEquals(NS_PUBSUB_EVENT, message.event.items.uri)
+        self.assertTrue(message.event.items.hasAttribute('node'))
+        self.assertEquals('test', message.event.items['node'])
+        itemElements = list(domish.generateElementsQNamed(
+            message.event.items.children, 'retract', NS_PUBSUB_EVENT))
+        self.assertEquals(1, len(itemElements))
+        self.assertEquals('current', itemElements[0].getAttribute('id'))
+
+
     def test_notifyPublishCollection(self):
         """
         Publish notifications are sent to the subscribers of collections.
@@ -3205,6 +3233,28 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         items = [pubsub.Item('current')]
         notifications = [(subscriber, subscriptions, items)]
         self.service.notifyPublish(JID('pubsub.example.org'), 'test',
+                                   notifications)
+        message = self.stub.output[-1]
+
+        self.assertTrue(message.event.items.hasAttribute('node'))
+        self.assertEquals('test', message.event.items['node'])
+        headers = shim.extractHeaders(message)
+        self.assertIn('Collection', headers)
+        self.assertIn('', headers['Collection'])
+
+
+    def test_notifyRetractCollection(self):
+        """
+        Retraction notifications are sent to the subscribers of collections.
+
+        The node the item was retracted from is on the C{items} element, while
+        the subscribed-to node is in the C{'Collections'} SHIM header.
+        """
+        subscriber = JID('user@example.org')
+        subscriptions = [pubsub.Subscription('', subscriber, 'subscribed')]
+        items = [pubsub.Item('current')]
+        notifications = [(subscriber, subscriptions, items)]
+        self.service.notifyRetract(JID('pubsub.example.org'), 'test',
                                    notifications)
         message = self.stub.output[-1]
 

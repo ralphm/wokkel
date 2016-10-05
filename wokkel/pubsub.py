@@ -976,13 +976,15 @@ class PubSubClient(XMPPHandler):
         d.addCallback(cb)
         return d
 
-    def retractItems(self, service, nodeIdentifier, itemIdentifiers, notify=None, sender=None):
+    def retractItems(self, service, nodeIdentifier, itemIdentifiers,
+                           notify=None, sender=None):
         """
         Retract items from a publish subscribe node.
 
-        @param service: The publish subscribe service to delete the node from.
+        @param service: The publish subscribe service that keeps the node.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
-        @param nodeIdentifier: The identifier of the node.
+        @param nodeIdentifier: The identifier of the node from which items are
+            being retracted.
         @type nodeIdentifier: C{unicode}
         @param itemIdentifiers: Identifiers of the items to be retracted.
         @type itemIdentifiers: C{set}
@@ -1424,7 +1426,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
                                                nodeIdentifier, subscriber,
                                                subscriptions)
             for item in items:
-                retract = domish.Element((None, "retract"))
+                retract = domish.Element((NS_PUBSUB_EVENT, "retract"))
                 retract['id'] = item['id']
                 message.event.items.addChild(retract)
             self.send(message)

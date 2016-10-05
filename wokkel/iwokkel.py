@@ -199,6 +199,22 @@ class IPubSubService(Interface):
             L{Element<twisted.words.xish.domish.Element>})
         """
 
+    def notifyRetract(service, nodeIdentifier, notifications):
+        """
+        Send out items retraction notifications.
+
+        @param service: The entity the notifications will originate from.
+        @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
+        @param nodeIdentifier: The identifier of the node that was retracted
+            from.
+        @type nodeIdentifier: C{unicode}
+        @param notifications: The notifications as tuples of subscriber, the
+            list of subscriptions and the list of items to be notified.
+        @type notifications: C{list} of
+            (L{JID<twisted.words.protocols.jabber.jid.JID>}, C{list} of
+            L{Subscription<wokkel.pubsub.Subscription>}, C{list} of
+            L{Element<twisted.words.xish.domish.Element>})
+        """
 
     def notifyDelete(service, nodeIdentifier, subscribers,
                      redirectURI=None):
