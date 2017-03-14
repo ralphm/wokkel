@@ -1,0 +1,7 @@
+.DS_Store
+build/
+dist/
+wokkel.egg-info/
+*.pyc
+*.tmproj
+
