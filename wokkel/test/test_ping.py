@@ -51,6 +51,26 @@ class PingClientProtocolTest(unittest.TestCase):
 
         return d
 
+    def test_pingToServer(self):
+        """
+                Pinging a service should fire a deferred with None
+                """
+
+        def cb(result):
+            self.assertIdentical(None, result)
+
+        d = self.protocol.ping()
+        d.addCallback(cb)
+
+        iq = self.stub.output[-1]
+        self.assertIsNone(iq.getAttribute(u'to'))
+        self.assertEqual(u'get', iq.getAttribute(u'type'))
+        self.assertEqual('urn:xmpp:ping', iq.ping.uri)
+
+        response = toResponse(iq, u'result')
+        self.stub.send(response)
+
+        return d
 
     def test_pingWithSender(self):
         """
