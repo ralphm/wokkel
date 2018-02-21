@@ -1,11 +1,31 @@
-0.8.0 (xxxx-xx-xx)
-==================
+18.0.0rc1 (2018-02-21)
+=======================
 
-Deprecations
+Features
 --------
+ - Wokkel has been ported to Python 3.
+ - wokkel.pubsub.PubSubClient now supports retrieving items by identifier.
+
+Fixes
+-----
+ - wokkel.generic.Request.stanzaType now defaults to the value of the class
+   variable if `stanzaType` is not passed to `__init__` (#80).
+ - wokkel.delay.Delay.fromElement now also catches `TypeError` when parsing
+   timestamps, to work around a bug in dateutil.
+ - wokkel.muc.MUCClientProtocol now properly updates user role and affiliation
+   upon presence updates.
+
+Deprecations and Removals
+-------------------------
 
  - wokkel.generic.prepareIDNName is deprecated in favor of
    unicode.encode('idna').
+ - Python 2.6 and older are no longer supported.
+ - wokkel.compat no longer includes named and value constants (now in
+   `twisted.python.constants` through `constantly`).
+ - wokkel.compat no longer includes `BootstrapMixin` and
+   `XmlStreamServerFactory`, as they are included in the required version of
+   Twisted.
 
 
 0.7.1 (2013-01-12)
