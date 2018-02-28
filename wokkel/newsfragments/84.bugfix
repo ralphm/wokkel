@@ -1,0 +1,2 @@
+wokkel.muc.MUCClientProtocol now properly updates user role and affiliation
+upon presence updates.

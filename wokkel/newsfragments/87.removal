@@ -1,0 +1,2 @@
+wokkel.compat no longer includes named and value constants (now in
+`twisted.python.constants` through `constantly`).

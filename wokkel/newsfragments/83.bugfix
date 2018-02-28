@@ -1,0 +1,2 @@
+wokkel.delay.Delay.fromElement now also catches `TypeError` when parsing
+timestamps, to work around a bug in dateutil.

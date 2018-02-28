@@ -1,0 +1,1 @@
+wokkel.generic.prepareIDNName is deprecated in favor of unicode.encode('idna').

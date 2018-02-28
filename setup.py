@@ -65,5 +65,12 @@ setup(name='wokkel',
       extras_require={
           ":python_version<'3'": 'Twisted[tls]>=15.5.0',
           ":python_version>'3'": 'Twisted[tls]>=16.4.0',
+          "dev": [
+              "pyflakes",
+              "coverage",
+              "pydoctor",
+              "sphinx",
+              "towncrier",
+          ],
       },
 )
