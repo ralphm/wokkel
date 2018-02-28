@@ -1,3 +1,20 @@
+News
+====
+
+Versions after 0.7.1 follow `CalVer <http://calver.org>`_ with a strict backwards compatibility policy.
+The third digit is only for regressions.
+
+Changes for the upcoming release can be found in the `wokkel/newsfragments` directory.
+
+..
+   Do *NOT* add changelog entries here!
+
+	 This changelog is managed by towncrier and is compiled at release time from
+   the news fragments directory.
+
+.. towncrier release notes start
+
+
 0.7.1 (2013-01-12)
 ==================
 
