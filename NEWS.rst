@@ -199,6 +199,7 @@ Features
 - Service Discovery client support, including an overhaul of disco data
   classes (#28).
 - Initial support for building XMPP servers has been added:
+
   - XmlStreamServerFactory has been backported from Twisted Words (#29).
   - An XMPP router has been added (#30).
   - A server-side component authenticator has been added (#30).
@@ -229,15 +230,18 @@ Fixes
 - Added client-side support for removing roster items.
 - Implement type checking for data forms (#15).
 - Added support for publish-subscribe collections:
+
   - Correct handling for the root node (empty node identifier).
   - Send out SHIM 'Collection' header when appropriate.
   - New Subscription class for working with subscriptions.
   - API change for PubSubService:
+
     - The subscribe method returns a deferred that fires a Subscription
     - The subscriptions method returns a deferred that fires a list of
       Subscriptions.
     - notifyPublish's notifications parameter now expects a list of tuples
       that includes a list of subscriptions.
+
 - Added PubSubService.notifyDelete to allow sending out node deletion
   notifications.
 
