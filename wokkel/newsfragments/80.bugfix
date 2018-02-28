@@ -1,2 +1,0 @@
-wokkel.generic.Request.stanzaType now defaults to the value of the class
-variable if `stanzaType` is not passed to `__init__`.

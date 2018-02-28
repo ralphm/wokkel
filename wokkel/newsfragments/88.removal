@@ -1,3 +1,0 @@
-wokkel.compat no longer
-includes `BootstrapMixin` and `XmlStreamServerFactory`, as they are included in
-the required version of Twisted.

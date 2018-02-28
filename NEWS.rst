@@ -14,6 +14,39 @@ Changes for the upcoming release can be found in the `wokkel/newsfragments` dire
 
 .. towncrier release notes start
 
+Wokkel 18.0.0rc3 (2018-02-28)
+=============================
+
+Features
+--------
+
+- Wokkel has been ported to Python 3. (#81)
+- wokkel.pubsub.PubSubClient now supports retrieving items by identifier. (#82)
+
+
+Fixes
+-----
+
+- wokkel.generic.Request.stanzaType now defaults to the value of the class
+  variable if `stanzaType` is not passed to `__init__`. (#80)
+- wokkel.delay.Delay.fromElement now also catches `TypeError` when parsing
+  timestamps, to work around a bug in dateutil. (#83)
+- wokkel.muc.MUCClientProtocol now properly updates user role and affiliation
+  upon presence updates. (#84)
+
+
+Deprecations and Removals
+-------------------------
+
+- wokkel.generic.prepareIDNName is deprecated in favor of
+  unicode.encode('idna'). (#85)
+- Python 2.6 and older are no longer supported. (#86)
+- wokkel.compat no longer includes named and value constants (now in
+  `twisted.python.constants` through `constantly`). (#87)
+- wokkel.compat no longer includes `BootstrapMixin` and
+  `XmlStreamServerFactory`, as they are included in the required version of
+  Twisted. (#88)
+
 
 0.7.1 (2013-01-12)
 ==================
