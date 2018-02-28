@@ -334,7 +334,7 @@ class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):
 
 
 
-@deprecated(Version("Wokkel", 0, 8, 0), "unicode.encode('idna')")
+@deprecated(Version("Wokkel", 18, 0, 0, release_candidate=3), "unicode.encode('idna')")
 def prepareIDNName(name):
     """
     Encode a unicode IDN Domain Name into its ACE equivalent.

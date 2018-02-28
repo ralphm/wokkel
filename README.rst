@@ -1,4 +1,4 @@
-Wokkel 18.0.0rc1
+Wokkel 18.0.0rc3
 =================
 
 |pypi|
@@ -56,6 +56,12 @@ Contributors
 - Alexey Bezhan
 - Mayank Singh
 - Adrien Cossa
+
+
+Name
+----
+
+Wokkel lends it name from a popular twisted savory snack in the Netherlands.
 
 
 Author

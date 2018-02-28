@@ -1,4 +1,4 @@
-include NEWS
+include NEWS.rst
 include LICENSE
 include doc/examples/*.py
 include doc/examples/*.tac

@@ -325,7 +325,7 @@ class PrepareIDNNameTests(unittest.TestCase):
                          message=re.escape(
                              deprecate.getDeprecationWarningString(
                                  generic.prepareIDNName,
-                                 Version("Wokkel", 0, 8, 0),
+                                 Version("Wokkel", 18, 0, 0, release_candidate=3),
                                  replacement="unicode.encode('idna')")))]
 
 
@@ -333,7 +333,7 @@ class PrepareIDNNameTests(unittest.TestCase):
         """
         prepareIDNName is deprecated.
         """
-        self.callDeprecated((Version("Wokkel", 0, 8, 0),
+        self.callDeprecated((Version("Wokkel", 18, 0, 0, release_candidate=3),
                              "unicode.encode('idna')"),
                             generic.prepareIDNName, ("example.com"))
     test_deprecated.suppress = []
