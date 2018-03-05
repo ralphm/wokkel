@@ -1,4 +1,4 @@
-Wokkel 18.0.0rc3
+Wokkel 18.0.0rc4
 =================
 
 |pypi|
@@ -17,10 +17,11 @@ included to be used with older Twisted releases.
 Requirements
 ------------
 
-- Python 2.7, Python 3.3 or later, or pypy equivalent.
+- Python 2.7, Python 3.4 or later, or pypy equivalent
 - Twisted 15.5.0 or later for Python 2
-- Twisted 16.4.0 or later for Python 3.
+- Twisted 16.4.0 or later for Python 3
 - python-dateutil
+- incremental 16.9.0 or later
 
 
 Resources

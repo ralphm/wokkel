@@ -14,7 +14,7 @@ Changes for the upcoming release can be found in the `wokkel/newsfragments` dire
 
 .. towncrier release notes start
 
-Wokkel 18.0.0rc3 (2018-02-28)
+Wokkel 18.0.0rc4 (2018-03-05)
 =============================
 
 Features

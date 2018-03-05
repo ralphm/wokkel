@@ -16,15 +16,16 @@ from twisted.internet.error import ConnectionDone
 from twisted.python import failure, log
 from twisted.python.compat import iteritems, itervalues
 from twisted.python.deprecate import deprecatedModuleAttribute
-from twisted.python.versions import Version
 from twisted.words.protocols.jabber import error, ijabber, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.protocols.jabber.xmlstream import XMPPHandlerCollection
 from twisted.words.xish import xpath
 from twisted.words.xish.domish import IElement
 
+from incremental import Version
+
 deprecatedModuleAttribute(
-        Version("Wokkel", 0, 7, 0),
+        Version("wokkel", 0, 7, 0),
         "Use twisted.words.protocols.jabber.xmlstream.XMPPHandlerCollection "
                 "instead.",
         __name__,

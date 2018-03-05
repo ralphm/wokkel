@@ -14,11 +14,12 @@ from zope.interface import implementer
 from twisted.internet import defer, protocol
 from twisted.python import reflect
 from twisted.python.deprecate import deprecated
-from twisted.python.versions import Version
 from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import domish, utility
 from twisted.words.xish.xmlstream import BootstrapMixin
+
+from incremental import Version
 
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import XMPPHandler
@@ -334,7 +335,7 @@ class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):
 
 
 
-@deprecated(Version("Wokkel", 18, 0, 0, release_candidate=3), "unicode.encode('idna')")
+@deprecated(Version("wokkel", 18, 0, 0, release_candidate=4), "unicode.encode('idna')")
 def prepareIDNName(name):
     """
     Encode a unicode IDN Domain Name into its ACE equivalent.

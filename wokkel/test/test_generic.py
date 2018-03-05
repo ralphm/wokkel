@@ -13,11 +13,12 @@ from zope.interface.verify import verifyObject
 
 from twisted.python import deprecate
 from twisted.python.compat import unicode
-from twisted.python.versions import Version
 from twisted.trial import unittest
 from twisted.trial.util import suppress as SUPPRESS
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber.jid import JID
+
+from incremental import Version
 
 from wokkel import generic
 from wokkel.iwokkel import IDisco
@@ -325,7 +326,7 @@ class PrepareIDNNameTests(unittest.TestCase):
                          message=re.escape(
                              deprecate.getDeprecationWarningString(
                                  generic.prepareIDNName,
-                                 Version("Wokkel", 18, 0, 0, release_candidate=3),
+                                 Version("wokkel", 18, 0, 0, release_candidate=4),
                                  replacement="unicode.encode('idna')")))]
 
 
@@ -333,7 +334,7 @@ class PrepareIDNNameTests(unittest.TestCase):
         """
         prepareIDNName is deprecated.
         """
-        self.callDeprecated((Version("Wokkel", 18, 0, 0, release_candidate=3),
+        self.callDeprecated((Version("wokkel", 18, 0, 0, release_candidate=4),
                              "unicode.encode('idna')"),
                             generic.prepareIDNName, ("example.com"))
     test_deprecated.suppress = []

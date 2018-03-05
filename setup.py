@@ -54,11 +54,11 @@ setup(name='wokkel',
       package_data={'twisted.plugins': ['twisted/plugins/server.py']},
       zip_safe=False,
       setup_requires=[
-          'incremental',
+          'incremental>=16.9.0',
       ],
       use_incremental=True,
       install_requires=[
-          'incremental',
+          'incremental>=16.9.0',
           'python-dateutil',
       ],
       extras_require={
