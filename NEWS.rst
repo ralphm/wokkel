@@ -14,7 +14,7 @@ Changes for the upcoming release can be found in the `wokkel/newsfragments` dire
 
 .. towncrier release notes start
 
-Wokkel 18.0.0rc4 (2018-03-05)
+Wokkel 18.0.0rc5 (2018-09-04)
 =============================
 
 Features
@@ -46,6 +46,12 @@ Deprecations and Removals
 - wokkel.compat no longer includes `BootstrapMixin` and
   `XmlStreamServerFactory`, as they are included in the required version of
   Twisted. (#88)
+
+
+Misc
+----
+
+- #89
 
 
 0.7.1 (2013-01-12)
