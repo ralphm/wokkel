@@ -27,12 +27,12 @@ else:
 
     egg_info.write_toplevel_names = _hacked_write_toplevel_names
 
-with open('README.rst', 'r') as f:
-    long_description = f.read()
+with open('README.rst', 'rb') as f:
+    long_description = f.read().decode('utf-8')
 
 setup(name='wokkel',
       description='Twisted Jabber support library',
-      long_description = long_description,
+      long_description=long_description,
       author='Ralph Meijer',
       author_email='ralphm@ik.nu',
       maintainer_email='ralphm@ik.nu',
