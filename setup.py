@@ -67,9 +67,9 @@ setup(name='wokkel',
           "dev": [
               "pyflakes",
               "coverage",
-              "pydoctor",
               "sphinx",
               "towncrier",
           ],
+          "dev:python_version<'3'": "pydoctor",
       },
 )

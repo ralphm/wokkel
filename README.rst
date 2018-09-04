@@ -59,18 +59,19 @@ Contributors
 - Adrien Cossa
 
 
-Name
-----
-
-Wokkel lends it name from a popular twisted savory snack in the Netherlands.
-
-
 Author
 ------
 
 Ralph Meijer
 <mailto:ralphm@ik.nu>
 <xmpp:ralphm@ik.nu>
+
+
+Name
+----
+
+Wokkel lends it name from a popular twisted savory snack in the Netherlands.
+
 
 .. |pypi| image:: http://img.shields.io/pypi/v/wokkel.svg
 .. _pypi: https://pypi.python.org/pypi/wokkel
