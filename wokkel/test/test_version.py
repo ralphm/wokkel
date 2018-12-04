@@ -21,7 +21,7 @@ class InitVersionTest(unittest.TestCase):
         """
         Package version is present and correct.
         """
-        self.assertEqual("18.0.0rc5", wokkel.__version__)
+        self.assertEqual("18.0.0", wokkel.__version__)
 
 
 class IncrementalVersionTest(unittest.TestCase):
@@ -34,4 +34,4 @@ class IncrementalVersionTest(unittest.TestCase):
         Package version is present and correct.
         """
         self.assertEqual("wokkel", _version.__version__.package)
-        self.assertEqual("18.0.0rc5", _version.__version__.public())
+        self.assertEqual("18.0.0", _version.__version__.public())

@@ -1,8 +1,8 @@
-wokkel (18.0.0~~rc5) testing; urgency=low
+wokkel (18.0.0) testing; urgency=low
 
-  * Release Wokkel 18.0.0 release candidate 4
+  * Release Wokkel 18.0.0
 
- -- Ralph Meijer <ralphm@ik.nu>  Tue, 04 Sep 2018 09:48:09 +0200
+ -- Ralph Meijer <ralphm@ik.nu>  Tue, 04 Dec 2018 09:12:14 +0100
 
 wokkel (0.7.1) testing; urgency=low
 
