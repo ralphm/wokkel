@@ -38,6 +38,10 @@ class FakeConnector(BaseConnector):
         return None
 
 
+    def getDestination(self):
+        return None
+
+
 
 class TestableComponent(component.Component):
     """

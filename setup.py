@@ -3,7 +3,6 @@
 # Copyright (c) Ralph Meijer.
 # See LICENSE for details.
 
-import sys
 from setuptools import setup
 
 # Make sure 'twisted' doesn't appear in top_level.txt
@@ -28,20 +27,25 @@ else:
 
     egg_info.write_toplevel_names = _hacked_write_toplevel_names
 
-if sys.version_info < (3, 0):
-    requiredTwisted = "15.5.0"
-else:
-    requiredTwisted = "16.4.0"
+with open('README.rst', 'rb') as f:
+    long_description = f.read().decode('utf-8')
 
 setup(name='wokkel',
-      version='0.7.1',
       description='Twisted Jabber support library',
+      long_description=long_description,
       author='Ralph Meijer',
       author_email='ralphm@ik.nu',
       maintainer_email='ralphm@ik.nu',
-      url='http://wokkel.ik.nu/',
+      url='https://wokkel.ik.nu/',
       license='MIT',
       platforms='any',
+      classifiers=[
+          'Programming Language :: Python :: 2.7',
+          'Programming Language :: Python :: 3',
+          'Programming Language :: Python :: 3.4',
+          'Programming Language :: Python :: 3.5',
+          'Programming Language :: Python :: 3.6',
+      ],
       packages=[
           'wokkel',
           'wokkel.test',
@@ -49,8 +53,23 @@ setup(name='wokkel',
       ],
       package_data={'twisted.plugins': ['twisted/plugins/server.py']},
       zip_safe=False,
+      setup_requires=[
+          'incremental>=16.9.0',
+      ],
+      use_incremental=True,
       install_requires=[
-          'Twisted >= %s' % requiredTwisted,
+          'incremental>=16.9.0',
           'python-dateutil',
       ],
+      extras_require={
+          ":python_version<'3'": 'Twisted[tls]>=15.5.0',
+          ":python_version>'3'": 'Twisted[tls]>=16.4.0',
+          "dev": [
+              "pyflakes",
+              "coverage",
+              "sphinx",
+              "towncrier",
+          ],
+          "dev:python_version<'3'": "pydoctor",
+      },
 )

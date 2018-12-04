@@ -34,7 +34,7 @@ class DeprecationTest(unittest.TestCase):
         self.assertEqual(
             warningsShown[0]['message'],
             "wokkel.subprotocols." + attributeName + " "
-            "was deprecated in Wokkel 0.7.0: Use " + newName + " instead.")
+            "was deprecated in wokkel 0.7.0: Use " + newName + " instead.")
 
 
     def test_xmppHandlerCollection(self):

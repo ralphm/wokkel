@@ -11,18 +11,19 @@ from __future__ import division, absolute_import
 
 from zope.interface import Interface
 from twisted.python.deprecate import deprecatedModuleAttribute
-from twisted.python.versions import Version
 from twisted.words.protocols.jabber.ijabber import IXMPPHandler
 from twisted.words.protocols.jabber.ijabber import IXMPPHandlerCollection
 
+from incremental import Version
+
 deprecatedModuleAttribute(
-        Version("Wokkel", 0, 7, 0),
+        Version("wokkel", 0, 7, 0),
         "Use twisted.words.protocols.jabber.ijabber.IXMPPHandler instead.",
         __name__,
         "IXMPPHandler")
 
 deprecatedModuleAttribute(
-        Version("Wokkel", 0, 7, 0),
+        Version("wokkel", 0, 7, 0),
         "Use twisted.words.protocols.jabber.ijabber.IXMPPHandlerCollection "
                 "instead.",
         __name__,
