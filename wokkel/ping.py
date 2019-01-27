@@ -30,11 +30,11 @@ class PingClientProtocol(XMPPHandler):
     This handler implements the protocol for sending out XMPP Ping requests.
     """
 
-    def ping(self, entity, sender=None):
+    def ping(self, entity=None, sender=None, timeout=None):
         """
         Send out a ping request and wait for a response.
 
-        @param entity: Entity to be pinged.
+        @param entity: Entity to be pinged. L{None} to ping the server.
         @type entity: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @return: A deferred that fires upon receiving a response.
@@ -42,6 +42,9 @@ class PingClientProtocol(XMPPHandler):
 
         @param sender: Optional sender address.
         @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}
+
+        @param entity: timeout in seconds for the ping to be responded before errback is called.
+        @type entity: L{int}
         """
         def cb(response):
             return None
@@ -60,7 +63,13 @@ class PingClientProtocol(XMPPHandler):
         if sender is not None:
             request['from'] = sender.full()
 
-        d = request.send(entity.full())
+        if timeout is not None:
+            request.timeout = timeout
+
+        if entity is None:
+            d = request.send()
+        else:
+            d = request.send(entity.full())
         d.addCallbacks(cb, eb)
         return d
 
