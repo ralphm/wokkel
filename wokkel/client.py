@@ -55,21 +55,22 @@ class HybridAuthenticator(xmlstream.ConnectAuthenticator):
 
     namespace = 'jabber:client'
 
-    def __init__(self, jid, password):
+    def __init__(self, jid, password, requireTLS=True):
         xmlstream.ConnectAuthenticator.__init__(self, jid.host)
         self.jid = jid
         self.password = password
+        self.requireTLS = requireTLS
 
     def associateWithStream(self, xs):
         xmlstream.ConnectAuthenticator.associateWithStream(self, xs)
 
-        tlsInit = xmlstream.TLSInitiatingInitializer(xs)
+        tlsInit = xmlstream.TLSInitiatingInitializer(xs, required=self.requireTLS)
         xs.initializers = [client.CheckVersionInitializer(xs),
                            tlsInit,
                            CheckAuthInitializer(xs)]
 
 
-def HybridClientFactory(jid, password):
+def HybridClientFactory(jid, password, requireTLS=True):
     """
     Client factory for XMPP 1.0.
 
@@ -77,7 +78,7 @@ def HybridClientFactory(jid, password):
     autentication.
     """
 
-    a = HybridAuthenticator(jid, password)
+    a = HybridAuthenticator(jid, password, requireTLS)
     return xmlstream.XmlStreamFactory(a)
 
 
@@ -87,13 +88,13 @@ class XMPPClient(StreamManager, service.Service):
     Service that initiates an XMPP client connection.
     """
 
-    def __init__(self, jid, password, host=None, port=5222):
+    def __init__(self, jid, password, host=None, port=5222, requireTLS=True):
         self.jid = jid
         self.domain = jid.host.encode('idna')
         self.host = host
         self.port = port
 
-        factory = HybridClientFactory(jid, password)
+        factory = HybridClientFactory(jid, password, requireTLS)
 
         StreamManager.__init__(self, factory)
 
