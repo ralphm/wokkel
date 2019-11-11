@@ -906,6 +906,47 @@ class PubSubClientTest(unittest.TestCase):
         return d
 
 
+    def test_retractItems(self):
+        """
+        Test sending items retraction.
+        """
+        d = self.protocol.retractItems(JID('pubsub.example.org'), 'test',
+                                       itemIdentifiers=['item1', 'item2'])
+
+        iq = self.stub.output[-1]
+        self.assertEquals('pubsub.example.org', iq.getAttribute('to'))
+        self.assertEquals('set', iq.getAttribute('type'))
+        self.assertEquals('pubsub', iq.pubsub.name)
+        self.assertEquals(NS_PUBSUB, iq.pubsub.uri)
+        children = list(domish.generateElementsQNamed(iq.pubsub.children,
+                                                      'retract', NS_PUBSUB))
+        self.assertEquals(1, len(children))
+        child = children[0]
+        self.assertEquals('test', child['node'])
+        itemIdentifiers = [item.getAttribute('id') for item in
+                           domish.generateElementsQNamed(child.children, 'item',
+                                                         NS_PUBSUB)]
+        self.assertEquals(['item1', 'item2'], itemIdentifiers)
+
+        self.stub.send(toResponse(iq, 'result'))
+        return d
+
+
+    def test_retractItemsWithSender(self):
+        """
+        Test retracting items request from a specific JID.
+        """
+        d = self.protocol.retractItems(JID('pubsub.example.org'), 'test',
+                                       itemIdentifiers=['item1', 'item2'],
+                                       sender=JID('user@example.org'))
+
+        iq = self.stub.output[-1]
+        self.assertEquals('user@example.org', iq['from'])
+
+        self.stub.send(toResponse(iq, 'result'))
+        return d
+
+
     def test_getOptions(self):
         def cb(form):
             self.assertEqual('form', form.formType)
@@ -3152,6 +3193,34 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         self.assertEquals('current', itemElements[0].getAttribute('id'))
 
 
+    def test_notifyRetract(self):
+        """
+        Items retraction notifications are sent to the subscribers.
+        """
+        subscriber = JID('user@example.org')
+        subscriptions = [pubsub.Subscription('test', subscriber, 'subscribed')]
+        items = [pubsub.Item('current')]
+        notifications = [(subscriber, subscriptions, items)]
+        self.service.notifyRetract(JID('pubsub.example.org'), 'test',
+                                   notifications)
+        message = self.stub.output[-1]
+
+        self.assertEquals('message', message.name)
+        self.assertIdentical(None, message.uri)
+        self.assertEquals('user@example.org', message['to'])
+        self.assertEquals('pubsub.example.org', message['from'])
+        self.assertTrue(message.event)
+        self.assertEquals(NS_PUBSUB_EVENT, message.event.uri)
+        self.assertTrue(message.event.items)
+        self.assertEquals(NS_PUBSUB_EVENT, message.event.items.uri)
+        self.assertTrue(message.event.items.hasAttribute('node'))
+        self.assertEquals('test', message.event.items['node'])
+        itemElements = list(domish.generateElementsQNamed(
+            message.event.items.children, 'retract', NS_PUBSUB_EVENT))
+        self.assertEquals(1, len(itemElements))
+        self.assertEquals('current', itemElements[0].getAttribute('id'))
+
+
     def test_notifyPublishCollection(self):
         """
         Publish notifications are sent to the subscribers of collections.
@@ -3164,6 +3233,28 @@ class PubSubServiceTest(unittest.TestCase, TestableRequestHandlerMixin):
         items = [pubsub.Item('current')]
         notifications = [(subscriber, subscriptions, items)]
         self.service.notifyPublish(JID('pubsub.example.org'), 'test',
+                                   notifications)
+        message = self.stub.output[-1]
+
+        self.assertTrue(message.event.items.hasAttribute('node'))
+        self.assertEquals('test', message.event.items['node'])
+        headers = shim.extractHeaders(message)
+        self.assertIn('Collection', headers)
+        self.assertIn('', headers['Collection'])
+
+
+    def test_notifyRetractCollection(self):
+        """
+        Retraction notifications are sent to the subscribers of collections.
+
+        The node the item was retracted from is on the C{items} element, while
+        the subscribed-to node is in the C{'Collections'} SHIM header.
+        """
+        subscriber = JID('user@example.org')
+        subscriptions = [pubsub.Subscription('', subscriber, 'subscribed')]
+        items = [pubsub.Item('current')]
+        notifications = [(subscriber, subscriptions, items)]
+        self.service.notifyRetract(JID('pubsub.example.org'), 'test',
                                    notifications)
         message = self.stub.output[-1]
 
