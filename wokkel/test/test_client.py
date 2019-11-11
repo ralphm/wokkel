@@ -15,6 +15,7 @@ from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.xmlstream import STREAM_AUTHD_EVENT
 from twisted.words.protocols.jabber.xmlstream import INIT_FAILED_EVENT
 from twisted.words.protocols.jabber.xmlstream import XMPPHandler
+from twisted.test.proto_helpers import MemoryReactor
 
 from wokkel import client
 
@@ -51,6 +52,70 @@ class XMPPClientTest(unittest.TestCase):
         self.assertIsInstance(self.client.domain, bytes)
         self.assertEqual(b'example.org', self.client.domain)
 
+
+    def test_bindAddress_with_reactor(self):
+        """
+        Make sure we can specify a different bindAddress when connecting client
+        using reactor.connectTCP
+        """
+        mreactor = MemoryReactor()
+        test_bindaddr = ('1.2.3.4', 5000)
+
+        bind_client = client.XMPPClient(JID('user@example.org'), 'secret',
+                                        host='localhost',
+                                        bindAddress=test_bindaddr,
+                                        _reactor=mreactor)
+
+        bind_client.startService()
+        # retrieve the last tcp connection made in memory reactor
+        conn_info = mreactor.tcpClients.pop()
+        self.assertTrue(test_bindaddr in conn_info)
+
+    def test_bindAddress_with_xmpp_connector(self):
+        """
+        Make sure we can specify a different bindAddress when connecting client
+        using XMPPClientConnector
+        """
+        mreactor = MemoryReactor()
+        test_bindaddr = ('4.5.6.7', 6000)
+
+        def init(connector, reactor, domain, factory, bindAddress):
+            self.assertEqual(test_bindaddr, bindAddress)
+        self.patch(client.XMPPClientConnector, '__init__', init)
+
+        # patching SRVConnector to not connect
+        def connect(connector):
+            self.assertIsInstance(connector, client.XMPPClientConnector)
+        self.patch(client.SRVConnector, 'connect', connect)
+
+        bind_client = client.XMPPClient(JID('user@example.org'), 'secret',
+                                        bindAddress=test_bindaddr,
+                                        _reactor=mreactor)
+        bind_client.startService()
+
+    def test_bindAddress_srvconnector(self):
+        """
+        Make sure bindAddress parameter is passed to SRVConnector when
+        connecting client using XMPPClientConnector
+        """
+        mreactor = MemoryReactor()
+        test_bindaddr = ('10.20.30.40', 7000)
+
+        # import classes from SRVConnector testcases for this test
+        from twisted.names.test.test_srvconnect import FakeResolver
+        from twisted.names import client as clientname
+        # patching client used by SRVConnector to resolve DNS
+        self.patch(clientname, 'theResolver', FakeResolver())
+        clientname.theResolver.results = []
+
+        bind_client = client.XMPPClient(JID('user@example.org'), 'secret',
+                                        bindAddress=test_bindaddr,
+                                        _reactor=mreactor)
+        bind_client.startService()
+        # default value for SRVConnector is to use reactor.connectTCP
+        # so we retrieve the last tcp connection made in memory reactor
+        conn_info = mreactor.tcpClients.pop()
+        self.assertTrue(test_bindaddr in conn_info)
 
 
 class DeferredClientFactoryTest(unittest.TestCase):
