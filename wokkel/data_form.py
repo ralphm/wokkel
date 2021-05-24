@@ -17,7 +17,6 @@ from __future__ import division, absolute_import
 from zope.interface import implementer
 from zope.interface.common import mapping
 
-from twisted.python.compat import unicode
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
 
@@ -51,9 +50,9 @@ class Option(object):
     Data Forms field option.
 
     @ivar value: Value of this option.
-    @type value: L{unicode}
+    @type value: L{str}
     @ivar label: Optional label for this option.
-    @type label: L{unicode} or L{NoneType}
+    @type label: L{str} or L{NoneType}
     """
 
     def __init__(self, value, label=None):
@@ -91,7 +90,7 @@ class Option(object):
             raise Error("Option has no value")
 
         label = element.getAttribute('label')
-        return Option(unicode(valueElements[0]), label)
+        return Option(str(valueElements[0]), label)
 
 
 class Field(object):
@@ -108,15 +107,15 @@ class Field(object):
     @ivar var: Field name. Optional if C{fieldType} is C{'fixed'}.
     @type var: L{str}
     @ivar label: Human readable label for this field.
-    @type label: L{unicode}
+    @type label: L{str}
     @ivar values: The values for this field, for multi-valued field
-                  types, as a list of L{bool}, L{unicode} or L{JID}.
+                  types, as a list of L{bool}, L{str} or L{JID}.
     @type values: L{list}
     @ivar options: List of possible values to choose from in a response
                    to this form as a list of L{Option}s.
     @type options: L{list}
     @ivar desc: Human readable description for this field.
-    @type desc: L{unicode}
+    @type desc: L{str}
     @ivar required: Whether the field is required to be provided in a
                     response to this form.
     @type required: L{bool}
@@ -185,7 +184,7 @@ class Field(object):
 
         Sets C{value} as the only element of L{values}.
 
-        @type value: L{bool}, L{unicode} or L{JID}
+        @type value: L{bool}, L{str} or L{JID}
         """
         self.values = [value]
 
@@ -229,7 +228,7 @@ class Field(object):
             newValues = []
             for value in self.values:
                 if self.fieldType == 'boolean':
-                    if isinstance(value, (str, unicode)):
+                    if isinstance(value, str):
                         checkValue = value.lower()
                         if not checkValue in ('0', '1', 'false', 'true'):
                             raise ValueError("Not a boolean")
@@ -263,9 +262,9 @@ class Field(object):
 
         for value in self.values:
             if isinstance(value, bool):
-                value = unicode(value).lower()
+                value = str(value).lower()
             else:
-                value = unicode(value)
+                value = str(value)
 
             field.addElement('value', content=value)
 
@@ -288,7 +287,7 @@ class Field(object):
 
     @staticmethod
     def _parse_desc(field, element):
-        desc = unicode(element)
+        desc = str(element)
         if desc:
             field.desc = desc
 
@@ -305,7 +304,7 @@ class Field(object):
 
     @staticmethod
     def _parse_value(field, element):
-        value = unicode(element)
+        value = str(element)
         field.values.append(value)
 
 
@@ -385,9 +384,9 @@ class Form(object):
     @type formType: L{str}
 
     @ivar title: Natural language title of the form.
-    @type title: L{unicode}
+    @type title: L{str}
 
-    @ivar instructions: Natural language instructions as a list of L{unicode}
+    @ivar instructions: Natural language instructions as a list of L{str}
         strings without line breaks.
     @type instructions: L{list}
 
@@ -542,14 +541,14 @@ class Form(object):
 
     @staticmethod
     def _parse_title(form, element):
-        title = unicode(element)
+        title = str(element)
         if title:
             form.title = title
 
 
     @staticmethod
     def _parse_instructions(form, element):
-        instructions = unicode(element)
+        instructions = str(element)
         if instructions:
             form.instructions.append(instructions)
 

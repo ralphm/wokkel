@@ -16,7 +16,6 @@ from zope.interface import implementer
 
 from twisted.internet import defer
 from twisted.python import log
-from twisted.python.compat import StringType, iteritems, unicode
 from twisted.words.protocols.jabber import jid, error
 from twisted.words.xish import domish
 
@@ -107,20 +106,20 @@ class Subscription(object):
 
     @ivar nodeIdentifier: The identifier of the node subscribed to.  The root
         node is denoted by L{None}.
-    @type nodeIdentifier: L{unicode}
+    @type nodeIdentifier: L{str}
 
     @ivar subscriber: The subscribing entity.
     @type subscriber: L{jid.JID}
 
     @ivar state: The subscription state. One of C{'subscribed'}, C{'pending'},
                  C{'unconfigured'}.
-    @type state: L{unicode}
+    @type state: L{str}
 
     @ivar options: Optional list of subscription options.
     @type options: L{dict}
 
     @ivar subscriptionIdentifier: Optional subscription identifier.
-    @type subscriptionIdentifier: L{unicode}
+    @type subscriptionIdentifier: L{str}
     """
 
     def __init__(self, nodeIdentifier, subscriber, state, options=None,
@@ -150,7 +149,7 @@ class Subscription(object):
         element = domish.Element((defaultUri, 'subscription'))
         if self.nodeIdentifier:
             element['node'] = self.nodeIdentifier
-        element['jid'] = unicode(self.subscriber)
+        element['jid'] = str(self.subscriber)
         element['subscription'] = self.state
         if self.subscriptionIdentifier:
             element['subid'] = self.subscriptionIdentifier
@@ -171,17 +170,17 @@ class Item(domish.Element):
     def __init__(self, id=None, payload=None):
         """
         @param id: optional item identifier
-        @type id: L{unicode}
+        @type id: L{str}
         @param payload: optional item payload. Either as a domish element, or
                         as serialized XML.
-        @type payload: object providing L{domish.IElement} or L{unicode}.
+        @type payload: object providing L{domish.IElement} or L{str}.
         """
 
         domish.Element.__init__(self, (None, 'item'))
         if id is not None:
             self['id'] = id
         if payload is not None:
-            if isinstance(payload, StringType):
+            if isinstance(payload, str):
                 self.addRawXml(payload)
             else:
                 self.addChild(payload)
@@ -213,7 +212,7 @@ class PubSubRequest(generic.Stanza):
     @type maxItems: L{int}.
 
     @ivar nodeIdentifier: Identifier of the node the request is about.
-    @type nodeIdentifier: L{unicode}
+    @type nodeIdentifier: L{str}
 
     @ivar nodeType: The type of node that should be created, or for which the
                     configuration is retrieved. C{'leaf'} or C{'collection'}.
@@ -227,7 +226,7 @@ class PubSubRequest(generic.Stanza):
     @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
     @ivar subscriptionIdentifier: Identifier for a specific subscription.
-    @type subscriptionIdentifier: L{unicode}
+    @type subscriptionIdentifier: L{str}
 
     @ivar subscriptions: Subscriptions to be modified, as a set of
         L{Subscription}.
@@ -235,7 +234,7 @@ class PubSubRequest(generic.Stanza):
 
     @ivar affiliations: Affiliations to be modified, as a dictionary of entity
         (L{JID<twisted.words.protocols.jabber.jid.JID>} to affiliation
-        (L{unicode}).
+        (L{str}).
     @type affiliations: L{dict}
     """
 
@@ -277,7 +276,7 @@ class PubSubRequest(generic.Stanza):
     }
 
     # Map request verb to request iq type and subelement name
-    _verbRequestMap = dict(((v, k) for k, v in iteritems(_requestVerbMap)))
+    _verbRequestMap = dict(((v, k) for k, v in _requestVerbMap.items()))
 
     # Map request verb to parameter handler names
     _parameters = {
@@ -487,7 +486,7 @@ class PubSubRequest(generic.Stanza):
         Render maximum items into an items request.
         """
         if self.maxItems:
-            verbElement['max_items'] = unicode(self.maxItems)
+            verbElement['max_items'] = str(self.maxItems)
 
 
     def _parse_subidOrNone(self, verbElement):
@@ -648,7 +647,7 @@ class PubSubEvent(object):
     @param recipient: The entity to which the notification was sent.
     @type recipient: L{wokkel.pubsub.ItemsEvent}
     @param nodeIdentifier: Identifier of the node the event pertains to.
-    @type nodeIdentifier: L{unicode}
+    @type nodeIdentifier: L{str}
     @param headers: SHIM headers, see L{wokkel.shim.extractHeaders}.
     @type headers: L{dict}
     """
@@ -772,7 +771,7 @@ class PubSubClient(XMPPHandler):
         @param service: The publish subscribe service to create the node at.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: Optional suggestion for the id of the node.
-        @type nodeIdentifier: L{unicode}
+        @type nodeIdentifier: L{str}
         @param options: Optional node configuration options.
         @type options: L{dict}
         """
@@ -807,7 +806,7 @@ class PubSubClient(XMPPHandler):
         @param service: The publish subscribe service to delete the node from.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node.
-        @type nodeIdentifier: L{unicode}
+        @type nodeIdentifier: L{str}
         """
         request = PubSubRequest('delete')
         request.recipient = service
@@ -825,7 +824,7 @@ class PubSubClient(XMPPHandler):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nodeIdentifier: The identifier of the node.
-        @type nodeIdentifier: L{unicode}
+        @type nodeIdentifier: L{str}
 
         @param subscriber: The entity to subscribe to the node. This entity
             will get notifications of new published items.
@@ -877,13 +876,13 @@ class PubSubClient(XMPPHandler):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nodeIdentifier: The identifier of the node.
-        @type nodeIdentifier: L{unicode}
+        @type nodeIdentifier: L{str}
 
         @param subscriber: The entity to unsubscribe from the node.
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param subscriptionIdentifier: Optional subscription identifier.
-        @type subscriptionIdentifier: L{unicode}
+        @type subscriptionIdentifier: L{str}
         """
         request = PubSubRequest('unsubscribe')
         request.recipient = service
@@ -901,7 +900,7 @@ class PubSubClient(XMPPHandler):
         @param service: The publish subscribe service that keeps the node.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node.
-        @type nodeIdentifier: L{unicode}
+        @type nodeIdentifier: L{str}
         @param items: Optional list of L{Item}s to publish.
         @type items: L{list}
         """
@@ -922,7 +921,7 @@ class PubSubClient(XMPPHandler):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nodeIdentifier: The identifier of the node.
-        @type nodeIdentifier: L{unicode}
+        @type nodeIdentifier: L{str}
 
         @param maxItems: Optional limit on the number of retrieved items.
         @type maxItems: L{int}
@@ -930,10 +929,10 @@ class PubSubClient(XMPPHandler):
         @param subscriptionIdentifier: Optional subscription identifier. In
             case the node has been subscribed to multiple times, this narrows
             the results to the specific subscription.
-        @type subscriptionIdentifier: L{unicode}
+        @type subscriptionIdentifier: L{str}
 
         @param itemIdentifiers: Identifiers of the items to be retrieved.
-        @type itemIdentifiers: L{set} of L{unicode}
+        @type itemIdentifiers: L{set} of L{str}
         """
         request = PubSubRequest('items')
         request.recipient = service
@@ -965,13 +964,13 @@ class PubSubClient(XMPPHandler):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nodeIdentifier: The identifier of the node.
-        @type nodeIdentifier: L{unicode}
+        @type nodeIdentifier: L{str}
 
         @param subscriber: The entity subscribed to the node.
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param subscriptionIdentifier: Optional subscription identifier.
-        @type subscriptionIdentifier: L{unicode}
+        @type subscriptionIdentifier: L{str}
 
         @rtype: L{data_form.Form}
         """
@@ -1002,7 +1001,7 @@ class PubSubClient(XMPPHandler):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nodeIdentifier: The identifier of the node.
-        @type nodeIdentifier: L{unicode}
+        @type nodeIdentifier: L{str}
 
         @param subscriber: The entity subscribed to the node.
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
@@ -1011,7 +1010,7 @@ class PubSubClient(XMPPHandler):
         @type options: L{dict}.
 
         @param subscriptionIdentifier: Optional subscription identifier.
-        @type subscriptionIdentifier: L{unicode}
+        @type subscriptionIdentifier: L{str}
         """
         request = PubSubRequest('optionsSet')
         request.recipient = service
@@ -1356,7 +1355,7 @@ class PubSubService(XMPPHandler, IQHandlerMixin):
         if request.nodeIdentifier:
             affiliations['node'] = request.nodeIdentifier
 
-        for entity, affiliation in iteritems(result):
+        for entity, affiliation in result.items():
             item = affiliations.addElement('affiliation')
             item['jid'] = entity.full()
             item['affiliation'] = affiliation

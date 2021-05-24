@@ -8,7 +8,7 @@ Tests for L{wokkel.server}.
 from __future__ import division, absolute_import
 from twisted.internet import defer
 from twisted.python import failure
-from twisted.test.proto_helpers import StringTransport
+from twisted.internet.testing import StringTransport
 from twisted.trial import unittest
 from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.xish import domish

@@ -46,7 +46,7 @@ class IDisco(Interface):
         @param nodeIdentifier: The optional identifier of the node at this
             entity to retrieve the identify and features of.  The default is
             C{''}, meaning the root node.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         """
 
     def getDiscoItems(requestor, target, nodeIdentifier=''):
@@ -60,7 +60,7 @@ class IDisco(Interface):
         @param nodeIdentifier: The optional identifier of the node at this
                                entity to retrieve the identify and features of.
                                The default is C{''}, meaning the root node.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         """
 
 
@@ -109,7 +109,7 @@ class IPubSubClient(Interface):
         @param nodeIdentifier: Optional suggestion for the new node's
                                identifier. If omitted, the creation of an
                                instant node will be attempted.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @return: a deferred that fires with the identifier of the newly created
                  node. Note that this can differ from the suggested identifier
                  if the publish subscribe service chooses to modify or ignore
@@ -124,7 +124,7 @@ class IPubSubClient(Interface):
         @param service: The publish-subscribe service entity.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: Identifier of the node to be deleted.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
 
@@ -135,7 +135,7 @@ class IPubSubClient(Interface):
         @param service: The publish-subscribe service entity.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: Identifier of the node to subscribe to.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @param subscriber: JID to subscribe to the node.
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
@@ -148,7 +148,7 @@ class IPubSubClient(Interface):
         @param service: The publish-subscribe service entity.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: Identifier of the node to unsubscribe from.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @param subscriber: JID to unsubscribe from the node.
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
@@ -165,9 +165,9 @@ class IPubSubClient(Interface):
         @param service: The publish-subscribe service entity.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: Identifier of the node to publish to.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @param items: List of item elements.
-        @type items: C{list} of L{Item}
+        @type items: L{list} of L{Item}
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
 
@@ -191,12 +191,12 @@ class IPubSubService(Interface):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node that was published
             to.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @param notifications: The notifications as tuples of subscriber, the
             list of subscriptions and the list of items to be notified.
-        @type notifications: C{list} of
-            (L{JID<twisted.words.protocols.jabber.jid.JID>}, C{list} of
-            L{Subscription<wokkel.pubsub.Subscription>}, C{list} of
+        @type notifications: L{list} of
+            (L{JID<twisted.words.protocols.jabber.jid.JID>}, L{list} of
+            L{Subscription<wokkel.pubsub.Subscription>}, L{list} of
             L{Element<twisted.words.xish.domish.Element>})
         """
 
@@ -209,14 +209,14 @@ class IPubSubService(Interface):
         @param service: The entity the notifications will originate from.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node that was deleted.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @param subscribers: The subscribers for which a notification should be
             sent out.
-        @type subscribers: C{list} of
+        @type subscribers: L{list} of
             L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param redirectURI: Optional XMPP URI of another node that subscribers
             are redirected to.
-        @type redirectURI: C{str}
+        @type redirectURI: L{str}
         """
 
     def publish(requestor, service, nodeIdentifier, items):
@@ -228,9 +228,9 @@ class IPubSubService(Interface):
         @param service: The entity the request was addressed to.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to publish to.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @param items: The items to be published as elements.
-        @type items: C{list} of C{Element<twisted.words.xish.domish.Element>}
+        @type items: L{list} of C{Element<twisted.words.xish.domish.Element>}
         @return: deferred that fires on success.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
@@ -244,7 +244,7 @@ class IPubSubService(Interface):
         @param service: The entity the request was addressed to.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to subscribe to.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @param subscriber: The entity to be subscribed.
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @return: A deferred that fires with a
@@ -261,7 +261,7 @@ class IPubSubService(Interface):
         @param service: The entity the request was addressed to.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to unsubscribe from.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @param subscriber: The entity to be unsubscribed.
         @type subscriber: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @return: A deferred that fires with C{None} when unsubscription has
@@ -277,7 +277,7 @@ class IPubSubService(Interface):
         @type requestor: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param service: The entity the request was addressed to.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
-        @return: A deferred that fires with a C{list} of subscriptions as
+        @return: A deferred that fires with a L{list} of subscriptions as
                  L{Subscription<wokkel.pubsub.Subscription>}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
@@ -290,9 +290,9 @@ class IPubSubService(Interface):
         @type requestor: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param service: The entity the request was addressed to.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
-        @return: A deferred that fires with a C{list} of affiliations as
-            C{tuple}s of (node identifier as C{unicode}, affiliation state as
-            C{str}). The affiliation can be C{'owner'}, C{'publisher'}, or
+        @return: A deferred that fires with a L{list} of affiliations as
+            C{tuple}s of (node identifier as L{str}, affiliation state as
+            L{str}). The affiliation can be C{'owner'}, C{'publisher'}, or
             C{'outcast'}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
@@ -308,8 +308,8 @@ class IPubSubService(Interface):
         @param nodeIdentifier: The suggestion for the identifier of the node
             to be created. If the request did not include a suggestion for the
             node identifier, the value is C{None}.
-        @type nodeIdentifier: C{unicode} or C{NoneType}
-        @return: A deferred that fires with a C{unicode} that represents
+        @type nodeIdentifier: L{str} or C{NoneType}
+        @return: A deferred that fires with a L{str} that represents
                  the identifier of the new node.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
@@ -322,10 +322,10 @@ class IPubSubService(Interface):
         by option name. The value of each entry represents the specifics for
         that option in a dictionary:
 
-         - C{'type'} (C{str}): The option's type (see
+         - C{'type'} (L{str}): The option's type (see
            L{Field<wokkel.data_form.Field>}'s doc string for possible values).
-         - C{'label'} (C{unicode}): A human readable label for this option.
-         - C{'options'} (C{dict}): Optional list of possible values for this
+         - C{'label'} (L{str}): A human readable label for this option.
+         - C{'options'} (L{dict}): Optional list of possible values for this
            option.
 
         Example::
@@ -346,7 +346,7 @@ class IPubSubService(Interface):
                 }
             }
 
-        @rtype: C{dict}.
+        @rtype: L{dict}.
         """
 
     def getDefaultConfiguration(requestor, service, nodeType):
@@ -359,11 +359,11 @@ class IPubSubService(Interface):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeType: The type of node for which the configuration is
                          retrieved, C{'leaf'} or C{'collection'}.
-        @type nodeType: C{str}
-        @return: A deferred that fires with a C{dict} representing the default
-                 node configuration. Keys are C{str}s that represent the
-                 field name. Values can be of types C{unicode}, C{int} or
-                 C{bool}.
+        @type nodeType: L{str}
+        @return: A deferred that fires with a L{dict} representing the default
+                 node configuration. Keys are L{str}s that represent the
+                 field name. Values can be of types L{str}, L{int} or
+                 L{bool}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
 
@@ -377,10 +377,10 @@ class IPubSubService(Interface):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to retrieve the
                                configuration from.
-        @type nodeIdentifier: C{unicode}
-        @return: A deferred that fires with a C{dict} representing the node
-            configuration. Keys are C{str}s that represent the field name.
-            Values can be of types C{unicode}, C{int} or C{bool}.
+        @type nodeIdentifier: L{str}
+        @return: A deferred that fires with a L{dict} representing the node
+            configuration. Keys are L{str}s that represent the field name.
+            Values can be of types L{str}, L{int} or L{bool}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
 
@@ -394,7 +394,7 @@ class IPubSubService(Interface):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to change the
                                configuration of.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @return: A deferred that fires with C{None} when the node's
                  configuration has been changed.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
@@ -410,7 +410,7 @@ class IPubSubService(Interface):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to retrieve items
                                from.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         """
 
     def retract(requestor, service, nodeIdentifier, itemIdentifiers):
@@ -423,7 +423,7 @@ class IPubSubService(Interface):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to retract items
                                from.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         """
 
     def purge(requestor, service, nodeIdentifier):
@@ -435,7 +435,7 @@ class IPubSubService(Interface):
         @param service: The entity the request was addressed to.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to be purged.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         """
 
     def delete(requestor, service, nodeIdentifier):
@@ -447,7 +447,7 @@ class IPubSubService(Interface):
         @param service: The entity the request was addressed to.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The identifier of the node to be delete.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         """
 
 
@@ -472,7 +472,7 @@ class IPubSubResource(Interface):
         @param service: The publish-subscribe service entity.
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: Identifier of the node to request the info for.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @return: A deferred that fires with a dictionary. If not empty,
                  it must have the keys C{'type'} and C{'meta-data'} to keep
                  respectively the node type and a dictionary with the meta
@@ -491,7 +491,7 @@ class IPubSubResource(Interface):
         @type service: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: Identifier of the node to request the childs
             for.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @return: A deferred that fires with a list of child node identifiers.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
@@ -505,10 +505,10 @@ class IPubSubResource(Interface):
         by option name. The value of each entry represents the specifics for
         that option in a dictionary:
 
-         - C{'type'} (C{str}): The option's type (see
+         - C{'type'} (L{str}): The option's type (see
            L{Field<wokkel.data_form.Field>}'s doc string for possible values).
-         - C{'label'} (C{unicode}): A human readable label for this option.
-         - C{'options'} (C{dict}): Optional list of possible values for this
+         - C{'label'} (L{str}): A human readable label for this option.
+         - C{'options'} (L{dict}): Optional list of possible values for this
            option.
 
         Example::
@@ -529,7 +529,7 @@ class IPubSubResource(Interface):
                 }
             }
 
-        @rtype: C{dict}.
+        @rtype: L{dict}.
         """
 
 
@@ -574,7 +574,7 @@ class IPubSubResource(Interface):
 
         @param request: The publish-subscribe request.
         @type request: L{wokkel.pubsub.PubSubRequest}
-        @return: A deferred that fires with a C{list} of subscriptions as
+        @return: A deferred that fires with a L{list} of subscriptions as
                  L{Subscription<wokkel.pubsub.Subscription>}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
@@ -586,9 +586,9 @@ class IPubSubResource(Interface):
 
         @param request: The publish-subscribe request.
         @type request: L{wokkel.pubsub.PubSubRequest}
-        @return: A deferred that fires with a C{list} of affiliations as
-            C{tuple}s of (node identifier as C{unicode}, affiliation state as
-            C{str}). The affiliation can be C{'owner'}, C{'publisher'}, or
+        @return: A deferred that fires with a L{list} of affiliations as
+            C{tuple}s of (node identifier as L{str}, affiliation state as
+            L{str}). The affiliation can be C{'owner'}, C{'publisher'}, or
             C{'outcast'}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
@@ -600,7 +600,7 @@ class IPubSubResource(Interface):
 
         @param request: The publish-subscribe request.
         @type request: L{wokkel.pubsub.PubSubRequest}
-        @return: A deferred that fires with a C{unicode} that represents
+        @return: A deferred that fires with a L{str} that represents
                  the identifier of the new node.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
@@ -612,10 +612,10 @@ class IPubSubResource(Interface):
 
         @param request: The publish-subscribe request.
         @type request: L{wokkel.pubsub.PubSubRequest}
-        @return: A deferred that fires with a C{dict} representing the default
-                 node configuration. Keys are C{str}s that represent the
-                 field name. Values can be of types C{unicode}, C{int} or
-                 C{bool}.
+        @return: A deferred that fires with a L{dict} representing the default
+                 node configuration. Keys are L{str}s that represent the
+                 field name. Values can be of types L{str}, L{int} or
+                 L{bool}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
 
@@ -626,9 +626,9 @@ class IPubSubResource(Interface):
 
         @param request: The publish-subscribe request.
         @type request: L{wokkel.pubsub.PubSubRequest}
-        @return: A deferred that fires with a C{dict} representing the node
-            configuration. Keys are C{str}s that represent the field name.
-            Values can be of types C{unicode}, C{int} or C{bool}.
+        @return: A deferred that fires with a L{dict} representing the node
+            configuration. Keys are L{str}s that represent the field name.
+            Values can be of types L{str}, L{int} or L{bool}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
 
@@ -651,7 +651,7 @@ class IPubSubResource(Interface):
 
         @param request: The publish-subscribe request.
         @type request: L{wokkel.pubsub.PubSubRequest}
-        @return: A deferred that fires with a C{list} of L{pubsub.Item}.
+        @return: A deferred that fires with a L{list} of L{pubsub.Item}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
         """
 
@@ -698,9 +698,9 @@ class IPubSubResource(Interface):
 
         @param request: The publish-subscribe request.
         @type request: L{wokkel.pubsub.PubSubRequest}
-        @return: A deferred that fires with a C{dict} of affiliations with the
+        @return: A deferred that fires with a L{dict} of affiliations with the
             entity as key (L{JID<twisted.words.protocols.jabber.jid.JID>}) and
-            the affiliation state as value (C{unicode}).  The affiliation can
+            the affiliation state as value (L{str}).  The affiliation can
             be C{u'owner'}, C{u'publisher'}, or C{u'outcast'}.
         @rtype: L{Deferred<twisted.internet.defer.Deferred>}
 
@@ -748,7 +748,7 @@ class IMUCClient(Interface):
         @type  user: L{muc.User}
 
         @param subject: The subject of the given room.
-        @type subject: C{unicode}
+        @type subject: L{str}
         """
 
 
@@ -769,7 +769,7 @@ class IMUCClient(Interface):
 
         @param options: A mapping of field names to values, or C{None} to
             cancel.
-        @type options: C{dict}
+        @type options: L{dict}
         """
 
 
@@ -796,14 +796,14 @@ class IMUCClient(Interface):
         @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The nick name for the entitity joining the room.
-        @type nick: C{unicode}
+        @type nick: L{str}
 
         @param historyOptions: Options for conversation history sent by the
             room upon joining.
         @type historyOptions: L{HistoryOptions}
 
         @param password: Optional password for the room.
-        @type password: C{unicode}
+        @type password: L{str}
 
         @return: A deferred that fires when the entity is in the room or an
                  error has occurred.
@@ -820,7 +820,7 @@ class IMUCClient(Interface):
         @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param nick: The new nick name within the room.
-        @type nick: C{unicode}
+        @type nick: L{str}
         """
 
 
@@ -876,7 +876,7 @@ class IMUCClient(Interface):
 
         @param options: A mapping of field names to values, or C{None} to
             cancel.
-        @type options: C{dict}
+        @type options: L{dict}
         """
 
 
@@ -890,7 +890,7 @@ class IMUCClient(Interface):
         @type roomJID: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param subject: The subject you want to set.
-        @type subject: C{unicode}
+        @type subject: L{str}
         """
 
 
@@ -917,7 +917,7 @@ class IMUCClient(Interface):
             holding the original stanza a
             L{Element<twisted.words.xish.domish.Element>}, and C{'timestamp'}
             with the timestamp.
-        @type messages: C{list} of
+        @type messages: L{list} of
             L{Element<twisted.words.xish.domish.Element>}
         """
 
@@ -933,7 +933,7 @@ class IMUCClient(Interface):
         @type entity: L{JID<twisted.words.protocols.jabber.jid.JID>}
 
         @param reason: The reason for banning the entity.
-        @type reason: C{unicode}
+        @type reason: L{str}
 
         @param sender: The entity sending the request.
         @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}
@@ -949,10 +949,10 @@ class IMUCClient(Interface):
 
         @param nick: The occupant to be banned.
         @type nick: L{JID<twisted.words.protocols.jabber.jid.JID>} or
-            C{unicode}
+            L{str}
 
         @param reason: The reason given for the kick.
-        @type reason: C{unicode}
+        @type reason: L{str}
 
         @param sender: The entity sending the request.
         @type sender: L{JID<twisted.words.protocols.jabber.jid.JID>}

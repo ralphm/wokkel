@@ -35,7 +35,7 @@ def parseXml(string):
     Parse serialized XML into a DOM structure.
 
     @param string: The serialized XML to be parsed, UTF-8 encoded.
-    @type string: C{str}.
+    @type string: L{str}.
     @return: The DOM structure, or C{None} on empty or incomplete input.
     @rtype: L{domish.Element}
     """
@@ -332,17 +332,3 @@ class DeferredXmlStreamFactory(BootstrapMixin, protocol.ClientFactory):
 
     def clientConnectionFailed(self, connector, reason):
         self.deferred.errback(reason)
-
-
-
-@deprecated(Version("wokkel", 18, 0, 0), "unicode.encode('idna')")
-def prepareIDNName(name):
-    """
-    Encode a unicode IDN Domain Name into its ACE equivalent.
-
-    This will encode the domain labels, separated by allowed dot code points,
-    to their ASCII Compatible Encoding (ACE) equivalent, using punycode. The
-    result is an ASCII byte string of the encoded labels, separated by the
-    standard full stop.
-    """
-    return name.encode('idna')

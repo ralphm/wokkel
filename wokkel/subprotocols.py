@@ -14,7 +14,6 @@ from zope.interface import implementer
 from twisted.internet import defer
 from twisted.internet.error import ConnectionDone
 from twisted.python import failure, log
-from twisted.python.compat import iteritems, itervalues
 from twisted.python.deprecate import deprecatedModuleAttribute
 from twisted.words.protocols.jabber import error, ijabber, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
@@ -130,15 +129,15 @@ class StreamManager(XMPPHandlerCollection):
     @ivar xmlstream: currently managed XML stream
     @type xmlstream: L{XmlStream}
     @ivar logTraffic: if true, log all traffic.
-    @type logTraffic: C{bool}
+    @type logTraffic: L{bool}
     @ivar _initialized: Whether the stream represented by L{xmlstream} has
                         been initialized. This is used when caching outgoing
                         stanzas.
-    @type _initialized: C{bool}
+    @type _initialized: L{bool}
     @ivar _packetQueue: internal buffer of unsent data. See L{send} for details.
     @type _packetQueue: L{list}
     @ivar timeout: Default IQ request timeout in seconds.
-    @type timeout: C{int}
+    @type timeout: L{int}
     @ivar _reactor: A provider of L{IReactorTime} to track timeouts.
     """
     timeout = None
@@ -277,7 +276,7 @@ class StreamManager(XMPPHandlerCollection):
         # deferreds will never be fired.
         iqDeferreds = self._iqDeferreds
         self._iqDeferreds = {}
-        for d in itervalues(iqDeferreds):
+        for d in iqDeferreds.values():
             d.errback(reason)
 
 
@@ -420,7 +419,7 @@ class IQHandlerMixin(object):
 
     @cvar iqHandlers: Mapping from XPath queries (as a string) to the method
                       name that will handle requests that match the query.
-    @type iqHandlers: C{dict}
+    @type iqHandlers: L{dict}
     """
 
     iqHandlers = None
@@ -455,7 +454,7 @@ class IQHandlerMixin(object):
             return error.StanzaError('internal-server-error').toResponse(iq)
 
         handler = None
-        for queryString, method in iteritems(self.iqHandlers):
+        for queryString, method in self.iqHandlers.items():
             if xpath.internQuery(queryString).matches(iq):
                 handler = getattr(self, method)
 

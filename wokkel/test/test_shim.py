@@ -9,7 +9,6 @@ Tests for {wokkel.shim}.
 
 from __future__ import division, absolute_import
 
-from twisted.python.compat import unicode
 from twisted.trial import unittest
 
 from wokkel import shim
@@ -36,7 +35,7 @@ class HeadersTest(unittest.TestCase):
         self.assertEquals(NS_SHIM, header.uri)
         self.assertEquals('header', header.name)
         self.assertEquals('Urgency', header['name'])
-        self.assertEquals('high', unicode(header))
+        self.assertEquals('high', str(header))
 
 
     def test_headerRepeated(self):
@@ -47,7 +46,7 @@ class HeadersTest(unittest.TestCase):
                            ('Collection', 'node2')])
         elements = list(headers.elements())
         self.assertEquals(2, len(elements))
-        collections = set((unicode(element) for element in elements
+        collections = set((str(element) for element in elements
                            if element['name'] == 'Collection'))
         self.assertIn('node1', collections)
         self.assertIn('node2', collections)

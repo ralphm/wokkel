@@ -9,8 +9,6 @@ Generic payload formats.
 
 from __future__ import division, absolute_import
 
-from twisted.python.compat import unicode
-
 NS_MOOD = 'http://jabber.org/protocol/mood'
 NS_TUNE = 'http://jabber.org/protocol/tune'
 
@@ -55,7 +53,7 @@ class Mood:
                 continue
 
             if child.name == 'text':
-                text = unicode(child)
+                text = str(child)
             else:
                 value = child.name
 
@@ -76,19 +74,19 @@ class Tune:
     U{XEP-0118<http://xmpp.org/extensions/xep-0118.html>}.
 
     @ivar artist: The artist or performer of the song or piece.
-    @type artist: C{unicode}
+    @type artist: L{str}
     @ivar length: The duration of the song or piece in seconds.
-    @type length: C{int}
+    @type length: L{int}
     @ivar source: The collection (e.g. album) or other source.
-    @type source: C{unicode}
+    @type source: L{str}
     @ivar title: The title of the song or piece
-    @type title: C{unicode}
+    @type title: L{str}
     @ivar track: A unique identifier for the tune; e.g. the track number within
                  the collection or the specific URI for the object.
-    @type track: C{unicode}
+    @type track: L{str}
     @ivar uri: A URI pointing to information about the song, collection, or
                artist.
-    @type uri: C{str}
+    @type uri: L{str}
 
     """
 
@@ -122,10 +120,10 @@ class Tune:
                 continue
 
             if child.name in ('artist', 'source', 'title', 'track', 'uri'):
-                setattr(tune, child.name, unicode(child))
+                setattr(tune, child.name, str(child))
             elif child.name == 'length':
                 try:
-                    tune.length = int(unicode(child))
+                    tune.length = int(str(child))
                 except ValueError:
                     pass
 

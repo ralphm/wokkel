@@ -12,7 +12,6 @@ from __future__ import division, absolute_import
 from twisted.application import service
 from twisted.internet import reactor
 from twisted.python import log
-from twisted.python.compat import unicode
 from twisted.words.protocols.jabber.jid import internJID as JID
 from twisted.words.protocols.jabber import component, error, xmlstream
 from twisted.words.xish import domish
@@ -105,7 +104,7 @@ class InternalComponent(xmlstream.XMPPHandlerCollection, service.Service):
     components of this type connect to a router in the same process. This
     allows for one-process XMPP servers.
 
-    @ivar domains: Domains (as L{unicode}) this component will handle traffic
+    @ivar domains: Domains (as L{str}) this component will handle traffic
         for.
     @type domains: L{set}
     """
@@ -177,7 +176,7 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
     Authenticator for accepting components.
 
     @ivar secret: The shared used to authorized incoming component connections.
-    @type secret: L{unicode}.
+    @type secret: L{str}.
     """
 
     namespace = NS_COMPONENT_ACCEPT
@@ -241,7 +240,7 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
         L{onHandshake}.
         """
         if (element.uri, element.name) == (self.namespace, 'handshake'):
-            self.onHandshake(unicode(element))
+            self.onHandshake(str(element))
         else:
             exc = error.StreamError('not-authorized')
             self.xmlstream.sendStreamError(exc)
@@ -257,7 +256,7 @@ class ListenComponentAuthenticator(xmlstream.ListenAuthenticator):
         be exchanged.
         """
         calculatedHash = xmlstream.hashPassword(self.xmlstream.sid,
-                                                unicode(self.secret))
+                                                str(self.secret))
         if handshake != calculatedHash:
             exc = error.StreamError('not-authorized', text='Invalid hash')
             self.xmlstream.sendStreamError(exc)
@@ -301,7 +300,7 @@ class Router(object):
 
         @param destination: Destination of the route to be added as a host name
                             or L{None} for the default route.
-        @type destination: L{unicode} or L{NoneType}
+        @type destination: L{str} or L{NoneType}
 
         @param xs: XML Stream to register the route for.
         @type xs:
@@ -316,7 +315,7 @@ class Router(object):
         Remove a route.
 
         @param destination: Destination of the route that should be removed.
-        @type destination: L{unicode}
+        @type destination: L{str}
 
         @param xs: XML Stream to remove the route for.
         @type xs:
