@@ -13,13 +13,10 @@ from zope.interface import implementer
 
 from twisted.internet import defer, protocol
 from twisted.python import reflect
-from twisted.python.deprecate import deprecated
 from twisted.words.protocols.jabber import error, jid, xmlstream
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from twisted.words.xish import domish, utility
 from twisted.words.xish.xmlstream import BootstrapMixin
-
-from incremental import Version
 
 from wokkel.iwokkel import IDisco
 from wokkel.subprotocols import XMPPHandler

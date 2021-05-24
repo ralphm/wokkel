@@ -7,17 +7,11 @@ Tests for L{wokkel.generic}.
 
 from __future__ import division, absolute_import
 
-import re
-
 from zope.interface.verify import verifyObject
 
-from twisted.python import deprecate
 from twisted.trial import unittest
-from twisted.trial.util import suppress as SUPPRESS
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber.jid import JID
-
-from incremental import Version
 
 from wokkel import generic
 from wokkel.iwokkel import IDisco
