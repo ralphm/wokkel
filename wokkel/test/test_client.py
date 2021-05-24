@@ -152,7 +152,7 @@ class ClientCreatorTest(unittest.TestCase):
 
         def cb(connector):
             self.assertEqual('xmpp-client', connector.service)
-            self.assertEqual('example.org', connector.domain)
+            self.assertEqual(b'example.org', connector.domain)
             self.assertEqual(factory, connector.factory)
 
         def connect(connector):
