@@ -7,9 +7,9 @@ from wokkel.xmppim import RosterClientProtocol
 
 class RosterHandler(RosterClientProtocol):
     def gotRoster(self, roster):
-        print 'Got roster:'
-        for entity, item in roster.iteritems():
-            print '  %r (%r)' % (entity, item.name or '')
+        print('Got roster:')
+        for entity, item in roster.items():
+            print('  %r (%r)' % (entity, item.name or ''))
 
     def connectionInitialized(self):
         RosterClientProtocol.connectionInitialized(self)

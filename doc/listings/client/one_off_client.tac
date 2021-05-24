@@ -18,7 +18,7 @@ def getVersion(xmlstream, target):
         for element in result.query.elements():
             if (element.uri == NS_VERSION and
                 element.name in ('name', 'version')):
-                version[element.name] = unicode(element)
+                version[element.name] = str(element)
         return version
 
     iq = IQ(xmlstream, 'get')
@@ -28,8 +28,8 @@ def getVersion(xmlstream, target):
     return d
 
 def printVersion(version):
-    print "Name: %s" % version['name'].encode('utf-8')
-    print "Version: %s" % version['version'].encode('utf-8')
+    print("Name: %s" % version['name'])
+    print("Version: %s" % version['version'])
 
 jid = JID("user@example.org")
 password = 'secret'
