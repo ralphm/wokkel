@@ -10,7 +10,7 @@ from __future__ import division, absolute_import
 from zope.interface import verify
 from zope.interface.common.mapping import IIterableMapping
 
-from twisted.python.compat import unicode, _PY3
+from twisted.python.compat import unicode
 from twisted.trial import unittest
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import jid
@@ -1091,7 +1091,7 @@ class FormTest(unittest.TestCase):
         self.assertNotIn('features', form)
 
 
-    def test_iterkeys(self):
+    def test_keys(self):
         """
         Iterating over the keys of a form yields all field names.
         """
@@ -1101,10 +1101,10 @@ class FormTest(unittest.TestCase):
                                                 values=['news', 'search'])]
         form = data_form.Form('submit', fields=fields)
         self.assertEqual(set(['botname', 'public', 'features']),
-                         set(form.iterkeys()))
+                         set(form.keys()))
 
 
-    def test_itervalues(self):
+    def test_values(self):
         """
         Iterating over the values of a form yields all field values.
         """
@@ -1112,10 +1112,10 @@ class FormTest(unittest.TestCase):
                   data_form.Field('boolean', var='public', value=True)]
         form = data_form.Form('submit', fields=fields)
         self.assertEqual(set(['The Jabber Bot', True]),
-                         set(form.itervalues()))
+                         set(form.values()))
 
 
-    def test_iteritems(self):
+    def test_items(self):
         """
         Iterating over the values of a form yields all item tuples.
         """
@@ -1124,51 +1124,7 @@ class FormTest(unittest.TestCase):
         form = data_form.Form('submit', fields=fields)
         self.assertEqual(set([('botname', 'The Jabber Bot'),
                               ('public', True)]),
-                         set(form.iteritems()))
-
-
-    def test_keys(self):
-        """
-        Getting the keys of a form yields a list of field names.
-        """
-        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
-                  data_form.Field('boolean', var='public', value=True),
-                  data_form.Field('list-multi', var='features',
-                                                values=['news', 'search'])]
-        form = data_form.Form('submit', fields=fields)
-        keys = form.keys()
-        if not _PY3:
-            self.assertIsInstance(keys, list)
-        self.assertEqual(set(['botname', 'public', 'features']),
-                         set(keys))
-
-
-    def test_values(self):
-        """
-        Getting the values of a form yields a list of field values.
-        """
-        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
-                  data_form.Field('boolean', var='public', value=True)]
-        form = data_form.Form('submit', fields=fields)
-        values = form.values()
-        if not _PY3:
-            self.assertIsInstance(values, list)
-        self.assertEqual(set(['The Jabber Bot', True]), set(values))
-
-
-    def test_items(self):
-        """
-        Iterating over the values of a form yields a list of all item tuples.
-        """
-        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
-                  data_form.Field('boolean', var='public', value=True)]
-        form = data_form.Form('submit', fields=fields)
-        items = form.items()
-        if not _PY3:
-            self.assertIsInstance(items, list)
-        self.assertEqual(set([('botname', 'The Jabber Bot'),
-                              ('public', True)]),
-                         set(items))
+                         set(form.items()))
 
 
     def test_getValues(self):

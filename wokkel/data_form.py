@@ -17,7 +17,7 @@ from __future__ import division, absolute_import
 from zope.interface import implementer
 from zope.interface.common import mapping
 
-from twisted.python.compat import iteritems, unicode, _PY3
+from twisted.python.compat import unicode
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
 
@@ -147,7 +147,7 @@ class Field(object):
         try:
             self.options = [Option(optionValue, optionLabel)
                             for optionValue, optionLabel
-                            in iteritems(options)]
+                            in options.items()]
         except AttributeError:
             self.options = options or []
 
@@ -313,9 +313,9 @@ class Field(object):
     def fromElement(element):
         field = Field(None)
 
-        for eAttr, fAttr in iteritems({'type': 'fieldType',
-                                       'var': 'var',
-                                       'label': 'label'}):
+        for eAttr, fAttr in {'type': 'fieldType',
+                             'var': 'var',
+                             'label': 'label'}.items():
             value = element.getAttribute(eAttr)
             if value:
                 setattr(field, fAttr, value)
@@ -350,7 +350,7 @@ class Field(object):
 
         if 'options' in fieldDict:
             options = []
-            for value, label in iteritems(fieldDict['options']):
+            for value, label in fieldDict['options'].items():
                 options.append(Option(value, label))
             kwargs['options'] = options
 
@@ -497,7 +497,7 @@ class Form(object):
             C{fieldDefs}.
         @type filterUnknown: L{bool}
         """
-        for name, value in iteritems(values):
+        for name, value in values.items():
             fieldDict = {'var': name,
                          'type': None}
 
@@ -624,35 +624,18 @@ class Form(object):
         return key in self.fields
 
 
-    def iterkeys(self):
+    def keys(self):
         return iter(self)
 
 
-    def itervalues(self):
+    def values(self):
         for key in self:
             yield self[key]
 
 
-    def iteritems(self):
+    def items(self):
         for key in self:
             yield (key, self[key])
-
-    if _PY3:
-        keys = iterkeys
-        values = itervalues
-        items = iteritems
-    else:
-        def keys(self):
-            return list(self)
-
-
-        def values(self):
-            return list(self.itervalues())
-
-
-        def items(self):
-            return list(self.iteritems())
-
 
     def getValues(self):
         """
@@ -701,7 +684,7 @@ class Form(object):
 
         filtered = []
 
-        for name, field in iteritems(self.fields):
+        for name, field in self.fields.items():
             if name in fieldDefs:
                 fieldDef = fieldDefs[name]
                 if 'type' not in fieldDef:
