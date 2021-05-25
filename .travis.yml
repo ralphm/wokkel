@@ -2,21 +2,33 @@ language: python
 
 python:
     - 3.6
-    - 3.7
-    - 3.8
-    - 3.9
-    - pypy
+    - pypy3
 
 env:
     global:
         - PYFLAKES_NODOCTEST=1
-    matrix:
+    jobs:
         - TWISTED=Twisted==16.4
         - TWISTED=Twisted==17.9
         - TWISTED=Twisted==18.9
         - TWISTED=Twisted==20.3
         - TWISTED=Twisted==21.2
         - TWISTED=https://github.com/twisted/twisted/archive/trunk.zip
+
+jobs:
+    include:
+        - python: 3.7
+          env: TWISTED=Twisted==21.2
+        - python: 3.7
+          env: TWISTED=https://github.com/twisted/twisted/archive/trunk.zip
+        - python: 3.8
+          env: TWISTED=Twisted==21.2
+        - python: 3.8
+          env: TWISTED=https://github.com/twisted/twisted/archive/trunk.zip
+        - python: 3.9
+          env: TWISTED=Twisted==21.2
+        - python: 3.9
+          env: TWISTED=https://github.com/twisted/twisted/archive/trunk.zip
 
 install:
     - pip install -q $TWISTED
