@@ -30,6 +30,10 @@ jobs:
         - python: 3.9
           env: TWISTED=https://github.com/twisted/twisted/archive/trunk.zip
 
+before_install:
+    - pip install --upgrade pip
+    - pip install --upgrade setuptools
+
 install:
     - pip install -q $TWISTED
     - pip install .[dev]
