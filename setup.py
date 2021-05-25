@@ -40,11 +40,11 @@ setup(name='wokkel',
       license='MIT',
       platforms='any',
       classifiers=[
-          'Programming Language :: Python :: 2.7',
           'Programming Language :: Python :: 3',
-          'Programming Language :: Python :: 3.4',
-          'Programming Language :: Python :: 3.5',
           'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: 3.7',
+          'Programming Language :: Python :: 3.8',
+          'Programming Language :: Python :: 3.9',
       ],
       packages=[
           'wokkel',
@@ -60,16 +60,15 @@ setup(name='wokkel',
       install_requires=[
           'incremental>=16.9.0',
           'python-dateutil',
+          'Twisted[tls]>=16.4.0',
       ],
       extras_require={
-          ":python_version<'3'": 'Twisted[tls]>=15.5.0',
-          ":python_version>'3'": 'Twisted[tls]>=16.4.0',
           "dev": [
               "pyflakes",
               "coverage",
+              "pydoctor",
               "sphinx",
               "towncrier",
           ],
-          "dev:python_version<'3'": "pydoctor",
       },
 )

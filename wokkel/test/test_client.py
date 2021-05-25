@@ -8,6 +8,7 @@ Tests for L{wokkel.client}.
 from __future__ import division, absolute_import
 
 from twisted.internet import defer
+from twisted.python.compat import nativeString
 from twisted.trial import unittest
 from twisted.words.protocols.jabber import xmlstream
 from twisted.words.protocols.jabber.client import XMPPAuthenticator
@@ -152,7 +153,7 @@ class ClientCreatorTest(unittest.TestCase):
 
         def cb(connector):
             self.assertEqual('xmpp-client', connector.service)
-            self.assertEqual('example.org', connector.domain)
+            self.assertEqual('example.org', nativeString(connector.domain))
             self.assertEqual(factory, connector.factory)
 
         def connect(connector):

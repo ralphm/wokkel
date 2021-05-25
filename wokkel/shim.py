@@ -12,7 +12,6 @@ U{XEP-0131<http://xmpp.org/extensions/xep-0131.html>}.
 
 from __future__ import division, absolute_import
 
-from twisted.python.compat import unicode
 from twisted.words.xish import domish
 
 NS_SHIM = "http://jabber.org/protocol/shim"
@@ -30,7 +29,7 @@ def extractHeaders(stanza):
     @param stanza: The stanza to extract headers from.
     @type stanza: L{Element<twisted.words.xish.domish.Element>}
     @return: Headers as a mapping from header name to a list of values.
-    @rtype: C{dict}
+    @rtype: L{dict}
     """
     headers = {}
 
@@ -38,6 +37,6 @@ def extractHeaders(stanza):
                                                  'headers', NS_SHIM):
         for header in domish.generateElementsQNamed(element.children,
                                                     'header', NS_SHIM):
-            headers.setdefault(header['name'], []).append(unicode(header))
+            headers.setdefault(header['name'], []).append(str(header))
 
     return headers

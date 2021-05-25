@@ -7,18 +7,11 @@ Tests for L{wokkel.generic}.
 
 from __future__ import division, absolute_import
 
-import re
-
 from zope.interface.verify import verifyObject
 
-from twisted.python import deprecate
-from twisted.python.compat import unicode
 from twisted.trial import unittest
-from twisted.trial.util import suppress as SUPPRESS
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber.jid import JID
-
-from incremental import Version
 
 from wokkel import generic
 from wokkel.iwokkel import IDisco
@@ -66,11 +59,11 @@ class VersionHandlerTest(unittest.TestCase):
         elements = list(domish.generateElementsQNamed(response.query.children,
                                                       'name', NS_VERSION))
         self.assertEquals(1, len(elements))
-        self.assertEquals('Test', unicode(elements[0]))
+        self.assertEquals('Test', str(elements[0]))
         elements = list(domish.generateElementsQNamed(response.query.children,
                                                       'version', NS_VERSION))
         self.assertEquals(1, len(elements))
-        self.assertEquals('0.1.0', unicode(elements[0]))
+        self.assertEquals('0.1.0', str(elements[0]))
 
 
 
@@ -314,67 +307,3 @@ class RequestTest(unittest.TestCase):
 
         request = SetRequest()
         self.assertEqual('set', request.stanzaType)
-
-
-
-class PrepareIDNNameTests(unittest.TestCase):
-    """
-    Tests for L{wokkel.generic.prepareIDNName}.
-    """
-
-    suppress = [SUPPRESS(category=DeprecationWarning,
-                         message=re.escape(
-                             deprecate.getDeprecationWarningString(
-                                 generic.prepareIDNName,
-                                 Version("wokkel", 18, 0, 0),
-                                 replacement="unicode.encode('idna')")))]
-
-
-    def test_deprecated(self):
-        """
-        prepareIDNName is deprecated.
-        """
-        self.callDeprecated((Version("wokkel", 18, 0, 0),
-                             "unicode.encode('idna')"),
-                            generic.prepareIDNName, ("example.com"))
-    test_deprecated.suppress = []
-
-
-    def test_unicode(self):
-        """
-        A unicode all-ASCII name is converted to an ASCII byte string.
-        """
-        name = u"example.com"
-        result = generic.prepareIDNName(name)
-        self.assertEqual(b"example.com", result)
-
-
-    def test_unicodeNonASCII(self):
-        """
-        A unicode with non-ASCII is converted to its ACE equivalent.
-        """
-        name = u"\u00e9chec.example.com"
-        result = generic.prepareIDNName(name)
-        self.assertEqual(b"xn--chec-9oa.example.com", result)
-
-
-    def test_unicodeHalfwidthIdeographicFullStop(self):
-        """
-        Exotic dots in unicode names are converted to Full Stop.
-        """
-        name = u"\u00e9chec.example\uff61com"
-        result = generic.prepareIDNName(name)
-        self.assertEqual(b"xn--chec-9oa.example.com", result)
-
-
-    def test_unicodeTrailingDot(self):
-        """
-        Unicode names with trailing dots retain the trailing dot.
-
-        L{encodings.idna.ToASCII} doesn't allow the empty string as the input,
-        hence the implementation needs to strip a trailing dot, and re-add it
-        after encoding the labels.
-        """
-        name = u"example.com."
-        result = generic.prepareIDNName(name)
-        self.assertEqual(b"example.com.", result)

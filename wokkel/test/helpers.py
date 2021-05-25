@@ -8,7 +8,6 @@ Unit test helpers.
 from __future__ import division, absolute_import
 
 from twisted.internet import defer
-from twisted.python.compat import iteritems
 from twisted.words.xish import xpath
 from twisted.words.xish.utility import EventDispatcher
 
@@ -79,14 +78,14 @@ class TestableRequestHandlerMixin(object):
         Find a handler and call it directly.
 
         @param xml: XML stanza that may yield a handler being called.
-        @type xml: C{str}.
+        @type xml: L{str}.
         @return: Deferred that fires with the result of a handler for this
                  stanza. If no handler was found, the deferred has its errback
                  called with a C{NotImplementedError} exception.
         """
         handler = None
         iq = parseXml(xml)
-        for queryString, method in iteritems(self.service.iqHandlers):
+        for queryString, method in self.service.iqHandlers.items():
             if xpath.internQuery(queryString).matches(iq):
                 handler = getattr(self.service, method)
 

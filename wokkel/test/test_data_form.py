@@ -10,7 +10,6 @@ from __future__ import division, absolute_import
 from zope.interface import verify
 from zope.interface.common.mapping import IIterableMapping
 
-from twisted.python.compat import unicode, _PY3
 from twisted.trial import unittest
 from twisted.words.xish import domish
 from twisted.words.protocols.jabber import jid
@@ -34,7 +33,7 @@ class OptionTest(unittest.TestCase):
         self.assertEqual('option', element.name)
         self.assertEqual(NS_X_DATA, element.uri)
         self.assertEqual(NS_X_DATA, element.value.uri)
-        self.assertEqual('value', unicode(element.value))
+        self.assertEqual('value', str(element.value))
         self.assertFalse(element.hasAttribute('label'))
 
 
@@ -48,7 +47,7 @@ class OptionTest(unittest.TestCase):
         self.assertEqual('option', element.name)
         self.assertEqual(NS_X_DATA, element.uri)
         self.assertEqual(NS_X_DATA, element.value.uri)
-        self.assertEqual('value', unicode(element.value))
+        self.assertEqual('value', str(element.value))
         self.assertEqual('label', element['label'])
 
 
@@ -225,7 +224,7 @@ class FieldTest(unittest.TestCase):
         child = element.children[0]
         self.assertEqual('desc', child.name)
         self.assertEqual(NS_X_DATA, child.uri)
-        self.assertEqual(u'My desc', unicode(child))
+        self.assertEqual(u'My desc', str(child))
 
 
     def test_toElementRequired(self):
@@ -248,7 +247,7 @@ class FieldTest(unittest.TestCase):
         field = data_form.Field(fieldType='jid-single', var='test',
                                 value=jid.JID(u'test@example.org'))
         element = field.toElement()
-        self.assertEqual(u'test@example.org', unicode(element.value))
+        self.assertEqual(u'test@example.org', str(element.value))
 
 
     def test_toElementJIDTextSingle(self):
@@ -258,7 +257,7 @@ class FieldTest(unittest.TestCase):
         field = data_form.Field(fieldType='text-single', var='test',
                                 value=jid.JID(u'test@example.org'))
         element = field.toElement()
-        self.assertEqual(u'test@example.org', unicode(element.value))
+        self.assertEqual(u'test@example.org', str(element.value))
 
 
     def test_toElementBoolean(self):
@@ -268,7 +267,7 @@ class FieldTest(unittest.TestCase):
         field = data_form.Field(fieldType='boolean', var='test',
                                 value=True)
         element = field.toElement()
-        self.assertEqual(u'true', unicode(element.value))
+        self.assertEqual(u'true', str(element.value))
 
 
     def test_toElementBooleanTextSingle(self):
@@ -277,7 +276,7 @@ class FieldTest(unittest.TestCase):
         """
         field = data_form.Field(var='test', value=True)
         element = field.toElement()
-        self.assertEqual(u'true', unicode(element.value))
+        self.assertEqual(u'true', str(element.value))
 
 
     def test_toElementNoType(self):
@@ -396,7 +395,7 @@ class FieldTest(unittest.TestCase):
 
     def test_fromElementValueTextSingle(self):
         """
-        Parsed text-single field values should be of type C{unicode}.
+        Parsed text-single field values should be of type L{str}.
         """
         element = domish.Element((NS_X_DATA, 'field'))
         element['type'] = 'text-single'
@@ -407,7 +406,7 @@ class FieldTest(unittest.TestCase):
 
     def test_fromElementValueJID(self):
         """
-        Parsed jid-single field values should be of type C{unicode}.
+        Parsed jid-single field values should be of type L{str}.
         """
         element = domish.Element((NS_X_DATA, 'field'))
         element['type'] = 'jid-single'
@@ -418,7 +417,7 @@ class FieldTest(unittest.TestCase):
 
     def test_fromElementValueJIDMalformed(self):
         """
-        Parsed jid-single field values should be of type C{unicode}.
+        Parsed jid-single field values should be of type L{str}.
 
         No validation should be done at this point, so invalid JIDs should
         also be passed as-is.
@@ -432,7 +431,7 @@ class FieldTest(unittest.TestCase):
 
     def test_fromElementValueBoolean(self):
         """
-        Parsed boolean field values should be of type C{unicode}.
+        Parsed boolean field values should be of type L{str}.
         """
         element = domish.Element((NS_X_DATA, 'field'))
         element['type'] = 'boolean'
@@ -561,7 +560,7 @@ class FormTest(unittest.TestCase):
         title = elements[0]
         self.assertEqual('title', title.name)
         self.assertEqual(NS_X_DATA, title.uri)
-        self.assertEqual('Bot configuration', unicode(title))
+        self.assertEqual('Bot configuration', str(title))
 
 
     def test_toElementInstructions(self):
@@ -576,7 +575,7 @@ class FormTest(unittest.TestCase):
         instructions = elements[0]
         self.assertEqual('instructions', instructions.name)
         self.assertEqual(NS_X_DATA, instructions.uri)
-        self.assertEqual('Fill out this form!', unicode(instructions))
+        self.assertEqual('Fill out this form!', str(instructions))
 
 
     def test_toElementInstructionsMultiple(self):
@@ -593,10 +592,10 @@ class FormTest(unittest.TestCase):
         instructions2 = elements[1]
         self.assertEqual('instructions', instructions1.name)
         self.assertEqual(NS_X_DATA, instructions1.uri)
-        self.assertEqual('Fill out this form!', unicode(instructions1))
+        self.assertEqual('Fill out this form!', str(instructions1))
         self.assertEqual('instructions', instructions2.name)
         self.assertEqual(NS_X_DATA, instructions2.uri)
-        self.assertEqual('no really', unicode(instructions2))
+        self.assertEqual('no really', str(instructions2))
 
 
     def test_toElementFormType(self):
@@ -613,7 +612,7 @@ class FormTest(unittest.TestCase):
         self.assertEqual(NS_X_DATA, formTypeField.uri)
         self.assertEqual('FORM_TYPE', formTypeField['var'])
         self.assertEqual('hidden', formTypeField['type'])
-        self.assertEqual('jabber:bot', unicode(formTypeField.value))
+        self.assertEqual('jabber:bot', str(formTypeField.value))
 
 
     def test_toElementFields(self):
@@ -1091,7 +1090,7 @@ class FormTest(unittest.TestCase):
         self.assertNotIn('features', form)
 
 
-    def test_iterkeys(self):
+    def test_keys(self):
         """
         Iterating over the keys of a form yields all field names.
         """
@@ -1101,10 +1100,10 @@ class FormTest(unittest.TestCase):
                                                 values=['news', 'search'])]
         form = data_form.Form('submit', fields=fields)
         self.assertEqual(set(['botname', 'public', 'features']),
-                         set(form.iterkeys()))
+                         set(form.keys()))
 
 
-    def test_itervalues(self):
+    def test_values(self):
         """
         Iterating over the values of a form yields all field values.
         """
@@ -1112,10 +1111,10 @@ class FormTest(unittest.TestCase):
                   data_form.Field('boolean', var='public', value=True)]
         form = data_form.Form('submit', fields=fields)
         self.assertEqual(set(['The Jabber Bot', True]),
-                         set(form.itervalues()))
+                         set(form.values()))
 
 
-    def test_iteritems(self):
+    def test_items(self):
         """
         Iterating over the values of a form yields all item tuples.
         """
@@ -1124,51 +1123,7 @@ class FormTest(unittest.TestCase):
         form = data_form.Form('submit', fields=fields)
         self.assertEqual(set([('botname', 'The Jabber Bot'),
                               ('public', True)]),
-                         set(form.iteritems()))
-
-
-    def test_keys(self):
-        """
-        Getting the keys of a form yields a list of field names.
-        """
-        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
-                  data_form.Field('boolean', var='public', value=True),
-                  data_form.Field('list-multi', var='features',
-                                                values=['news', 'search'])]
-        form = data_form.Form('submit', fields=fields)
-        keys = form.keys()
-        if not _PY3:
-            self.assertIsInstance(keys, list)
-        self.assertEqual(set(['botname', 'public', 'features']),
-                         set(keys))
-
-
-    def test_values(self):
-        """
-        Getting the values of a form yields a list of field values.
-        """
-        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
-                  data_form.Field('boolean', var='public', value=True)]
-        form = data_form.Form('submit', fields=fields)
-        values = form.values()
-        if not _PY3:
-            self.assertIsInstance(values, list)
-        self.assertEqual(set(['The Jabber Bot', True]), set(values))
-
-
-    def test_items(self):
-        """
-        Iterating over the values of a form yields a list of all item tuples.
-        """
-        fields = [data_form.Field(var='botname', value='The Jabber Bot'),
-                  data_form.Field('boolean', var='public', value=True)]
-        form = data_form.Form('submit', fields=fields)
-        items = form.items()
-        if not _PY3:
-            self.assertIsInstance(items, list)
-        self.assertEqual(set([('botname', 'The Jabber Bot'),
-                              ('public', True)]),
-                         set(items))
+                         set(form.items()))
 
 
     def test_getValues(self):

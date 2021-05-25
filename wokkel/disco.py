@@ -13,7 +13,6 @@ U{XEP-0030<http://xmpp.org/extensions/xep-0030.html>}.
 from __future__ import division, absolute_import
 
 from twisted.internet import defer
-from twisted.python.compat import iteritems, unicode
 from twisted.words.protocols.jabber import error, jid
 from twisted.words.xish import domish
 
@@ -29,11 +28,11 @@ IQ_GET = '/iq[@type="get"]'
 DISCO_INFO = IQ_GET + '/query[@xmlns="' + NS_DISCO_INFO + '"]'
 DISCO_ITEMS = IQ_GET + '/query[@xmlns="' + NS_DISCO_ITEMS + '"]'
 
-class DiscoFeature(unicode):
+class DiscoFeature(str):
     """
     XMPP service discovery feature.
 
-    This extends C{unicode} to convert to and from L{domish.Element}, but
+    This extends L{str} to convert to and from L{domish.Element}, but
     further behaves identically.
     """
 
@@ -44,7 +43,7 @@ class DiscoFeature(unicode):
         @rtype: L{domish.Element}.
         """
         element = domish.Element((NS_DISCO_INFO, 'feature'))
-        element['var'] = unicode(self)
+        element['var'] = str(self)
         return element
 
 
@@ -68,11 +67,11 @@ class DiscoIdentity(object):
     XMPP service discovery identity.
 
     @ivar category: The identity category.
-    @type category: C{unicode}
+    @type category: L{str}
     @ivar type: The identity type.
-    @type type: C{unicode}
+    @type type: L{str}
     @ivar name: The optional natural language name for this entity.
-    @type name: C{unicode}
+    @type name: L{str}
     """
 
     def __init__(self, category, idType, name=None):
@@ -119,21 +118,21 @@ class DiscoInfo(object):
     XMPP service discovery info.
 
     @ivar nodeIdentifier: The optional node this info applies to.
-    @type nodeIdentifier: C{unicode}
+    @type nodeIdentifier: L{str}
     @ivar features: Features as L{DiscoFeature}.
-    @type features: C{set}
+    @type features: L{set}
     @ivar identities: Identities as a mapping from (category, type) to name,
-                      all C{unicode}.
-    @type identities: C{dict}
+                      all L{str}.
+    @type identities: L{dict}
     @ivar extensions: Service discovery extensions as a mapping from the
-                      extension form's C{FORM_TYPE} (C{unicode}) to
+                      extension form's C{FORM_TYPE} (L{str}) to
                       L{data_form.Form}. Forms with no C{FORM_TYPE} field
                       are mapped as C{None}. Note that multiple forms
                       with the same C{FORM_TYPE} have the last in sequence
                       prevail.
-    @type extensions: C{dict}
+    @type extensions: L{dict}
     @ivar _items: Sequence of added items.
-    @type _items: C{list}
+    @type _items: L{list}
     """
 
     def __init__(self):
@@ -226,9 +225,9 @@ class DiscoItem(object):
     @ivar entity: The entity holding the item.
     @type entity: L{jid.JID}
     @ivar nodeIdentifier: The optional node identifier for the item.
-    @type nodeIdentifier: C{unicode}
+    @type nodeIdentifier: L{str}
     @ivar name: The optional natural language name for this entity.
-    @type name: C{unicode}
+    @type name: L{str}
     """
 
     def __init__(self, entity, nodeIdentifier='', name=None):
@@ -278,9 +277,9 @@ class DiscoItems(object):
     XMPP service discovery items.
 
     @ivar nodeIdentifier: The optional node this info applies to.
-    @type nodeIdentifier: C{unicode}
+    @type nodeIdentifier: L{str}
     @ivar _items: Sequence of added items.
-    @type _items: C{list}
+    @type _items: L{list}
     """
 
     def __init__(self):
@@ -353,9 +352,9 @@ class _DiscoRequest(generic.Request):
     A Service Discovery request.
 
     @ivar verb: Type of request: C{'info'} or C{'items'}.
-    @type verb: C{str}
+    @type verb: L{str}
     @ivar nodeIdentifier: Optional node to request info for.
-    @type nodeIdentifier: C{unicode}
+    @type nodeIdentifier: L{str}
     """
 
     verb = None
@@ -366,7 +365,7 @@ class _DiscoRequest(generic.Request):
             NS_DISCO_ITEMS: 'items',
             }
 
-    _verbRequestMap = dict(((v, k) for k, v in iteritems(_requestVerbMap)))
+    _verbRequestMap = dict(((v, k) for k, v in _requestVerbMap.items()))
 
     def __init__(self, verb=None, nodeIdentifier='',
                        recipient=None, sender=None):
@@ -415,7 +414,7 @@ class DiscoClientProtocol(XMPPHandler):
         @type entity: L{jid.JID}
 
         @param nodeIdentifier: Optional node to request info from.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
 
         @param sender: Optional sender address.
         @type sender: L{jid.JID}
@@ -438,7 +437,7 @@ class DiscoClientProtocol(XMPPHandler):
         @type entity: L{jid.JID}
 
         @param nodeIdentifier: Optional node to request info from.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
 
         @param sender: Optional sender address.
         @type sender: L{jid.JID}
@@ -534,7 +533,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
 
         @param deferredList: List of deferreds for which the results should be
                              gathered.
-        @type deferredList: C{list}
+        @type deferredList: L{list}
         @return: Deferred that fires with a list of gathered results.
         @rtype: L{defer.Deferred}
         """
@@ -566,7 +565,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         @param target: The entity the request was sent to.
         @type target: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The optional node being queried, or C{''}.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @return: Deferred with the gathered results from sibling handlers.
         @rtype: L{defer.Deferred}
         """
@@ -589,7 +588,7 @@ class DiscoHandler(XMPPHandler, IQHandlerMixin):
         @param target: The entity the request was sent to.
         @type target: L{JID<twisted.words.protocols.jabber.jid.JID>}
         @param nodeIdentifier: The optional node being queried, or C{''}.
-        @type nodeIdentifier: C{unicode}
+        @type nodeIdentifier: L{str}
         @return: Deferred with the gathered results from sibling handlers.
         @rtype: L{defer.Deferred}
         """

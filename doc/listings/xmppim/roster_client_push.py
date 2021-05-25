@@ -7,9 +7,9 @@ from wokkel.xmppim import RosterClientProtocol
 
 class RosterHandler(RosterClientProtocol):
     def gotRoster(self, roster):
-        print 'Got roster:'
-        for entity, item in roster.iteritems():
-            print '  %r (%r)' % (entity, item.name or '')
+        print('Got roster:')
+        for entity, item in roster.items():
+            print('  %r (%r)' % (entity, item.name or ''))
 
     def connectionInitialized(self):
         RosterClientProtocol.connectionInitialized(self)
@@ -18,11 +18,11 @@ class RosterHandler(RosterClientProtocol):
         d.addErrback(log.err)
 
     def removeReceived(self, request):
-        print 'Contact %r was removed.' % (request.item.entity,)
+        print('Contact %r was removed.' % (request.item.entity,))
 
     def setReceived(self, request):
-        print 'Contact %r (%r) was updated.' % (request.item.entity,
-                                                request.item.name)
+        print('Contact %r (%r) was updated.' % (request.item.entity,
+                                                request.item.name))
 
 USER_JID, PASSWORD = sys.argv[1:3]
 client = XMPPClient(JID(USER_JID), PASSWORD)

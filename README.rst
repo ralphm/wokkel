@@ -17,8 +17,7 @@ included to be used with older Twisted releases.
 Requirements
 ------------
 
-- Python 2.7, Python 3.4 or later, or pypy equivalent
-- Twisted 15.5.0 or later for Python 2
+- Python 3.6 or later, or pypy equivalent
 - Twisted 16.4.0 or later for Python 3
 - python-dateutil
 - incremental 16.9.0 or later

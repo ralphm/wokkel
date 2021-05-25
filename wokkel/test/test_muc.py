@@ -14,7 +14,6 @@ from zope.interface import verify
 
 from twisted.trial import unittest
 from twisted.internet import defer, task
-from twisted.python.compat import iteritems, unicode
 from twisted.words.xish import domish, xpath
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.protocols.jabber.error import StanzaError
@@ -81,7 +80,7 @@ class StatusCodeTest(unittest.TestCase):
             332: 'removed-shutdown',
         }
 
-        for code, condition in iteritems(codes):
+        for code, condition in codes.items():
             constantName = condition.replace('-', '_').upper()
             self.assertEqual(getattr(muc.STATUS_CODE, constantName),
                              muc.STATUS_CODE.lookupByValue(code))
@@ -757,7 +756,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         self.assertEquals('message', message.name)
         self.assertEquals(self.roomJID.full(), message.getAttribute('to'))
         self.assertEquals('groupchat', message.getAttribute('type'))
-        self.assertEquals(u'This is a test', unicode(message.body))
+        self.assertEquals(u'This is a test', str(message.body))
 
 
     def test_chat(self):
@@ -773,7 +772,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         self.assertEquals('message', message.name)
         self.assertEquals(otherOccupantJID.full(), message.getAttribute('to'))
         self.assertEquals('chat', message.getAttribute('type'))
-        self.assertEquals(u'This is a test', unicode(message.body))
+        self.assertEquals(u'This is a test', str(message.body))
 
 
     def test_subject(self):
@@ -787,7 +786,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         self.assertEquals('message', message.name)
         self.assertEquals(self.roomJID.full(), message.getAttribute('to'))
         self.assertEquals('groupchat', message.getAttribute('type'))
-        self.assertEquals(u'This is a test', unicode(message.subject))
+        self.assertEquals(u'This is a test', str(message.subject))
 
 
     def test_invite(self):
@@ -806,7 +805,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         self.assertEquals(muc.NS_MUC_USER, message.x.invite.uri)
         self.assertEquals(invitee.full(), message.x.invite.getAttribute('to'))
         self.assertEquals(muc.NS_MUC_USER, message.x.invite.reason.uri)
-        self.assertEquals(u'This is a test', unicode(message.x.invite.reason))
+        self.assertEquals(u'This is a test', str(message.x.invite.reason))
 
 
     def test_getRegisterForm(self):
@@ -1399,7 +1398,7 @@ class MUCClientProtocolTest(unittest.TestCase):
         nodes = xpath.queryForNodes(query, iq)
         self.assertNotIdentical(None, nodes, 'Bad configure request')
         destroy = nodes[0]
-        self.assertEquals('Time to leave', unicode(destroy.reason))
+        self.assertEquals('Time to leave', str(destroy.reason))
 
         response = toResponse(iq, 'result')
         self.stub.send(response)

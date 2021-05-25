@@ -46,7 +46,7 @@ class Delay(object):
         Render this instance into a domish Element.
 
         @param legacy: If C{True}, use the legacy XEP-0091 format.
-        @type legacy: C{bool}
+        @type legacy: L{bool}
         """
         if not self.stamp:
             raise ValueError("stamp is required")

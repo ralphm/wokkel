@@ -10,13 +10,13 @@ class RosterHandler(RosterClientProtocol):
 
     def gotRoster(self, roster):
         if roster is None:
-            print "The cached roster is up-to-date!"
+            print("The cached roster is up-to-date!")
             return
 
-        print 'Got roster (%r):' % (roster.version,)
+        print('Got roster (%r):' % (roster.version,))
         self.roster = roster
-        for entity, item in roster.iteritems():
-            print '  %r (%r)' % (entity, item.name or '')
+        for entity, item in roster.items():
+            print('  %r (%r)' % (entity, item.name or ''))
 
     def connectionInitialized(self):
         RosterClientProtocol.connectionInitialized(self)
@@ -31,13 +31,13 @@ class RosterHandler(RosterClientProtocol):
         reactor.callLater(15, self.xmlstream.sendFooter)
 
     def removeReceived(self, request):
-        print 'Contact %r was removed.' % (request.item.entity,)
+        print('Contact %r was removed.' % (request.item.entity,))
         del self.roster[request.item.entity]
         self.roster.version = request.version
 
     def setReceived(self, request):
-        print 'Contact %r (%r) was updated.' % (request.item.entity,
-                                                request.item.name)
+        print('Contact %r (%r) was updated.' % (request.item.entity,
+                                                request.item.name))
         self.roster[request.item.entity] = request.item
         self.roster.version = request.version
 

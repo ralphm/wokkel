@@ -8,7 +8,6 @@ send back messages sent to it.
 """
 
 from twisted.application import service, strports
-from twisted.python.compat import unicode
 from twisted.words.protocols.jabber.xmlstream import toResponse
 from wokkel import component, server, xmppim
 
@@ -101,9 +100,9 @@ class EchoHandler(xmppim.MessageProtocol):
             return
 
         # Echo incoming messages, if they have a body.
-        if message.body and unicode(message.body):
+        if message.body and str(message.body):
             response = toResponse(message, message.getAttribute('type'))
-            response.addElement('body', content=unicode(message.body))
+            response.addElement('body', content=str(message.body))
             self.send(response)
 
 

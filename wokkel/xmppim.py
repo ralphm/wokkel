@@ -15,7 +15,6 @@ from __future__ import division, absolute_import
 import warnings
 
 from twisted.internet import defer
-from twisted.python.compat import iteritems, itervalues, unicode
 from twisted.words.protocols.jabber import error
 from twisted.words.protocols.jabber.jid import JID
 from twisted.words.xish import domish
@@ -48,20 +47,20 @@ class AvailablePresence(Presence):
             self.addElement('show', content=show)
 
         if statuses is not None:
-            for lang, status in iteritems(statuses):
+            for lang, status in statuses.items():
                 s = self.addElement('status', content=status)
                 if lang:
                     s[(NS_XML, "lang")] = lang
 
         if priority != 0:
-            self.addElement('priority', content=unicode(int(priority)))
+            self.addElement('priority', content=str(int(priority)))
 
 class UnavailablePresence(Presence):
     def __init__(self, to=None, statuses=None):
         Presence.__init__(self, to, type='unavailable')
 
         if statuses is not None:
-            for lang, status in iteritems(statuses):
+            for lang, status in statuses.items():
                 s = self.addElement('status', content=status)
                 if lang:
                     s[(NS_XML, "lang")] = lang
@@ -76,7 +75,7 @@ class PresenceClientProtocol(XMPPHandler):
         for element in presence.elements():
             if element.name == 'status':
                 lang = element.getAttribute((NS_XML, 'lang'))
-                text = unicode(element)
+                text = str(element)
                 statuses[lang] = text
         return statuses
 
@@ -92,14 +91,14 @@ class PresenceClientProtocol(XMPPHandler):
     def _onPresenceAvailable(self, presence):
         entity = JID(presence["from"])
 
-        show = unicode(presence.show or '')
+        show = str(presence.show or '')
         if show not in ['away', 'xa', 'chat', 'dnd']:
             show = None
 
         statuses = self._getStatuses(presence)
 
         try:
-            priority = int(unicode(presence.priority or '')) or 0
+            priority = int(str(presence.priority or '')) or 0
         except ValueError:
             priority = 0
 
@@ -133,14 +132,14 @@ class PresenceClientProtocol(XMPPHandler):
         @type entity: {JID}
         @param show: detailed presence information. One of C{'away'}, C{'xa'},
                      C{'chat'}, C{'dnd'} or C{None}.
-        @type show: C{str} or C{NoneType}
+        @type show: L{str} or C{NoneType}
         @param statuses: dictionary of natural language descriptions of the
                          availability status, keyed by the language
                          descriptor. A status without a language
                          specified, is keyed with C{None}.
-        @type statuses: C{dict}
+        @type statuses: L{dict}
         @param priority: priority level of the resource.
-        @type priority: C{int}
+        @type priority: L{int}
         """
 
     def unavailableReceived(self, entity, statuses=None):
@@ -153,7 +152,7 @@ class PresenceClientProtocol(XMPPHandler):
                          availability status, keyed by the language
                          descriptor. A status without a language
                          specified, is keyed with C{None}.
-        @type statuses: C{dict}
+        @type statuses: L{dict}
         """
 
     def subscribedReceived(self, entity):
@@ -196,14 +195,14 @@ class PresenceClientProtocol(XMPPHandler):
         @type entity: {JID}
         @param show: optional detailed presence information. One of C{'away'},
                      C{'xa'}, C{'chat'}, C{'dnd'}.
-        @type show: C{str}
+        @type show: L{str}
         @param statuses: dictionary of natural language descriptions of the
                          availability status, keyed by the language
                          descriptor. A status without a language
                          specified, is keyed with C{None}.
-        @type statuses: C{dict}
+        @type statuses: L{dict}
         @param priority: priority level of the resource.
-        @type priority: C{int}
+        @type priority: L{int}
         """
         self.send(AvailablePresence(entity, show, statuses, priority))
 
@@ -217,7 +216,7 @@ class PresenceClientProtocol(XMPPHandler):
                          availability status, keyed by the language
                          descriptor. A status without a language
                          specified, is keyed with C{None}.
-        @type statuses: C{dict}
+        @type statuses: L{dict}
         """
         self.send(UnavailablePresence(entity, statuses))
 
@@ -275,19 +274,19 @@ class AvailabilityPresence(BasePresence):
     L{SubscriptionPresence}).
 
     @ivar available: The availability being communicated.
-    @type available: C{bool}
+    @type available: L{bool}
     @ivar show: More specific availability. Can be one of C{'chat'}, C{'away'},
                 C{'xa'}, C{'dnd'} or C{None}.
-    @type show: C{str} or C{NoneType}
+    @type show: L{str} or C{NoneType}
     @ivar statuses: Natural language texts to detail the (un)availability.
                     These are represented as a mapping from language code
-                    (C{str} or C{None}) to the corresponding text (C{unicode}).
+                    (L{str} or C{None}) to the corresponding text (L{str}).
                     If the key is C{None}, the associated text is in the
                     default language.
-    @type statuses: C{dict}
+    @type statuses: L{dict}
     @ivar priority: Priority level for this resource. Must be between -128 and
                     127. Defaults to 0.
-    @type priority: C{int}
+    @type priority: L{int}
     """
 
     childParsers = {(None, 'show'): '_childParser_show',
@@ -309,7 +308,7 @@ class AvailabilityPresence(BasePresence):
         if None in self.statuses:
             return self.statuses[None]
         elif self.statuses:
-            for status in itervalues(self.status):
+            for status in self.status.values():
                 return status
         else:
             return None
@@ -318,20 +317,20 @@ class AvailabilityPresence(BasePresence):
 
 
     def _childParser_show(self, element):
-        show = unicode(element)
+        show = str(element)
         if show in ('chat', 'away', 'xa', 'dnd'):
             self.show = show
 
 
     def _childParser_status(self, element):
         lang = element.getAttribute((NS_XML, 'lang'), None)
-        text = unicode(element)
+        text = str(element)
         self.statuses[lang] = text
 
 
     def _childParser_priority(self, element):
         try:
-            self.priority = int(unicode(element))
+            self.priority = int(str(element))
         except ValueError:
             pass
 
@@ -353,9 +352,9 @@ class AvailabilityPresence(BasePresence):
             if self.show in ('chat', 'away', 'xa', 'dnd'):
                 presence.addElement('show', content=self.show)
             if self.priority != 0:
-                presence.addElement('priority', content=unicode(self.priority))
+                presence.addElement('priority', content=str(self.priority))
 
-        for lang, text in iteritems(self.statuses):
+        for lang, text in self.statuses.items():
             status = presence.addElement('status', content=text)
             if lang:
                 status[(NS_XML, 'lang')] = lang
@@ -400,7 +399,7 @@ class BasePresenceProtocol(XMPPHandler):
 
     @cvar presenceTypeParserMap: Maps presence stanza types to their respective
         stanza parser classes (derived from L{Stanza}).
-    @type presenceTypeParserMap: C{dict}
+    @type presenceTypeParserMap: L{dict}
     """
 
     presenceTypeParserMap = {}
@@ -515,15 +514,15 @@ class PresenceProtocol(BasePresenceProtocol):
 
         @param show: Optional detailed presence information. One of C{'away'},
             C{'xa'}, C{'chat'}, C{'dnd'}.
-        @type show: C{str}
+        @type show: L{str}
 
         @param statuses: Mapping of natural language descriptions of the
            availability status, keyed by the language descriptor. A status
            without a language specified, is keyed with C{None}.
-        @type statuses: C{dict}
+        @type statuses: L{dict}
 
         @param priority: priority level of the resource.
-        @type priority: C{int}
+        @type priority: L{int}
         """
         presence = AvailabilityPresence(recipient=recipient, sender=sender,
                                         show=show, statuses=statuses,
@@ -541,7 +540,7 @@ class PresenceProtocol(BasePresenceProtocol):
         @param statuses: dictionary of natural language descriptions of the
             availability status, keyed by the language descriptor. A status
             without a language specified, is keyed with C{None}.
-        @type statuses: C{dict}
+        @type statuses: L{dict}
         """
         presence = AvailabilityPresence(recipient=recipient, sender=sender,
                                         available=False, statuses=statuses)
@@ -617,25 +616,25 @@ class RosterItem(object):
     @ivar entity: The JID of the contact.
     @type entity: L{JID}
     @ivar name: The associated nickname for this contact.
-    @type name: C{unicode}
+    @type name: L{str}
     @ivar subscriptionTo: Subscription state to contact's presence. If C{True},
                           the roster owner is subscribed to the presence
                           information of the contact.
-    @type subscriptionTo: C{bool}
+    @type subscriptionTo: L{bool}
     @ivar subscriptionFrom: Contact's subscription state. If C{True}, the
                             contact is subscribed to the presence information
                             of the roster owner.
-    @type subscriptionFrom: C{bool}
+    @type subscriptionFrom: L{bool}
     @ivar pendingOut: Whether the subscription request to this contact is
         pending.
-    @type pendingOut: C{bool}
+    @type pendingOut: L{bool}
     @ivar groups: Set of groups this contact is categorized in. Groups are
-                  represented by an opaque identifier of type C{unicode}.
-    @type groups: C{set}
+                  represented by an opaque identifier of type L{str}.
+    @type groups: L{set}
     @ivar approved: Signals pre-approved subscription.
-    @type approved: C{bool}
+    @type approved: L{bool}
     @ivar remove: Signals roster item removal.
-    @type remove: C{bool}
+    @type remove: L{bool}
     """
 
     __subscriptionStates = {(False, False): None,
@@ -755,7 +754,7 @@ class RosterItem(object):
             item.approved = element.getAttribute('approved') in ('true', '1')
             for subElement in domish.generateElementsQNamed(element.children,
                                                             'group', NS_ROSTER):
-                item.groups.add(unicode(subElement))
+                item.groups.add(str(subElement))
         return item
 
 
@@ -771,7 +770,7 @@ class RosterRequest(Request):
         retrieving the roster as a delta from a known cached version. This
         should only be set if the recipient is known to support roster
         versioning.
-    @type version: C{unicode}
+    @type version: L{str}
 
     @ivar rosterSet: If set, this is a roster set request. This flag is used
         to make sure some attributes of the roster item are not rendered by
@@ -821,7 +820,7 @@ class Roster(dict):
     identifier for this version of the roster.
 
     @ivar version: Roster version identifier.
-    @type version: C{unicode}.
+    @type version: L{str}.
     """
 
     version = None
@@ -892,7 +891,7 @@ class RosterClientProtocol(XMPPHandler, IQHandlerMixin):
             known to support roster versioning. If there is no (valid) cached
             version of the roster, but roster versioning is desired,
             C{version} should be set to the empty string (C{u''}).
-        @type version: C{unicode}
+        @type version: L{str}
 
         @return: Roster as a mapping from L{JID} to L{RosterItem}.
         @rtype: L{twisted.internet.defer.Deferred}
@@ -1023,11 +1022,11 @@ class Message(Stanza):
 
 
     def _childParser_body(self, element):
-        self.body = unicode(element)
+        self.body = str(element)
 
 
     def _childParser_subject(self, element):
-        self.subject = unicode(element)
+        self.subject = str(element)
 
 
     def toElement(self):
